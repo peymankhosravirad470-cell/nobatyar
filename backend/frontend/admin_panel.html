@@ -50,6 +50,20 @@
       </table>
       <p style="color:#666;font-size:0.85em">پاسخ ثبت‌شده در پنل، اگر بیمار از طریق ربات بله پیام داده باشد، مستقیماً برای او ارسال می‌شود.</p>
     </div>
+
+    <div class="card">
+      <h2>امنیت حساب — تغییر رمز عبور</h2>
+      <div style="max-width:420px">
+        <label>رمز فعلی</label>
+        <input type="password" id="curPass" autocomplete="current-password">
+        <label>رمز جدید (حداقل ۱۰ نویسه، شامل حرف و رقم)</label>
+        <input type="password" id="newPass" autocomplete="new-password">
+        <label>تکرار رمز جدید</label>
+        <input type="password" id="newPass2" autocomplete="new-password">
+        <button id="changePassBtn">تغییر رمز</button>
+      </div>
+      <p style="color:#666;font-size:0.85em">رمز پیش‌فرض عمومی وجود ندارد؛ پس از اولین ورود، رمز را عوض کنید و آن را در اختیار دیگران قرار ندهید.</p>
+    </div>
   </main>
 
   <div id="approveModal" class="card hidden" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);max-width:400px;z-index:100;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
@@ -162,6 +176,34 @@
     document.getElementById('logoutBtn').onclick = () => {
       localStorage.removeItem('admin_token');
       window.location.href = '/admin/login';
+    };
+
+    document.getElementById('changePassBtn').onclick = async () => {
+      const cur = document.getElementById('curPass').value;
+      const n1 = document.getElementById('newPass').value;
+      const n2 = document.getElementById('newPass2').value;
+      const msg = document.getElementById('msg');
+      if (n1 !== n2) {
+        msg.innerHTML = '<div class="alert alert-error">تکرار رمز جدید مطابقت ندارد</div>';
+        return;
+      }
+      if (n1.length < 10) {
+        msg.innerHTML = '<div class="alert alert-error">رمز جدید باید حداقل ۱۰ نویسه باشد</div>';
+        return;
+      }
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST', headers, body: JSON.stringify({ current_password: cur, new_password: n1 })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        msg.innerHTML = '<div class="alert alert-success">رمز تغییر کرد. دفعه بعد با رمز جدید وارد شوید.</div>';
+        document.getElementById('curPass').value = '';
+        document.getElementById('newPass').value = '';
+        document.getElementById('newPass2').value = '';
+      } else {
+        const detail = Array.isArray(json.detail) ? 'مقدار نامعتبر است' : (json.detail || 'خطا');
+        msg.innerHTML = `<div class="alert alert-error">${detail}</div>`;
+      }
     };
 
     loadPending();

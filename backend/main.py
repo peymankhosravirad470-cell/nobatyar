@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from database import get_db, init_db, engine, SessionLocal
+from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
     Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
@@ -22,18 +22,20 @@ from schemas import (
     ClinicRegister, ClinicOut, ClinicLogin, AdminLogin, ClinicApprove,
     WorkingHourIn, WorkingHourOut, GenerateSlotsRequest, AvailableSlotOut,
     AppointmentCreate, AppointmentOut, AppointmentStatusUpdate,
-    FeedbackCreate, FeedbackOut, FeedbackReply, ClinicAdminUpdate
+    FeedbackCreate, FeedbackOut, FeedbackReply, ClinicAdminUpdate,
+    PasswordChange
 )
 from auth import (
     hash_password, verify_password, create_access_token,
-    get_current_admin, get_current_clinic
+    get_current_admin, get_current_clinic,
+    login_rate_limit, login_register_fail, login_clear, client_ip,
 )
 import bale_bot
 
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version="0.3.0"
+    version="0.4.0"
 )
 
 app.add_middleware(
@@ -58,16 +60,41 @@ def on_startup():
     init_db()
     # ربات بله — فقط اگر BALE_BOT_TOKEN ست شده باشد فعال می‌شود
     bale_bot.start_bot_task()
+    _bootstrap_admin()
+
+
+def _bootstrap_admin():
+    """مدیریت امن ادمین — هیچ رمز پیش‌فرضی در کد وجود ندارد.
+
+    - اگر هیچ ادمینی نباشد: فقط با ADMIN_USERNAME + ADMIN_PASSWORD (env) ساخته می‌شود.
+    - اگر ادمین باشد: رمز دست‌نخورده می‌ماند (تغییر رمز از پنل).
+    - برای بازنشانی اضطراری: NOBATYAR_ADMIN_RESET=1 (یک‌بار) و سپس حذف متغیر.
+    """
+    import os
     db = SessionLocal()
     try:
-        if not db.query(Admin).first():
-            admin = Admin(
-                username="admin",
-                password_hash=hash_password("admin123")
-            )
-            db.add(admin)
-            db.commit()
-            print("✅ ادمین پیش‌فرض ساخته شد: admin / admin123")
+        username = (os.environ.get("ADMIN_USERNAME") or "").strip()
+        password = os.environ.get("ADMIN_PASSWORD") or ""
+        force_reset = os.environ.get("NOBATYAR_ADMIN_RESET") == "1"
+        has_any = db.query(Admin).first() is not None
+
+        if not has_any:
+            if username and password:
+                db.add(Admin(username=username, password_hash=hash_password(password)))
+                db.commit()
+                print("🔐 ادمین اول از متغیر محیطی ساخته شد (رمز: مخفی)")
+            else:
+                print("⚠️ هیچ ادمینی وجود ندارد؛ برای ایجاد ادمین، ADMIN_USERNAME و ADMIN_PASSWORD را تنظیم کنید")
+            return
+
+        if force_reset and username and password:
+            admin = db.query(Admin).filter(Admin.username == username).first()
+            if admin:
+                admin.password_hash = hash_password(password)
+                db.commit()
+                print("🔐 رمز ادمین با NOBATYAR_ADMIN_RESET بازنشانی شد — این متغیر را حذف کنید")
+            else:
+                print("⚠️ ادمینی با نام کاربری تعیین‌شده یافت نشد؛ بازنشانی انجام نشد")
     finally:
         db.close()
 
@@ -178,12 +205,229 @@ def get_clinic(clinic_id: int, db: Session = Depends(get_db)):
 # ==================== API: ادمین ====================
 
 @app.post("/api/admin/login")
-def admin_login(data: AdminLogin, db: Session = Depends(get_db)):
-    admin = db.query(Admin).filter(Admin.username == data.username).first()
+def admin_login(data: AdminLogin, request: Request, db: Session = Depends(get_db)):
+    key = f"admin|{data.username.strip()[:40]}|{client_ip(request)}"
+    login_rate_limit(key)  # در صورت تعدد تلاش ناموفق: 429
+    admin = db.query(Admin).filter(Admin.username == data.username.strip()).first()
     if not admin or not verify_password(data.password, admin.password_hash):
+        login_register_fail(key)
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
+    login_clear(key)
     token = create_access_token({"sub": admin.id, "role": "admin"})
     return {"access_token": token, "token_type": "bearer"}
+
+
+# ---------- تغییر رمز ادمین ----------
+
+@app.post("/api/admin/change-password")
+def admin_change_password(
+    data: PasswordChange,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    if not verify_password(data.current_password, admin.password_hash):
+        raise HTTPException(400, "رمز فعلی اشتباه است")
+    if verify_password(data.new_password, admin.password_hash):
+        raise HTTPException(400, "رمز جدید نباید با رمز فعلی یکسان باشد")
+    admin.password_hash = hash_password(data.new_password)
+    db.commit()
+    return {"message": "رمز عبور با موفقیت تغییر کرد"}
+
+
+# ==================== بکاپ و بازیابی کامل (فقط ادمین) ====================
+
+def _dt_out(v):
+    return v.isoformat() if v is not None else None
+
+
+def _dump_row(obj, fields):
+    out = {}
+    for f, kind in fields:
+        v = getattr(obj, f)
+        if kind == "dt":
+            out[f] = _dt_out(v)
+        elif kind == "time":
+            out[f] = v.isoformat() if v is not None else None
+        elif kind == "enum":
+            out[f] = (v.value if hasattr(v, "value") else str(v)) if v is not None else None
+        else:
+            out[f] = v
+    return out
+
+
+_DUMP_SPECS = {
+    "admins": (Admin, [
+        ("id", "int"), ("username", "str"), ("password_hash", "str"),
+        ("bale_chat_id", "str"), ("created_at", "dt"),
+    ]),
+    "clinics": (Clinic, [
+        ("id", "int"), ("name", "str"), ("specialty", "str"), ("address", "str"),
+        ("phone", "str"), ("status", "enum"), ("type", "str"),
+        ("doctor_name", "str"), ("latitude", "float"), ("longitude", "float"),
+        ("login_username", "str"), ("password_hash", "str"),
+        ("subscription_status", "enum"), ("subscription_expires_at", "dt"),
+        ("created_at", "dt"), ("updated_at", "dt"),
+    ]),
+    "working_hours": (WorkingHour, [
+        ("id", "int"), ("clinic_id", "int"), ("day_of_week", "int"),
+        ("start_time", "time"), ("end_time", "time"),
+        ("slot_duration_minutes", "int"),
+    ]),
+    "available_slots": (AvailableSlot, [
+        ("id", "int"), ("clinic_id", "int"),
+        ("start_datetime", "dt"), ("end_datetime", "dt"), ("is_booked", "bool"),
+    ]),
+    "appointments": (Appointment, [
+        ("id", "int"), ("clinic_id", "int"), ("slot_id", "int"),
+        ("patient_name", "str"), ("patient_phone", "str"),
+        ("patient_national_code", "str"), ("phone_verified", "bool"),
+        ("appointment_datetime", "dt"), ("status", "enum"), ("source", "enum"),
+        ("bale_chat_id", "str"), ("notes", "str"),
+        ("created_at", "dt"), ("updated_at", "dt"),
+    ]),
+    "feedback": (Feedback, [
+        ("id", "int"), ("chat_id", "str"), ("subject", "str"), ("message", "str"),
+        ("status", "enum"), ("admin_reply", "str"),
+        ("answered_by", "int"), ("answered_at", "dt"), ("created_at", "dt"),
+    ]),
+}
+
+
+@app.get("/api/admin/backup")
+def admin_backup(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """دumper کامل همه جدول‌ها به JSON — برای مهاجرت و پشتیبان‌گیری.
+
+    خروجی شامل هش رمزهاست؛ فقط با توکن ادمین قابل دریافت است و نباید عمومی شود.
+    """
+    from datetime import datetime as _dt
+    data = {}
+    counts = {}
+    for key, (model, fields) in _DUMP_SPECS.items():
+        rows = db.query(model).order_by(model.id).all()
+        data[key] = [_dump_row(r, fields) for r in rows]
+        counts[key] = len(data[key])
+    return {
+        "format": "nobatyar-backup-v1",
+        "created_at": _dt.utcnow().isoformat(),
+        "database": "postgresql" if IS_POSTGRES else "sqlite",
+        "counts": counts,
+        "data": data,
+    }
+
+
+@app.post("/api/admin/restore")
+def admin_restore(
+    payload: dict,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """بازیابی کامل از خروجی /api/admin/backup — برای مهاجرت بین دیتابیس‌ها.
+
+    امنیت:
+    - فقط با توکن ادمین.
+    - فقط وقتی متغیر محیطی NOBATYAR_ALLOW_RESTORE=1 باشد (پس از مهاجرت حذف می‌شود).
+    - همه جدول‌ها را خاک و از نو می‌سازد (فقط از فرمت رسمی بکاپ).
+    - روی «همان نشستِ» احراز هویت اجرا می‌شود تا TRUNCATE در PostgreSQL قفل نشود؛
+      و همه‌چیز در «یک تراکنش» است: یا کامل، یا هیچ (اتمیک).
+    """
+    import os
+    if os.environ.get("NOBATYAR_ALLOW_RESTORE") != "1":
+        raise HTTPException(403, "بازیابی غیرفعال است (NOBATYAR_ALLOW_RESTORE تنظیم نشده)")
+    if payload.get("format") != "nobatyar-backup-v1":
+        raise HTTPException(400, "فرمت بکاپ شناخته نشد")
+    data = payload.get("data") or {}
+    for key, (model, fields) in _DUMP_SPECS.items():
+        if key not in data or not isinstance(data[key], list):
+            raise HTTPException(400, f"بخش {key} در بکاپ یافت نشد")
+
+    from datetime import datetime as _dt
+    from datetime import time as _time
+    from sqlalchemy import text as _text
+
+    try:
+        # identity map را خالی می‌کنیم تا درج رکوردهای هم‌id با شیء احراز‌شده تداخل نکند
+        db.expunge_all()
+
+        # ۱) پاک‌سازی (در همان تراکنش)
+        if IS_POSTGRES:
+            tables = ", ".join(k for k, _ in _DUMP_SPECS.items())
+            db.execute(_text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
+        else:
+            for key in ("appointments", "available_slots", "working_hours", "feedback", "clinics", "admins"):
+                db.query(_DUMP_SPECS[key][0]).delete()
+
+        # ۲) درج به ترتیب وابستگی‌ها + تبدیل نوع
+        def _parse(kind, v):
+            if v is None:
+                return None
+            if kind == "dt":
+                return _dt.fromisoformat(v)
+            if kind == "time":
+                hh, mm, ss = (list(map(int, str(v).split(":"))) + [0, 0, 0])[:3]
+                return _time(hh, mm, ss)
+            if kind == "enum":
+                return v  # مقدار رشته‌ای؛ پایین‌تر به عضو enum تبدیل می‌شود
+            return v
+
+        _ENUM_FIELDS = {
+            "clinics": {"status": ClinicStatus, "subscription_status": SubscriptionStatus},
+            "appointments": {"status": AppointmentStatus, "source": AppointmentSource},
+            "feedback": {"status": FeedbackStatus},
+        }
+
+        inserted = {}
+        for key in ("admins", "clinics", "working_hours", "available_slots", "appointments", "feedback"):
+            model, fields = _DUMP_SPECS[key]
+            enums = _ENUM_FIELDS.get(key, {})
+            objs = []
+            for row in data[key]:
+                kwargs = {}
+                for f, kind in fields:
+                    v = _parse(kind, row.get(f))
+                    if f in enums and v is not None:
+                        v = enums[f](v)
+                    kwargs[f] = v
+                objs.append(model(**kwargs))
+            if objs:
+                db.add_all(objs)
+            inserted[key] = len(objs)
+
+        # ۳) flush صریح: رکوردهای در صف باید در دیتابیس بنشینند تا MAX(id) درست باشد
+        db.flush()
+
+        # ۴) بازتنظیم شمارنده‌ها در PostgreSQL (در همین تراکنش/اتصال)
+        if IS_POSTGRES:
+            for t in ("admins", "clinics", "working_hours", "available_slots", "appointments", "feedback"):
+                db.execute(_text(
+                    f"""SELECT setval(pg_get_serial_sequence('{t}', 'id'),
+                         COALESCE((SELECT MAX(id) FROM {t}), 0) + 1, false)"""
+                ))
+
+        # ۵) یک کامیت اتمیک
+        db.commit()
+
+        # ۶) راستی‌آزمایی تعدادها
+        verify = {}
+        for key, (model, _) in _DUMP_SPECS.items():
+            verify[key] = db.query(model).count()
+        mismatched = [k for k in inserted if verify[k] != inserted[k]]
+        if mismatched:
+            raise HTTPException(500, f"بازیابی ناقص: {mismatched}")
+        return {
+            "message": "بازیابی کامل انجام شد",
+            "restored": verify,
+            "source_database": payload.get("database"),
+            "target_database": "postgresql" if IS_POSTGRES else "sqlite",
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(500, f"خطا در بازیابی: {type(e).__name__}")
 
 
 @app.get("/api/admin/clinics/pending", response_model=List[ClinicOut])
@@ -260,12 +504,16 @@ def admin_update_clinic(
 # ==================== API: ورود مطب ====================
 
 @app.post("/api/clinic/login")
-def clinic_login(data: ClinicLogin, db: Session = Depends(get_db)):
-    clinic = db.query(Clinic).filter(Clinic.login_username == data.username).first()
+def clinic_login(data: ClinicLogin, request: Request, db: Session = Depends(get_db)):
+    key = f"clinic|{data.username.strip()[:40]}|{client_ip(request)}"
+    login_rate_limit(key)
+    clinic = db.query(Clinic).filter(Clinic.login_username == data.username.strip()).first()
     if not clinic or not clinic.password_hash or not verify_password(data.password, clinic.password_hash):
+        login_register_fail(key)
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
     if clinic.status != ClinicStatus.approved:
         raise HTTPException(403, "مطب هنوز تأیید نشده است")
+    login_clear(key)
     token = create_access_token({"sub": clinic.id, "role": "clinic"})
     return {
         "access_token": token,
@@ -453,13 +701,17 @@ def create_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
     
     # قفل کردن اسلات
     slot.is_booked = True
-    
+
     source = AppointmentSource.web if data.source == "web" else AppointmentSource.bale
     appt = Appointment(
         clinic_id=data.clinic_id,
         slot_id=slot.id,
         patient_name=data.patient_name,
         patient_phone=data.patient_phone,
+        patient_national_code=data.patient_national_code,
+        # حریم خصوصی/امنیت: این مقدار را «فقط سرور» تعیین می‌کند؛
+        # ورودی وب قابل اعتماد نیست → همیشه False (تأیید واقعی فقط از مسیر بله/OTP).
+        phone_verified=False,
         appointment_datetime=slot.start_datetime,
         status=AppointmentStatus.pending,
         source=source,
@@ -517,7 +769,11 @@ def update_appointment_status(
 # Health
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "نوبتیار", "version": "0.3.0", "time": datetime.utcnow().isoformat()}
+    return {
+        "status": "ok", "service": "نوبتیار", "version": "0.4.0",
+        "database": "postgresql" if IS_POSTGRES else "sqlite",
+        "time": datetime.utcnow().isoformat()
+    }
 
 
 # ==================== API: صندوق پیشنهادات و انتقادات ====================

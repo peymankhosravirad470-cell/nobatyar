@@ -7,6 +7,8 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 import re
 
+from fa_utils import normalize_mobile, valid_national_code
+
 
 # ---------- Clinic Registration ----------
 class ClinicRegister(BaseModel):
@@ -105,11 +107,33 @@ class AppointmentCreate(BaseModel):
     slot_id: int
     patient_name: str = Field(..., min_length=2, max_length=100)
     patient_phone: str
+    # کد ملی اختیاری است؛ اما اگر داده شود باید ساختاراً معتبر باشد (رقم کنترل)
     patient_national_code: Optional[str] = Field(None, max_length=10)
+    # ⚠️ این فیلد «ورودیِ قابل اعتماد» نیست؛ سرور همیشه خودش تعیین می‌کند.
     phone_verified: bool = False
     source: str = "web"  # web | bale
     bale_chat_id: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator("patient_phone")
+    @classmethod
+    def _norm_phone(cls, v: str) -> str:
+        phone = normalize_mobile(v)
+        if not phone:
+            raise ValueError("شماره موبایل معتبر نیست (فرمت درست: 09xxxxxxxxx)")
+        return phone
+
+    @field_validator("patient_national_code")
+    @classmethod
+    def _norm_ncode(cls, v):
+        if v is None:
+            return None
+        code = str(v).translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")).strip()
+        if not code:
+            return None
+        if not valid_national_code(code):
+            raise ValueError("کد ملی معتبر نیست")
+        return code
 
 
 class AppointmentOut(BaseModel):
@@ -163,3 +187,24 @@ class ClinicAdminUpdate(BaseModel):
     type: Optional[str] = Field(None, pattern="^(clinic|office)$")
     doctor_name: Optional[str] = Field(None, max_length=100)
     subscription_status: Optional[str] = Field(None, pattern="^(active|inactive)$")
+
+
+# ---------- امنیت پنل: تغییر رمز ----------
+_WEAK_PASSWORDS = {
+    "admin123", "1234567890", "password", "password1", "qwertyuiop",
+    "nobatyar123", "nobatyar1234", "1111111111", "123456789a",
+}
+
+class PasswordChange(BaseModel):
+    """تغییر رمز ادمین: رمز فعلی + رمز جدید (حداقل ۱۰ نویسه، غیر بدیهی)."""
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=10, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _strong(cls, v: str) -> str:
+        if v.strip().lower() in _WEAK_PASSWORDS:
+            raise ValueError("این رمز به‌سادگی حدس زده می‌شود")
+        if not re.search(r"[A-Za-z]", v) or not re.search(r"\d", v):
+            raise ValueError("رمز جدید باید هم حرف و هم رقم داشته باشد")
+        return v
