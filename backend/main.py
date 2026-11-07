@@ -26,6 +26,7 @@ from auth import (
     hash_password, verify_password, create_access_token,
     get_current_admin, get_current_clinic
 )
+import bale_bot
 
 app = FastAPI(
     title="نوبتیار",
@@ -53,6 +54,8 @@ app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND_DIR, "static"))
 @app.on_event("startup")
 def on_startup():
     init_db()
+    # ربات بله — فقط اگر BALE_BOT_TOKEN ست شده باشد فعال می‌شود
+    bale_bot.start_bot_task()
     db = SessionLocal()
     try:
         if not db.query(Admin).first():
@@ -65,6 +68,11 @@ def on_startup():
             print("✅ ادمین پیش‌فرض ساخته شد: admin / admin123")
     finally:
         db.close()
+
+
+@app.on_event("shutdown")
+def on_shutdown():
+    bale_bot.aclose()
 
 
 def _html(name: str):
