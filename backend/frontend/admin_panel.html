@@ -43,12 +43,29 @@
             <th>موضوع</th>
             <th>پیام</th>
             <th>وضعیت</th>
+            <th>اعلان</th>
             <th>عملیات</th>
           </tr>
         </thead>
         <tbody id="feedbackBody"></tbody>
       </table>
-      <p style="color:#666;font-size:0.85em">پاسخ ثبت‌شده در پنل، اگر بیمار از طریق ربات بله پیام داده باشد، مستقیماً برای او ارسال می‌شود.</p>
+      <p style="color:#666;font-size:0.85em">پاسخ ثبت‌شده در پنل، اگر بیمار از طریق ربات بله پیام داده باشد، مستقیماً برای او ارسال می‌شود. ستون «اعلان» وضعیت رساندن پیام به ادمینِ متصل ربات است.</p>
+    </div>
+
+    <div class="card">
+      <h2>اتصال امن ربات به حساب ادمین</h2>
+      <p style="font-size:0.9em;line-height:2">
+        برای دریافت پیام‌های صندوق در بله:
+        ۱️⃣ در ربات <b>@nobatyarshirazbot</b> دستور <code>/admin</code> را بفرستید
+        ۲️⃣ دکمه زیر را بزنید تا کد یک‌بارمصرف ساخته شود
+        ۳️⃣ کد را در همان گفتگو ارسال کنید.
+        <br>🔒 کد ۵ دقیقه اعتبار دارد، فقط یک‌بار مصرف است و رمز عبور هرگز در چت ارسال نمی‌شود.
+      </p>
+      <button id="genCodeBtn">ساخت کد یک‌بارمصرف</button>
+      <div id="codeBox" class="hidden" style="margin-top:10px;padding:10px;background:#f0fff4;border:1px solid #86efac;border-radius:8px">
+        <div style="font-size:1.3em;font-weight:bold;letter-spacing:2px;direction:ltr" id="codeValue"></div>
+        <div style="color:#666;font-size:0.85em;margin-top:4px">این کد فقط همین حالا نمایش داده می‌شود و ۵ دقیقه اعتبار دارد.</div>
+      </div>
     </div>
 
     <div class="card">
@@ -153,12 +170,38 @@
           <td>${f.subject || 'بدون موضوع'}</td>
           <td style="max-width:280px;white-space:pre-wrap">${f.message}</td>
           <td>${f.status === 'answered' ? '✅ پاسخ داده شد' : '⏳ در انتظار بررسی'}</td>
+          <td>${notifyBadge(f)}</td>
           <td>
             ${f.status !== 'answered' ? `<button class="btn-sm btn-success" onclick="replyFeedback(${f.id})">پاسخ</button>` : (f.admin_reply ? `<span title="">${f.admin_reply}</span>` : '—')}
           </td>
         </tr>
-      `).join('') || '<tr><td colspan="5">پیامی ثبت نشده است</td></tr>';
+      `).join('') || '<tr><td colspan="6">پیامی ثبت نشده است</td></tr>';
     }
+
+    function notifyBadge(f) {
+      const t = (f.last_notify_error ? ` title="${String(f.last_notify_error).replace(/"/g, '&quot;')}"` : '');
+      if (f.notify_status === 'sent') return `✅ تحویل شد${t}`;
+      if (f.notify_status === 'failed') return `⚠️ ناموفق (${f.notify_attempts || 0} تلاش)${t}`;
+      if (f.notify_status === 'sending') return `📤 در ارسال${t}`;
+      return `⏳ در صف اعلان${t}`;
+    }
+
+    document.getElementById('genCodeBtn').onclick = async () => {
+      const msg = document.getElementById('msg');
+      const res = await fetch('/api/admin/bot/connect-code', { method: 'POST', headers });
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.code) {
+        document.getElementById('codeValue').textContent = json.code;
+        document.getElementById('codeBox').classList.remove('hidden');
+      } else {
+        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا در ساخت کد'}</div>`;
+      }
+    };
 
     async function replyFeedback(id) {
       const reply = prompt('متن پاسخ به بیمار:');

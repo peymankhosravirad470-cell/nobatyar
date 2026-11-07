@@ -173,6 +173,11 @@ class FeedbackOut(BaseModel):
     admin_reply: Optional[str] = None
     answered_at: Optional[datetime] = None
     created_at: datetime
+    # وضعیت اعلان به ادمین — جدای وضعیت پاسخ‌گویی (قابل ردگیری در پنل)
+    notify_status: Optional[str] = None
+    notify_attempts: Optional[int] = None
+    notified_at: Optional[datetime] = None
+    last_notify_error: Optional[str] = None
 
     class Config:
         from_attributes = True

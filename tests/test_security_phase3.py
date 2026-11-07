@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 from fastapi.testclient import TestClient  # noqa: E402
 from main import app, _bootstrap_admin  # noqa: E402
 from database import init_db, SessionLocal, Base, engine  # noqa: E402
-from models import Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback  # noqa: E402
+from models import Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, LoginThrottle  # noqa: E402
 from auth import hash_password  # noqa: E402
 import auth as _auth  # noqa: E402
 from datetime import datetime, timedelta, time  # noqa: E402
@@ -43,7 +43,11 @@ CURRENT_PW = ["Str0ng!Pass2026"]  # رمز جاری (تست تغییر رمز آ
 
 
 def _login():
-    _auth._login_fails.clear()  # ایزوله‌سازی: وضعیت قفل ورود بین تست‌ها پاک شود
+    # ایزوله‌سازی: قفل‌های ورود (اکنون در دیتابیس) بین تست‌ها پاک شود
+    db = SessionLocal()
+    db.query(LoginThrottle).delete()
+    db.commit()
+    db.close()
     r = client.post("/api/admin/login", json={"username": "secadmin", "password": CURRENT_PW[0]})
     assert r.status_code == 200, r.text
     AUTH["Authorization"] = f"Bearer {r.json()['access_token']}"
@@ -183,23 +187,30 @@ def test_change_password_flow():
 
 
 def test_login_rate_limit():
-    """پنج شکست پیاپی → قفل موقت (429)."""
-    _auth._login_fails.clear()  # شمارش مستقل برای این تست
+    """پنج شکست پیاپی → قفل موقت (429) — پایدار در دیتابیس (جدول login_throttles)."""
+    db = SessionLocal()
+    db.query(LoginThrottle).delete()
+    db.commit()
+    db.close()
     for i in range(5):
         r = client.post("/api/admin/login",
                         json={"username": "secadmin", "password": f"bad{i:04d}xxxx"})
         assert r.status_code == 401, (i, r.status_code)
     r = client.post("/api/admin/login",
                     json={"username": "secadmin", "password": "NewStr0ng2026x"})
-    # چون کلید شامل یوزرنیم+IP است و همان یوزرنیم را زدیم، حتی رمز درست هم قفل می‌شود
+    # چون کلید شامل یوزرنیم است و همان یوزرنیم را زدیم، حتی رمز درست هم قفل می‌شود
     assert r.status_code == 429, f"انتظار 429، دریافت {r.status_code}"
-    # یوزرنیم دیگر قفل نیست
+    assert "Retry-After" in (r.headers or {}), "هدر Retry-After برای 429 نیست"
+    # محدودیت IP-محور: از همان IP حتی با یوزرنیم دیگر هم 429 می‌گیرد (طبق طراحی جدید)
     r = client.post("/api/admin/login",
                     json={"username": "other", "password": "whatever123"})
-    assert r.status_code == 401
-    print("✅ محدودیت تلاش ورود فعال است")
+    assert r.status_code == 429, f"محدودیت IP فعال نیست: {r.status_code}"
+    print("✅ محدودیت تلاش ورود (حساب + IP) فعال و پایدار است")
     # پاک‌سازی برای تست‌های بعدی
-    _auth._login_fails.clear()
+    db = SessionLocal()
+    db.query(LoginThrottle).delete()
+    db.commit()
+    db.close()
 
 
 def test_patient_identity_protection():

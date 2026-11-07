@@ -25,7 +25,7 @@ import re
 import time
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from urllib.parse import quote
 
@@ -69,6 +69,12 @@ PER_PAGE_SLOTS = 6        # تعداد اسلات در هر صفحه
 MAX_ACTIVE_APPTS = 3      # سقف نوبت فعال برای هر کد ملی (ضد سوءاستفاده)
 SESSION_TTL = 30 * 60     # انقضای جلسه گفتگو: ۳۰ دقیقه
 APPT_ACTIVE_STATUSES = (AppointmentStatus.pending, AppointmentStatus.confirmed)
+
+# ---------- تنظیمات اعلان صندوق ----------
+NOTIFY_MAX_ATTEMPTS = 10          # حداکثر تلاش برای اعلان هر پیام
+NOTIFY_STUCK_AFTER = 120          # «sending» گیرکرده پس از این ثانیه دوباره قابل claim می‌شود
+NOTIFY_RETRY_CYCLE = 10           # هر ۱۰ دور polling (~ چند دقیقه) صف اعلان بررسی می‌شود
+ADMIN_CONNECT_MAX_TRIES = 3       # حداکثر تلاش ورود کد در هر جلسه گفتگو
 
 _client: httpx.AsyncClient | None = None
 _LOOP: asyncio.AbstractEventLoop | None = None
@@ -199,6 +205,16 @@ def aclose() -> None:
         except Exception:
             pass
         _client = None
+
+
+def mask_chat(chat_id) -> str:
+    """ماسک گفتگو برای لاگ — حریم خصوصی: شناسه کامل هرگز در لاگ نمی‌رود."""
+    s = str(chat_id or "")
+    return (s[:3] + "…" + s[-3:]) if len(s) > 7 else (s[:1] + "…" if s else "—")
+
+
+def loop_active() -> bool:
+    return _LOOP is not None and not _LOOP.is_closed()
 
 
 # ==================== لایه دیتابیس ====================
@@ -332,57 +348,36 @@ def active_appt_count(db, national_code: str) -> int:
 
 def try_book(slot_id: int, name: str, phone: str, national_code: str,
              phone_verified: bool, bale_chat_id):
-    """رزرو نوبت با قفل اتمیک اسلات و ضدتقلب.
+    """رزرو نوبت از ربات — از منطق اتمیک مشترک booking.book_slot_atomic استفاده می‌کند.
 
     بازگشت: (Appointment, None) در موفقیت؛ (None, پیام خطا) در شکست."""
+    from booking import book_slot_atomic, BookingError, AppointmentSource
     db = SessionLocal()
     try:
-        slot = db.get(AvailableSlot, slot_id)
-        if not slot:
-            return None, "این اسلات دیگر در دسترس نیست."
-        if slot.start_datetime < datetime.utcnow():
-            return None, "زمان این اسلات گذشته است."
-        clinic = db.get(Clinic, slot.clinic_id)
-        if not clinic or clinic.status != ClinicStatus.approved \
-                or clinic.subscription_status != SubscriptionStatus.active:
-            return None, "این مرکز در حال حاضر فعال نیست."
-
-        if has_duplicate_active(db, national_code, clinic.id):
-            return None, "شما یک نوبت فعال در همین مرکز دارید؛ ثبت نوبت تکراری مجاز نیست."
-        if active_appt_count(db, national_code) >= MAX_ACTIVE_APPTS:
-            return None, f"تعداد نوبت‌های فعال شما به حداکثر ({fa_digits(MAX_ACTIVE_APPTS)}) رسیده است. ابتدا یکی را لغو کنید یا منتظر بمانید."
-
-        # قفل اتمیک اسلات: فقط اگر هنوز آزاد باشد آپدیت می‌شود
-        res = db.execute(
-            update(AvailableSlot)
-            .where(AvailableSlot.id == slot_id,
-                   AvailableSlot.is_booked == False)  # noqa: E712
-            .values(is_booked=True)
-        )
-        if res.rowcount == 0:
-            db.rollback()
-            return None, "متأسفانه این اسلات هم‌اکنون رزرو شد. لطفاً زمان دیگری انتخاب کنید."
-
-        appt = Appointment(
-            clinic_id=clinic.id,
-            slot_id=slot.id,
+        appt = book_slot_atomic(
+            db,
+            clinic_id=_clinic_id_of_slot(slot_id),
+            slot_id=slot_id,
             patient_name=name,
             patient_phone=phone,
             patient_national_code=national_code,
             phone_verified=bool(phone_verified),
-            appointment_datetime=slot.start_datetime,
-            status=AppointmentStatus.pending,
             source=AppointmentSource.bale,
             bale_chat_id=str(bale_chat_id),
+            enforce_patient_limits=True,
         )
-        db.add(appt)
-        db.commit()
-        db.refresh(appt)
         return appt, None
-    except Exception:
-        db.rollback()
-        LOG.exception("booking failed")
-        return None, "خطای داخلی در ثبت نوبت. لطفاً دوباره تلاش کنید."
+    except BookingError as e:
+        return None, e.message
+    finally:
+        db.close()
+
+
+def _clinic_id_of_slot(slot_id: int):
+    db = SessionLocal()
+    try:
+        slot = db.get(AvailableSlot, slot_id)
+        return slot.clinic_id if slot else None
     finally:
         db.close()
 
@@ -472,16 +467,9 @@ def save_feedback_reply(fb_id: int, reply: str, admin_id: int | None = None):
 
 
 def verify_admin_login(username: str, password: str):
-    """احراز هویت ادمین برای اتصال ربات (بدون ثبت لاگ محتوای ورودی)."""
-    from auth import verify_password
-    db = SessionLocal()
-    try:
-        admin = db.query(Admin).filter(Admin.username == username.strip()).first()
-        if not admin or not verify_password(password, admin.password_hash):
-            return None
-        return admin
-    finally:
-        db.close()
+    """منسوخ — احراز هویت ادمین با رمز در چت حذف شد (امنیت تاریخچه چت).
+    جایگزین: کد یک‌بارمصرف از پنل (admin_security.generate_connect_code)."""
+    raise NotImplementedError("ورود ادمین به ربات با رمز در چت حذف شده است؛ از کد یک‌بارمصرف پنل استفاده کنید")
 
 
 def bind_admin_chat(admin_id: int, chat_id) -> None:
@@ -1538,36 +1526,38 @@ async def handle_text(chat_id, text: str) -> None:
                        "✅ این گفتگو قبلاً به حساب ادمین متصل شده است. "
                        "پیام‌های جدید صندوق، خودکار به اینجا ارسال می‌شود.")
             return
-        _set(chat_id, step="admin_user", tries=0)
+        _set(chat_id, step="admin_code", tries=0)
         await send(chat_id,
-                   "🔐 اتصال ادمین به ربات\n\nنام کاربری ادمین را ارسال کنید:",
-                   _kb_cancel())
+                   "🔐 اتصال امن ادمین به ربات\n\n"
+                   "۱. وارد پنل مدیریت شوید (nobatyar.liara.run/admin/panel)\n"
+                   "۲. در بخش «اتصال ربات» کد یک‌بارمصرف بگیرید\n"
+                   "۳. کد را همین‌جا ارسال کنید (اعتبار: ۵ دقیقه، فقط یک‌بار مصرف)\n\n"
+                   "🔒 رمز عبور هرگز در چت ارسال نمی‌شود.", _kb_cancel())
         return
 
-    # ---------- FSM: اتصال ادمین ----------
-    if st and st.get("step") == "admin_user":
-        _set(chat_id, step="admin_pass", auser=text.strip()[:50])
-        await send(chat_id, "🔑 رمز عبور را ارسال کنید:", _kb_cancel())
-        return
-
-    if st and st.get("step") == "admin_pass":
-        admin = verify_admin_login(st.get("auser", ""), text)
-        if not admin:
-            tries = st.get("tries", 0) + 1
-            if tries >= 3:
-                _pop(chat_id)
-                await send(chat_id, "⛔ سه تلاش ناموفق. اتصال لغو شد.", kb_home())
-            else:
-                _set(chat_id, step="admin_pass", auser=st.get("auser"), tries=tries)
-                await send(chat_id, "❌ نام کاربری یا رمز اشتباه است. رمز را دوباره بفرستید:",
-                           _kb_cancel())
+    # ---------- FSM: اتصال ادمین (کد یک‌بارمصرف — بدون رمز در چت) ----------
+    if st and st.get("step") == "admin_code":
+        from admin_security import verify_connect_code
+        tries = st.get("tries", 0) + 1
+        admin_id = verify_connect_code(text, chat_id)
+        if admin_id:
+            bind_admin_chat(admin_id, chat_id)
+            _pop(chat_id)
+            await send(chat_id,
+                       "✅ اتصال انجام شد — حساب ادمین به این گفتگو متصل شد.\n\n"
+                       "از این پس پیام‌های جدید صندوق پیشنهادات همین‌جا ارسال می‌شود و "
+                       "می‌توانید مستقیم پاسخ دهید.", kb_home())
             return
-        bind_admin_chat(admin.id, chat_id)
-        _pop(chat_id)
-        await send(chat_id,
-                   f"✅ اتصال انجام شد — ادمین «{admin.username}» به این گفتگو متصل شد.\n\n"
-                   "از این پس پیام‌های جدید صندوق پیشنهادات همین‌جا ارسال می‌شود و "
-                   "می‌توانید مستقیم پاسخ دهید.", kb_home())
+        if tries >= ADMIN_CONNECT_MAX_TRIES:
+            _pop(chat_id)
+            await send(chat_id,
+                       "⛔ سه تلاش ناموفق. اتصال لغو شد؛ برای شروع دوباره /admin را بفرستید "
+                       "و از پنل کد جدید بگیرید.", kb_home())
+            return
+        _set(chat_id, step="admin_code", tries=tries)
+        await send(chat_id, "❌ کد نامعتبر، منقضی یا مصرف‌شده است.\n"
+                            "کد جدید از پنل بگیرید و همین‌جا ارسال کنید:",
+                   _kb_cancel())
         return
 
     # ---------- FSM: جست‌وجو ----------
@@ -1624,7 +1614,8 @@ async def handle_text(chat_id, text: str) -> None:
                    "• وضعیت: در انتظار بررسی مدیریت\n\n"
                    "پاسخ مدیریت از طریق همین ربات برای شما ارسال می‌شود. 🙏",
                    kb_home())
-        notify_admins_new_feedback(fb.id)
+        # اعلان ادمین: نتیجه در دیتابیس (notify_status) ثبت و در صورت شکست تلاش مجدد می‌شود
+        asyncio.create_task(_notify_feedback_coro(fb.id))
         return
 
     if st and st.get("step") == "fbreply_wait":
@@ -1761,31 +1752,169 @@ async def process_update(update: dict) -> None:
     await handle_text(chat_id, text)
 
 
-# ==================== اطلاع‌رسانی ادمین (از main.py) ====================
+# ==================== اطلاع‌رسانی ادمین (با ثبت نتیجه و تلاش مجدد) ====================
 
-async def _notify_admins_coro(fb_id: int) -> None:
-    fb = get_feedback(fb_id)
-    if not fb:
-        return
-    for admin in admins_with_chat():
-        try:
-            await send(
-                admin.bale_chat_id,
-                "💬 پیام جدید از صندوق پیشنهادات\n\n"
-                f"• کد: {fa_digits(fb.id)}\n"
-                f"• موضوع: {fb.subject or 'بدون موضوع'}\n\n"
-                f"{fb.message[:500]}",
-                [[{"text": "📨 پاسخ به این پیام", "callback_data": f"fbreply:{fb.id}"}]],
+def _feedback_notification_text(fb) -> str:
+    return (
+        "💬 پیام جدید از صندوق پیشنهادات\n\n"
+        f"• کد: {fa_digits(fb.id)}\n"
+        f"• موضوع: {fb.subject or 'بدون موضوع'}\n\n"
+        f"{fb.message[:500]}",
+    )[0]
+
+
+def _claim_notification(fb_id: int) -> bool:
+    """claim اتمیک اعلان: فقط اگر pending/failed (یا sending گیرکرده) باشد.
+
+    این شرط جلوی ارسال چندباره یک اعلان را می‌گیرد (وب و ربات هم‌زمان یا تلاش مجدد)."""
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        stuck_cutoff = now - timedelta(seconds=NOTIFY_STUCK_AFTER)
+        res = db.execute(
+            update(Feedback)
+            .where(
+                Feedback.id == fb_id,
+                Feedback.notify_attempts < NOTIFY_MAX_ATTEMPTS,
+                (Feedback.notify_status.in_(("pending", "failed")))
+                | ((Feedback.notify_status == "sending") & (Feedback.notify_updated_at < stuck_cutoff)),
             )
-        except Exception:
-            LOG.warning("failed to notify admin")
+            .values(notify_status="sending",
+                    notify_attempts=Feedback.notify_attempts + 1,
+                    notify_updated_at=now)
+        )
+        db.commit()
+        return res.rowcount == 1
+    finally:
+        db.close()
 
 
-async def _push_reply_coro(patient_chat_id, fb_id: int) -> None:
+def _mark_notification_result(fb_id: int, delivered: int, errors: list) -> None:
+    """ثبت نتیجه اعلان — کاملاً جدای وضعیت پاسخ‌گویی پیام."""
+    db = SessionLocal()
+    try:
+        fb = db.get(Feedback, fb_id)
+        if not fb:
+            return
+        now = datetime.utcnow()
+        if delivered > 0:
+            fb.notify_status = "sent"
+            fb.notified_at = now
+            # اگر برای بعضی ادمین‌ها شکست خورده، خطا برای ردگیری نگه داشته می‌شود
+            fb.last_notify_error = ("; ".join(errors)[:255] if errors else None)
+            LOG.info("feedback notify SENT fb_id=%s delivered=%s/%s", fb_id, delivered, delivered + len(errors))
+        else:
+            fb.notify_status = "failed"
+            fb.last_notify_error = ("; ".join(errors)[:255] or "ارسال ناموفق")
+            LOG.warning("feedback notify FAILED fb_id=%s attempts=%s err=%s",
+                        fb_id, fb.notify_attempts, fb.last_notify_error)
+        fb.notify_updated_at = now
+        db.commit()
+    finally:
+        db.close()
+
+
+def _record_notify_deferred(fb_id: int, reason: str) -> None:
+    """ثبت شفاف «چرا اعلان ارسال نشد» — وضعیت به pending برمی‌گردد تا صف تلاش مجدد آن را بگیرد."""
+    db = SessionLocal()
+    try:
+        fb = db.get(Feedback, fb_id)
+        if fb and fb.notify_status != "sent":
+            fb.notify_status = "pending"
+            fb.last_notify_error = reason[:255]
+            fb.notify_updated_at = datetime.utcnow()
+            db.commit()
+    finally:
+        db.close()
+    LOG.warning("feedback notify DEFERRED fb_id=%s: %s", fb_id, reason)
+
+
+async def _deliver_feedback_to_admins(fb) -> dict:
+    """ارسال اعلان به همه ادمین‌های متصل + ثبت نتیجه هر ارسال.
+
+    خروجی: {"admins": n, "delivered": n, "errors": [...]}"""
+    admins = admins_with_chat()
+    if not admins:
+        LOG.warning("feedback notify: NO CONNECTED ADMIN (fb_id=%s)", fb.id)
+        return {"admins": 0, "delivered": 0,
+                "errors": ["هیچ ادمینی به ربات متصل نیست"]}
+    delivered = 0
+    errors = []
+    text = _feedback_notification_text(fb)
+    for admin in admins:
+        res = await send(
+            admin.bale_chat_id, text,
+            [[{"text": "📨 پاسخ به این پیام", "callback_data": f"fbreply:{fb.id}"}]],
+        )
+        # نتیجه واقعی API بله بررسی می‌شود — دیگر هیچ خطایی بی‌صدا نیست
+        if res.get("ok"):
+            delivered += 1
+            msg_id = (res.get("result") or {}).get("message_id")
+            LOG.info("feedback notify ok fb_id=%s admin_chat=%s message_id=%s",
+                     fb.id, mask_chat(admin.bale_chat_id), msg_id)
+        else:
+            err = (f"chat={mask_chat(admin.bale_chat_id)} "
+                   f"code={res.get('error_code')} error={res.get('error')}")
+            errors.append(err)
+            LOG.warning("feedback notify rejected fb_id=%s %s", fb.id, err)
+    return {"admins": len(admins), "delivered": delivered, "errors": errors}
+
+
+async def _notify_feedback_coro(fb_id: int) -> None:
+    """اعلان یک پیام صندوق به ادمین‌ها — با claim اتمیک و ثبت نتیجه.
+
+    پیام ذخیره‌شده هرگز به علت شکست اعلان از بین نمی‌رود؛ فقط وضعیت اعلان ثبت می‌شود."""
+    try:
+        if not _claim_notification(fb_id):
+            return  # قبلاً ارسال/در جریان است — جلوگیری از اعلان چندباره
+        fb = get_feedback(fb_id)
+        if not fb:
+            return
+        res = await _deliver_feedback_to_admins(fb)
+        if res["admins"] == 0:
+            # هنوز هیچ ادمینی متصل نیست → پیام در صف می‌ماند و وضعیت صریحاً ثبت می‌شود
+            _record_notify_deferred(fb_id, res["errors"][0] if res["errors"] else "هیچ ادمینی متصل نیست")
+            return
+        _mark_notification_result(fb_id, res["delivered"], res["errors"])
+    except Exception:
+        LOG.exception("notify coro crashed fb_id=%s", fb_id)
+        _record_notify_deferred(fb_id, "خطای داخلی در ارسال اعلان؛ تلاش مجدد انجام می‌شود")
+
+
+async def _retry_pending_notifications() -> int:
+    """تلاش مجدد اعلان‌های pending/failed — از حلقه polling ربات اجرا می‌شود.
+
+    اگر ادمینی متصل نباشد، پیام در صف می‌ماند و به‌محض اتصال ادمین ارسال می‌شود."""
+    db = SessionLocal()
+    try:
+        rows = db.query(Feedback.id).filter(
+            Feedback.notify_status.in_(("pending", "failed", "sending")),
+            Feedback.notify_attempts < NOTIFY_MAX_ATTEMPTS,
+            Feedback.created_at >= datetime.utcnow() - timedelta(days=7),
+        ).order_by(Feedback.id).limit(20).all()
+    finally:
+        db.close()
+    for (fb_id,) in rows:
+        await _notify_feedback_coro(fb_id)
+    return len(rows)
+
+
+def notify_admins_new_feedback(fb_id: int) -> dict:
+    """از main.py (threadpool) صدا زده می‌شود — اجرا روی لوپ ربات.
+
+    اگر لوپ ربات فعال نباشد، وضعیت شفاف ثبت می‌شود و پیام در صف اعلان می‌ماند."""
+    if not loop_active():
+        _record_notify_deferred(fb_id, "حلقه ربات فعال نیست؛ اعلان پس از راه‌اندازی ربات ارسال می‌شود")
+        return {"queued": False, "reason": "loop_inactive"}
+    asyncio.run_coroutine_threadsafe(_notify_feedback_coro(fb_id), _LOOP)
+    return {"queued": True}
+
+
+async def _push_reply_coro(patient_chat_id, fb_id: int) -> dict:
     fb = get_feedback(fb_id)
     if not fb:
-        return
-    await send(
+        return {"ok": False, "error": "پیام یافت نشد"}
+    res = await send(
         patient_chat_id,
         "📬 پاسخ مدیریت نوبتیار\n\n"
         f"به پیام «{fb.subject or 'بدون موضوع'}» شما (کد {fa_digits(fb.id)}):\n\n"
@@ -1793,21 +1922,23 @@ async def _push_reply_coro(patient_chat_id, fb_id: int) -> None:
         [[{"text": "💬 پیام جدید", "callback_data": "feedback"}],
          [{"text": "🏠 منوی اصلی", "callback_data": "home"}]],
     )
+    if res.get("ok"):
+        LOG.info("feedback reply delivered fb_id=%s patient_chat=%s message_id=%s",
+                 fb_id, mask_chat(patient_chat_id), (res.get("result") or {}).get("message_id"))
+    else:
+        LOG.warning("feedback reply FAILED fb_id=%s chat=%s code=%s error=%s",
+                    fb_id, mask_chat(patient_chat_id), res.get("error_code"), res.get("error"))
+    return {"ok": bool(res.get("ok")), "error_code": res.get("error_code"), "error": res.get("error")}
 
 
-def notify_admins_new_feedback(fb_id: int) -> None:
-    """از main.py (threadpool) صدا زده می‌شود — اجرا روی لوپ ربات."""
-    if _LOOP is None or _LOOP.is_closed():
-        return
-    asyncio.run_coroutine_threadsafe(_notify_admins_coro(fb_id), _LOOP)
-
-
-def push_feedback_reply(patient_chat_id, fb_id: int) -> None:
-    """ارسال پاسخ ادمین (از پنل) به بیمار."""
-    if _LOOP is None or _LOOP.is_closed():
-        return
+def push_feedback_reply(patient_chat_id, fb_id: int) -> dict:
+    """ارسال پاسخ ادمین (از پنل) به بیمار — نتیجه در لاگ ثبت می‌شود."""
+    if not loop_active():
+        LOG.warning("feedback reply DEFERRED fb_id=%s: loop inactive", fb_id)
+        return {"queued": False, "reason": "loop_inactive"}
     asyncio.run_coroutine_threadsafe(
         _push_reply_coro(str(patient_chat_id), fb_id), _LOOP)
+    return {"queued": True}
 
 
 # ==================== حلقه polling ====================
@@ -1834,6 +1965,11 @@ async def polling_loop() -> None:
     await call_api("deleteWebhook")
     offset = 0
     counter = 0
+    # در راه‌اندازی، اعلان‌های در صف مانده (مثلاً وقتی ادمین متصل نبود) تلاش مجدد می‌شوند
+    try:
+        await _retry_pending_notifications()
+    except Exception:
+        LOG.exception("initial notify retry failed")
     while True:
         data = await get_updates(offset)
         if data.get("ok"):
@@ -1846,6 +1982,12 @@ async def polling_loop() -> None:
             counter += 1
             if counter % 60 == 0:
                 cleanup_sessions()
+            if counter % NOTIFY_RETRY_CYCLE == 0:
+                # صف اعلان‌های ناموفق/در انتظار — اعلان‌های sent هرگز دوباره ارسال نمی‌شوند
+                try:
+                    await _retry_pending_notifications()
+                except Exception:
+                    LOG.exception("notify retry pass failed")
         else:
             await asyncio.sleep(5)
 

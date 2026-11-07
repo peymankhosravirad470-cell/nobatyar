@@ -30,12 +30,14 @@ from auth import (
     get_current_admin, get_current_clinic,
     login_rate_limit, login_register_fail, login_clear, client_ip,
 )
+from booking import book_slot_atomic, BookingError, AppointmentSource
+from admin_security import generate_connect_code
 import bale_bot
 
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version="0.4.0"
+    version="0.4.1"
 )
 
 app.add_middleware(
@@ -206,13 +208,14 @@ def get_clinic(clinic_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/admin/login")
 def admin_login(data: AdminLogin, request: Request, db: Session = Depends(get_db)):
-    key = f"admin|{data.username.strip()[:40]}|{client_ip(request)}"
-    login_rate_limit(key)  # در صورت تعدد تلاش ناموفق: 429
+    ip = client_ip(request)
+    # محدودیت پایدار (در دیتابیس): هم حساب، هم IP، هم ترکیب — با Restart پاک نمی‌شود
+    login_rate_limit(data.username, ip)
     admin = db.query(Admin).filter(Admin.username == data.username.strip()).first()
     if not admin or not verify_password(data.password, admin.password_hash):
-        login_register_fail(key)
+        login_register_fail(data.username, ip)   # ← بدون افشای وجود/عدم وجود نام کاربری
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
-    login_clear(key)
+    login_clear(data.username, ip)
     token = create_access_token({"sub": admin.id, "role": "admin"})
     return {"access_token": token, "token_type": "bearer"}
 
@@ -230,8 +233,20 @@ def admin_change_password(
     if verify_password(data.new_password, admin.password_hash):
         raise HTTPException(400, "رمز جدید نباید با رمز فعلی یکسان باشد")
     admin.password_hash = hash_password(data.new_password)
+    # ابطال فوری همه توکن‌های قبلی: هر توکنی با iat <= این لحظه 401 می‌گیرد
+    admin.password_changed_at = datetime.utcnow()
     db.commit()
-    return {"message": "رمز عبور با موفقیت تغییر کرد"}
+    return {"message": "رمز عبور با موفقیت تغییر کرد؛ همه نشست‌های قبلی باطل شدند"}
+
+
+# ---------- کد یک‌بارمصرف اتصال ادمین به ربات ----------
+
+@app.post("/api/admin/bot/connect-code")
+def admin_bot_connect_code(admin: Admin = Depends(get_current_admin)):
+    """تولید کد یک‌بارمصرف برای اتصال امن به ربات بله.
+
+    کد ۵ دقیقه اعتبار دارد، فقط یک‌بار مصرف است و رمز عبور هرگز در چت ارسال نمی‌شود."""
+    return generate_connect_code(admin.id)
 
 
 # ==================== بکاپ و بازیابی کامل (فقط ادمین) ====================
@@ -258,7 +273,7 @@ def _dump_row(obj, fields):
 _DUMP_SPECS = {
     "admins": (Admin, [
         ("id", "int"), ("username", "str"), ("password_hash", "str"),
-        ("bale_chat_id", "str"), ("created_at", "dt"),
+        ("bale_chat_id", "str"), ("password_changed_at", "dt"), ("created_at", "dt"),
     ]),
     "clinics": (Clinic, [
         ("id", "int"), ("name", "str"), ("specialty", "str"), ("address", "str"),
@@ -289,6 +304,8 @@ _DUMP_SPECS = {
         ("id", "int"), ("chat_id", "str"), ("subject", "str"), ("message", "str"),
         ("status", "enum"), ("admin_reply", "str"),
         ("answered_by", "int"), ("answered_at", "dt"), ("created_at", "dt"),
+        ("notify_status", "str"), ("notify_attempts", "int"),
+        ("notified_at", "dt"), ("notify_updated_at", "dt"), ("last_notify_error", "str"),
     ]),
 }
 
@@ -390,6 +407,10 @@ def admin_restore(
                     if f in enums and v is not None:
                         v = enums[f](v)
                     kwargs[f] = v
+                # سازگاری با بکاپ‌های قدیمی‌تر (بدون فیلدهای جدید اعلان)
+                if key == "feedback":
+                    kwargs["notify_status"] = kwargs.get("notify_status") or "pending"
+                    kwargs["notify_attempts"] = kwargs.get("notify_attempts") or 0
                 objs.append(model(**kwargs))
             if objs:
                 db.add_all(objs)
@@ -505,15 +526,15 @@ def admin_update_clinic(
 
 @app.post("/api/clinic/login")
 def clinic_login(data: ClinicLogin, request: Request, db: Session = Depends(get_db)):
-    key = f"clinic|{data.username.strip()[:40]}|{client_ip(request)}"
-    login_rate_limit(key)
+    ip = client_ip(request)
+    login_rate_limit(data.username, ip)
     clinic = db.query(Clinic).filter(Clinic.login_username == data.username.strip()).first()
     if not clinic or not clinic.password_hash or not verify_password(data.password, clinic.password_hash):
-        login_register_fail(key)
+        login_register_fail(data.username, ip)
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
     if clinic.status != ClinicStatus.approved:
         raise HTTPException(403, "مطب هنوز تأیید نشده است")
-    login_clear(key)
+    login_clear(data.username, ip)
     token = create_access_token({"sub": clinic.id, "role": "clinic"})
     return {
         "access_token": token,
@@ -680,47 +701,28 @@ def public_free_slots(
 
 @app.post("/api/appointments", response_model=AppointmentOut)
 def create_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
-    clinic = db.query(Clinic).filter(
-        Clinic.id == data.clinic_id,
-        Clinic.status == ClinicStatus.approved,
-        Clinic.subscription_status == SubscriptionStatus.active
-    ).first()
-    if not clinic:
-        raise HTTPException(404, "مطب یافت نشد یا غیرفعال است")
-    
-    slot = db.query(AvailableSlot).filter(
-        AvailableSlot.id == data.slot_id,
-        AvailableSlot.clinic_id == data.clinic_id,
-        AvailableSlot.is_booked == False
-    ).first()
-    if not slot:
-        raise HTTPException(400, "اسلات در دسترس نیست")
-    
-    if slot.start_datetime < datetime.utcnow():
-        raise HTTPException(400, "این اسلات گذشته است")
-    
-    # قفل کردن اسلات
-    slot.is_booked = True
+    """رزرو نوبت از وب — با همان منطق اتمیک مشترک ربات (booking.book_slot_atomic).
 
+    قفل شرطی اسلات + بررسی rowcount + محدودیت یکتای جزئی slot_id در دیتابیس:
+    دو درخواست هم‌زمان هرگز یک اسلات را نمی‌برند و نوبت تکراری غیرممکن است."""
     source = AppointmentSource.web if data.source == "web" else AppointmentSource.bale
-    appt = Appointment(
-        clinic_id=data.clinic_id,
-        slot_id=slot.id,
-        patient_name=data.patient_name,
-        patient_phone=data.patient_phone,
-        patient_national_code=data.patient_national_code,
-        # حریم خصوصی/امنیت: این مقدار را «فقط سرور» تعیین می‌کند؛
-        # ورودی وب قابل اعتماد نیست → همیشه False (تأیید واقعی فقط از مسیر بله/OTP).
-        phone_verified=False,
-        appointment_datetime=slot.start_datetime,
-        status=AppointmentStatus.pending,
-        source=source,
-        bale_chat_id=data.bale_chat_id,
-        notes=data.notes
-    )
-    db.add(appt)
-    db.commit()
-    db.refresh(appt)
+    try:
+        appt = book_slot_atomic(
+            db,
+            clinic_id=data.clinic_id,
+            slot_id=data.slot_id,
+            patient_name=data.patient_name,
+            patient_phone=data.patient_phone,
+            patient_national_code=data.patient_national_code,
+            phone_verified=False,  # ورودی وب قابل اعتماد نیست؛ تأیید واقعی فقط از بله/OTP
+            source=source,
+            bale_chat_id=data.bale_chat_id,
+            notes=data.notes,
+            enforce_patient_limits=True,
+        )
+    except BookingError as e:
+        status_code = 409 if e.code in ("slot_taken", "duplicate_active", "max_active") else 400
+        raise HTTPException(status_code, e.message)
     return appt
 
 
@@ -770,7 +772,7 @@ def update_appointment_status(
 @app.get("/api/health")
 def health():
     return {
-        "status": "ok", "service": "نوبتیار", "version": "0.4.0",
+        "status": "ok", "service": "نوبتیار", "version": "0.4.1",
         "database": "postgresql" if IS_POSTGRES else "sqlite",
         "time": datetime.utcnow().isoformat()
     }
@@ -780,7 +782,10 @@ def health():
 
 @app.post("/api/feedback", response_model=FeedbackOut)
 def create_feedback(data: FeedbackCreate, db: Session = Depends(get_db)):
-    """ثبت پیام بیمار؛ در صورت اتصال ادمین‌ها به ربات، اطلاع‌رسانی خودکار انجام می‌شود"""
+    """ثبت پیام بیمار؛ اطلاع‌رسانی به ادمین‌های متصل با ثبت نتیجه و تلاش مجدد.
+
+    ثبت پیام و اعلان کاملاً جدا هستند: حتی اگر اعلان شکست بخورد،
+    پیام در دیتابیس امن می‌ماند و وضعیت اعلان (notify_status) به‌صورت شفاف ثبت می‌شود."""
     fb = Feedback(
         chat_id=(data.chat_id or "").strip()[:50] or None,
         subject=(data.subject or "").strip()[:120] or None,
@@ -791,10 +796,14 @@ def create_feedback(data: FeedbackCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(fb)
     try:
-        import bale_bot
+        # نتیجه در دیتابیس ثبت می‌شود (sent/failed/pending) — خطاها بی‌صدا نیستند
         bale_bot.notify_admins_new_feedback(fb.id)
     except Exception:
-        pass  # اطلاع‌رسانی اختیاری است؛ ثبت پیام نباید شکست بخورد
+        # حتی خطای زمان‌بندی اعلان هم نباید ثبت پیام را بشکند؛ وضعیت pending می‌ماند
+        # و صف تلاش مجدد ربات آن را می‌گیرد
+        import logging
+        logging.getLogger("nobatyar.feedback").exception(
+            "scheduling notify failed fb_id=%s", fb.id)
     return fb
 
 
@@ -830,9 +839,10 @@ def reply_feedback(
     db.commit()
     db.refresh(fb)
     if fb.chat_id:
-        try:
-            import bale_bot
-            bale_bot.push_feedback_reply(fb.chat_id, fb.id)
-        except Exception:
-            pass
+        # نتیجه ارسال پاسخ به بیمار ثبت/لاگ می‌شود — دیگر pass بی‌صدا نیست
+        result = bale_bot.push_feedback_reply(fb.chat_id, fb.id)
+        if not result.get("queued"):
+            import logging
+            logging.getLogger("nobatyar.feedback").warning(
+                "reply push not queued fb_id=%s reason=%s", fb.id, result.get("reason"))
     return fb

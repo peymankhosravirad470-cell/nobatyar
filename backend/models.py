@@ -6,7 +6,7 @@ Designed for hundreds of clinics in Shiraz.
 from datetime import datetime, date, time
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, Date, Time, Float,
-    ForeignKey, Enum as SAEnum, Index, UniqueConstraint
+    ForeignKey, Enum as SAEnum, Index, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
 import enum
@@ -55,7 +55,54 @@ class Admin(Base):
     password_hash = Column(String(255), nullable=False)
     # اتصال حساب ادمین به گفتگوی بله (برای اطلاع‌رسانی صندوق پیام‌ها)
     bale_chat_id = Column(String(50), nullable=True, index=True)
+    # پس از تغییر رمز، توکن‌های صادرشده قبل از این زمان بی‌اعتبار می‌شوند
+    password_changed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AdminConnectCode(Base):
+    """کد یک‌بارمصرف برای اتصال امن ادمین به ربات بله.
+
+    - رمز ادمین هرگز در چت ارسال/ذخیره نمی‌شود؛ فقط هش کد نگه‌داری می‌شود.
+    - کد کوتاه‌عمر است، فقط یک‌بار قابل استفاده است و تلاش محدود دارد.
+    """
+    __tablename__ = "admin_connect_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("admins.id", ondelete="CASCADE"), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False, index=True)  # sha256(hex) — خود کد هرگز ذخیره نمی‌شود
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    used_chat_id = Column(String(50), nullable=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LoginThrottle(Base):
+    """محدودیت تلاش ورود — پایدار، مشترک بین Workerها و مقاوم در برابر Restart.
+
+    کلیدها: u:<username> (سراسر حساب)، ip:<ip> (سراسر IP)، uip:<username>|<ip>
+    """
+    __tablename__ = "login_throttles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(120), unique=True, nullable=False, index=True)
+    fail_count = Column(Integer, default=0, nullable=False)
+    window_start = Column(DateTime, default=datetime.utcnow, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SecurityEvent(Base):
+    """رخدادهای امنیتی (ورود ناموفق/موفق، قفل حساب، اتصال ربات و…) — بدون هیچ رمزی."""
+    __tablename__ = "security_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(40), nullable=False, index=True)
+    username = Column(String(50), nullable=True)   # فقط نام کاربری؛ هرگز رمز
+    ip = Column(String(45), nullable=True)
+    detail = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 class Clinic(Base):
@@ -171,11 +218,23 @@ class Appointment(Base):
         Index("ix_appointments_clinic_status_dt", "clinic_id", "status", "appointment_datetime"),
         Index("ix_appointments_phone", "patient_phone"),
         Index("ix_appointments_ncode", "patient_national_code"),
+        # محدودیت یکتای جزئی: برای هر اسلات فقط «یک» نوبت غیرلغوشده ممکن است.
+        # نوبت‌های لغوشده از شمول خارج می‌شوند تا آزادسازی و رزرو مجدد اسلات کار کند.
+        Index(
+            "uq_appointments_active_slot", "slot_id",
+            unique=True,
+            postgresql_where=text("slot_id IS NOT NULL AND status <> 'cancelled'"),
+            sqlite_where=text("slot_id IS NOT NULL AND status <> 'cancelled'"),
+        ),
     )
 
 
 class Feedback(Base):
-    """صندوق پیشنهادات و انتقادات — پیام بیمار + پاسخ مدیریت"""
+    """صندوق پیشنهادات و انتقادات — پیام بیمار + پاسخ مدیریت.
+
+    وضعیت «اعلان به ادمین» (notify_status) از وضعیت «پاسخ‌گویی» (status)
+    کاملاً جدا است تا شکست اعلان هرگز پیام بیمار را از بین نبرد.
+    """
     __tablename__ = "feedback"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -188,6 +247,15 @@ class Feedback(Base):
     answered_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # ---------- وضعیت اعلان به ادمین (جدای وضعیت پاسخ‌گویی) ----------
+    notify_status = Column(String(12), default="pending", nullable=False, index=True)
+        # pending: هنوز ارسال نشده | sending: در جریان ارسال | sent: تحویل شد | failed: شکست (تلاش مجدد می‌شود)
+    notify_attempts = Column(Integer, default=0, nullable=False)
+    notified_at = Column(DateTime, nullable=True)
+    notify_updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_notify_error = Column(String(255), nullable=True)
+
     __table_args__ = (
         Index("ix_feedback_status_created", "status", "created_at"),
+        Index("ix_feedback_notify_retry", "notify_status", "notify_attempts"),
     )

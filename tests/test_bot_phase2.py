@@ -79,7 +79,7 @@ db = SessionLocal()
 admin = Admin(username="admin", password_hash=hash_password("admin123"),
               bale_chat_id="555000")
 db.add(admin)
-
+ADMIN_DB_ID = None  # پس از commit پر می‌شود
 # درمانگاه آزمایشی با آدرس
 c1 = Clinic(name="درمانگاه آزمایشی مهر", specialty="عمومی",
             address="شیراز، خیابان آزمایشی، پلاک ۱",
@@ -108,6 +108,7 @@ db.commit()
 CID = c1.id
 OID = c2.id
 OID2 = c3.id
+ADMIN_DB_ID = admin.id  # شناسه ادمین پیش از بستن session ذخیره می‌شود
 
 slot = AvailableSlot(clinic_id=CID,
                      start_datetime=datetime.now() + timedelta(days=2),
@@ -337,25 +338,28 @@ check("لغو: اسلات آزاد و وضعیت لغوشده", s2.is_booked is 
 db.close()
 
 # ==================== ۱۰) صندوق پیشنهادات ====================
+SENT.clear()  # از اینجا همه ارسال‌ها (تأییدیه بیمار + اعلان خودکار ادمین) ثبت می‌شوند
 asyncio.run(bale_bot.handle_callback(CHAT + 5, 80, "feedback"))
 check("فیدبک: درخواست موضوع", "موضوع" in last_text("editMessageText"))
 asyncio.run(bale_bot.handle_text(CHAT + 5, "کیفیت سرویس"))
 check("فیدبک: درخواست متن", "متن پیام" in last_text("sendMessage"))
 asyncio.run(bale_bot.handle_text(CHAT + 5, "پیشنهاد می‌کنم نوبت‌های عصر هم اضافه شود."))
-txt = last_text("sendMessage")
-check("فیدبک: تأییدیه با کد پیگیری", "کد پیگیری" in txt)
+# اعلان خودکار ممکن است در همان حلقه ارسال شده باشد؛ برای قطعیت، صف تلاش مجدد هم اجرا می‌شود
+asyncio.run(bale_bot._retry_pending_notifications())
+all_send_texts = [c["payload"].get("text", "") for c in SENT if c["method"] == "sendMessage"]
+check("فیدبک: تأییدیه با کد پیگیری", any("کد پیگیری" in t for t in all_send_texts))
 db = SessionLocal()
 fb = db.query(Feedback).filter(Feedback.chat_id == str(CHAT + 5)).first()
 check("فیدبک: در دیتابیس ذخیره شد با وضعیت new", fb is not None and fb.status == "new")
 db.close()
-# اطلاع‌رسانی ادمین
-SENT.clear()
 fb_id = fb.id
-asyncio.run(bale_bot._notify_admins_coro(fb_id))
-txt = last_text("sendMessage")
-btns = kb_texts("sendMessage")
-check("فیدبک: ادمین متصل اطلاع یافت", "پیام جدید از صندوق" in txt and "کیفیت سرویس" in txt)
-check("فیدبک: دکمه پاسخ برای ادمین", any("پاسخ" in b for b in btns))
+notify_texts = [c["payload"].get("text", "") for c in SENT if c["method"] == "sendMessage"]
+check("فیدبک: ادمین متصل اطلاع یافت",
+      any("پیام جدید از صندوق" in t and "کیفیت سرویس" in t for t in notify_texts))
+check("فیدبک: دکمه پاسخ برای ادمین",
+      any("پاسخ" in b for c in SENT if c["method"] == "sendMessage"
+          for row in (c["payload"].get("reply_markup") or {}).get("inline_keyboard") or []
+          for b in [btn["text"] for btn in row]))
 # پاسخ ادمین از ربات
 asyncio.run(bale_bot.handle_callback("555000", 90, f"fbreply:{fb_id}"))
 check("فیدبک: درخواست متن پاسخ", "متن پاسخ" in last_text("editMessageText"))
@@ -367,6 +371,7 @@ check("فیدبک: پاسخ به بیمار ارسال شد", "پاسخ مدیر
 db = SessionLocal()
 fb2 = db.get(Feedback, fb.id)
 check("فیدبک: وضعیت answered + متن پاسخ", fb2.status == "answered" and fb2.admin_reply is not None)
+check("فیدبک: وضعیت اعلان ثبت شد (sent)", fb2.notify_status == "sent" and fb2.notified_at is not None)
 db.close()
 
 # ==================== ۱۱) بازگشت و انصراف ====================
@@ -382,17 +387,27 @@ btns = kb_texts("editMessageText")
 check("راهنما: دکمه‌های دعوت/داروخانه/معرفی حفظ شده",
       any("دعوت" in b for b in btns) and any("داروخانه" in b for b in btns) and any("معرفی" in b for b in btns))
 
-# ==================== ۱۲) اتصال ادمین به ربات ====================
+# ==================== ۱۲) اتصال ادمین به ربات (کد یک‌بارمصرف) ====================
+from admin_security import generate_connect_code
 asyncio.run(bale_bot.handle_text(CHAT + 7, "/admin"))
-check("ادمین: درخواست نام کاربری", "نام کاربری" in last_text("sendMessage"))
-asyncio.run(bale_bot.handle_text(CHAT + 7, "admin"))
-asyncio.run(bale_bot.handle_text(CHAT + 7, "admin123"))
+check("ادمین: راهنمای کد یک‌بارمصرف (بدون درخواست رمز)",
+      "یک‌بارمصرف" in last_text("sendMessage") and "رمز" in last_text("sendMessage"))
+# ورود رمز/یوزرنیم متنی دیگر نباید مسیر اتصال را باز کند
+asyncio.run(bale_bot.handle_text(CHAT + 7, "admin"))   # به‌عنوان «کد» تلقی می‌شود — نامعتبر
+asyncio.run(bale_bot.handle_text(CHAT + 7, "admin123"))  # تلاش دوم نامعتبر
+# کد واقعی از پنل:
+code_info = generate_connect_code(ADMIN_DB_ID)
+asyncio.run(bale_bot.handle_text(CHAT + 7, code_info["code"]))
 txt = last_text("sendMessage")
-check("ادمین: اتصال موفق", "اتصال انجام شد" in txt)
+check("ادمین: اتصال موفق با کد یک‌بارمصرف", "اتصال انجام شد" in txt)
 db = SessionLocal()
 a = db.query(Admin).filter(Admin.username == "admin").first()
 check("ادمین: chat_id ذخیره شد", a.bale_chat_id == str(CHAT + 7))
 db.close()
+# کد مصرف‌شده دیگر کار نمی‌کند
+asyncio.run(bale_bot.handle_text(CHAT + 8, "/admin"))
+asyncio.run(bale_bot.handle_text(CHAT + 8, code_info["code"]))
+check("ادمین: کد مصرف‌شده رد شد", "کد نامعتبر" in last_text("sendMessage"))
 
 # ==================== نتیجه ====================
 failed = [n for n, c in PASS if not c]

@@ -13,7 +13,7 @@ Database setup for Nobatyar.
 import os
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import StaticPool
+
 
 RAW_DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
 DATABASE_URL = ""
@@ -45,10 +45,12 @@ if IS_POSTGRES:
         },
     )
 else:
+    # فایل SQLite (توسعه/تست): pool پیش‌فرض (اتصال مستقل هر session) —
+    # StaticPool یک اتصال مشترک بین threadها می‌دهد و thread-safe نیست.
     engine = create_engine(
         DATABASE_URL,
-        connect_args={"check_same_thread": False, "timeout": 15},  # timeout: کاهش خطای database is locked
-        poolclass=StaticPool,  # suitable for SQLite single-file
+        connect_args={"check_same_thread": False, "timeout": 15},
+        pool_pre_ping=True,
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -64,47 +66,48 @@ def get_db():
 
 
 def init_db():
+    """راه‌اندازی شِما با مهاجرت‌های نسخه‌بندی‌شده Alembic.
+
+    - دیتابیس خالی → ارتقا تا head (revision 0001 خودش همه جدول‌ها را از مدل‌ها می‌سازد)
+    - دیتابیس قدیمی (قبل از Alembic) → stamp نقطه پایه + ارتقا (هیچ داده‌ای حذف نمی‌شود)
+    - دیتابیس نسخه‌دار → ارتقای عادی تا head
+    """
     from models import (  # noqa
         Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback
     )
-    Base.metadata.create_all(bind=engine)
-    _migrate_sqlite_columns()
+    from sqlalchemy import inspect as sa_inspect
+
+    insp = sa_inspect(engine)
+    tables = set(insp.get_table_names())
+
+    if "alembic_version" in tables:
+        core_tables = {"admins", "clinics", "working_hours", "available_slots", "appointments", "feedback"}
+        if not core_tables.issubset(tables):
+            # وضعیت ناسازگار (مثلاً drop_all در تست‌ها): نسخه بدون جدول‌های اصلی —
+            # فقط جدول رهگیری نسخه پاک می‌شود و شِما از نو ساخته می‌شود.
+            print("⚠️ وضعیت ناسازگار شِما (نسخه بدون جدول‌های اصلی) — بازسازی از نو")
+            with engine.begin() as conn:
+                conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        _run_alembic("upgrade", "head")
+    elif "admins" in tables:
+        # دیتابیس ساخته‌شده با create_all (قبل از Alembic) → ثبت نقطه پایه و ارتقا
+        print("🛠 دیتابیس قدیمی تشخیص داده شد؛ ثبت نقطه پایه Alembic و ارتقا (بدون دست‌زدن به داده‌ها)")
+        _run_alembic("stamp", "0001_baseline")
+        _run_alembic("upgrade", "head")
+    else:
+        _run_alembic("upgrade", "head")
 
 
-# ستون‌هایی که بعداً به مدل اضافه شده‌اند — create_all فقط «جدول» جدید می‌سازد،
-# نه ستون جدید؛ پس برای دیتابیس‌های موجود ALTER لازم است.
-_MIGRATION_COLUMNS = {
-    "clinics": [
-        ("type", "VARCHAR(10) NOT NULL DEFAULT 'clinic'"),
-        ("doctor_name", "VARCHAR(100)"),
-        ("latitude", "FLOAT"),
-        ("longitude", "FLOAT"),
-    ],
-    "admins": [
-        ("bale_chat_id", "VARCHAR(50)"),
-    ],
-    "appointments": [
-        ("patient_national_code", "VARCHAR(10)"),
-        ("phone_verified", "BOOLEAN NOT NULL DEFAULT 0"),
-    ],
-}
+def _run_alembic(op_name: str, revision: str) -> None:
+    from alembic.config import Config
+    from alembic import command
 
-
-def _migrate_sqlite_columns():
-    """مهاجرت سبکِ افزودن ستون‌های جدید روی SQLite (بدون دست‌زدن به داده‌ها)."""
-    if engine.dialect.name != "sqlite":
-        return
-    try:
-        with engine.begin() as conn:
-            for table, cols in _MIGRATION_COLUMNS.items():
-                rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
-                existing = {r[1] for r in rows}
-                for name, ddl in cols:
-                    if name not in existing:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
-                        print(f"🛠 ستون جدید اضافه شد: {table}.{name}")
-    except Exception as e:  # noqa: BLE001
-        print(f"⚠️ مهاجرت ستون‌ها با خطا مواجه شد: {e}")
+    cfg = Config()
+    cfg.set_main_option(
+        "script_location",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "alembic"),
+    )
+    getattr(command, op_name)(cfg, revision)
 
 
 def fix_pg_sequences():
