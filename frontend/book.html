@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>رزرو نوبت | نوبتیار</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>نوبتیار</h1>
+      <nav>
+        <a href="/">خانه</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/register">ثبت‌نام مطب</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h2>رزرو نوبت آنلاین</h2>
+      <div id="msg"></div>
+
+      <label>انتخاب مطب</label>
+      <select id="clinicSelect">
+        <option value="">— در حال بارگذاری —</option>
+      </select>
+
+      <div id="slotsSection" class="hidden">
+        <label>اسلات‌های خالی</label>
+        <div id="slotGrid" class="slot-grid"></div>
+      </div>
+
+      <div id="patientForm" class="hidden">
+        <label>نام و نام خانوادگی بیمار</label>
+        <input type="text" id="patientName" required>
+
+        <label>شماره موبایل</label>
+        <input type="tel" id="patientPhone" required placeholder="۰۹۱xxxxxxxx">
+
+        <button id="bookBtn">ثبت نوبت</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let selectedSlotId = null;
+    let selectedClinicId = null;
+
+    async function loadClinics() {
+      const res = await fetch('/api/clinics/public');
+      const clinics = await res.json();
+      const sel = document.getElementById('clinicSelect');
+      sel.innerHTML = '<option value="">— انتخاب مطب —</option>';
+      if (clinics.length === 0) {
+        sel.innerHTML = '<option value="">هنوز مطب فعالی ثبت نشده</option>';
+        return;
+      }
+      clinics.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.name} — ${c.specialty}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    document.getElementById('clinicSelect').addEventListener('change', async (e) => {
+      selectedClinicId = e.target.value;
+      selectedSlotId = null;
+      document.getElementById('patientForm').classList.add('hidden');
+      const grid = document.getElementById('slotGrid');
+      grid.innerHTML = '';
+      if (!selectedClinicId) {
+        document.getElementById('slotsSection').classList.add('hidden');
+        return;
+      }
+      const res = await fetch(`/api/public/clinics/${selectedClinicId}/slots`);
+      const slots = await res.json();
+      document.getElementById('slotsSection').classList.remove('hidden');
+      if (slots.length === 0) {
+        grid.innerHTML = '<p>اسلات خالی وجود ندارد.</p>';
+        return;
+      }
+      slots.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'slot-item';
+        const dt = new Date(s.start_datetime);
+        div.textContent = dt.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
+        div.dataset.id = s.id;
+        div.onclick = () => {
+          document.querySelectorAll('.slot-item').forEach(el => el.classList.remove('selected'));
+          div.classList.add('selected');
+          selectedSlotId = s.id;
+          document.getElementById('patientForm').classList.remove('hidden');
+        };
+        grid.appendChild(div);
+      });
+    });
+
+    document.getElementById('bookBtn').addEventListener('click', async () => {
+      const name = document.getElementById('patientName').value.trim();
+      const phone = document.getElementById('patientPhone').value.trim();
+      const msg = document.getElementById('msg');
+      if (!name || !phone || !selectedSlotId || !selectedClinicId) {
+        msg.innerHTML = '<div class="alert alert-error">همه فیلدها را پر کنید</div>';
+        return;
+      }
+      const res = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clinic_id: parseInt(selectedClinicId),
+          slot_id: parseInt(selectedSlotId),
+          patient_name: name,
+          patient_phone: phone,
+          source: 'web'
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        return;
+      }
+      msg.innerHTML = `<div class="alert alert-success">نوبت شما ثبت شد (کد: ${json.id}). وضعیت: در انتظار تأیید مطب</div>`;
+      document.getElementById('patientForm').classList.add('hidden');
+      // رفرش اسلات‌ها
+      document.getElementById('clinicSelect').dispatchEvent(new Event('change'));
+    });
+
+    loadClinics();
+  </script>
+</body>
+</html>

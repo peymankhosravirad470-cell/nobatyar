@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ثبت‌نام مطب | نوبتیار</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>نوبتیار</h1>
+      <nav>
+        <a href="/">خانه</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/register">ثبت‌نام مطب</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card" style="max-width: 520px; margin: 2rem auto;">
+      <h2>ثبت‌نام مطب / درمانگاه</h2>
+      <p class="alert alert-info">
+        پس از ثبت‌نام، ادمین درخواست شما را بررسی و تأیید می‌کند. سپس اطلاعات ورود به پنل برایتان ارسال می‌شود.
+      </p>
+      <div id="msg"></div>
+      <form id="regForm">
+        <label>نام مطب / درمانگاه</label>
+        <input type="text" name="name" required placeholder="مثلاً مطب دکتر احمدی">
+
+        <label>تخصص</label>
+        <input type="text" name="specialty" required placeholder="مثلاً پوست و مو، دندانپزشکی، عمومی">
+
+        <label>آدرس</label>
+        <textarea name="address" rows="2" required placeholder="آدرس کامل در شیراز"></textarea>
+
+        <label>شماره تماس</label>
+        <input type="tel" name="phone" required placeholder="۰۷۱xxxxxxx یا ۰۹۱xxxxxxxx">
+
+        <button type="submit">ارسال درخواست ثبت‌نام</button>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        name: form.name.value.trim(),
+        specialty: form.specialty.value.trim(),
+        address: form.address.value.trim(),
+        phone: form.phone.value.trim()
+      };
+      const msg = document.getElementById('msg');
+      try {
+        const res = await fetch('/api/clinics/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا در ثبت'}</div>`;
+          return;
+        }
+        msg.innerHTML = `<div class="alert alert-success">درخواست شما با موفقیت ثبت شد (کد: ${json.id}). منتظر تأیید ادمین بمانید.</div>`;
+        form.reset();
+      } catch (err) {
+        msg.innerHTML = `<div class="alert alert-error">خطای شبکه</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
