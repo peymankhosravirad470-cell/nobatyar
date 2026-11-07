@@ -5,6 +5,14 @@
 - اگر توکن ست نشده باشد، ربات غیرفعال می‌ماند و بک‌اند عادی سرو می‌شود
 - دسترسی دیتابیس مستقیم با همان مدل‌های backend (بدون فراخوانی HTTP به خود)
 - جریان رزرو: انتخاب مطب → انتخاب اسلات → نام بیمار → موبایل → تأیید
+
+فاز ۱ دستیار جامع:
+- 🗺 مسیریابی به مطب: لینک اختصاصی گوگل‌مپ/نشان/بلد از آدرس واقعی دیتابیس
+  (فقط فرمت‌های تأییدشده و رسمی)
+- 🚕🚙 درخواست اسنپ/تپسی: مقصد = مطب انتخابی؛ لینک مستقیم رسمی هنوز عرضه نشده →
+  مسیر جایگزین (کپی آدرس + سایت رسمی)
+- 🎁 دعوت و تخفیف و 💊 داروخانه‌ها: صفحه معرفی + اعلام صادقانه «نسخه بعدی»
+- تاریخ شمسی و ارقام فارسی برای نمایش اسلات‌ها
 """
 
 import os
@@ -12,6 +20,8 @@ import re
 import logging
 import asyncio
 from datetime import datetime
+
+from urllib.parse import quote
 
 import httpx
 
@@ -35,6 +45,39 @@ WEEKDAYS_FA = {
 }
 
 DIGIT_MAP = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+JALALI_MONTHS = (
+    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
+)
+
+
+def fa_digits(value) -> str:
+    """تبدیل ارقام لاتین به فارسی برای نمایش دوستانه (مخصوصاً کاربران مسن)."""
+    return str(value).translate(_FA_DIGITS)
+
+
+def gregorian_to_jalali(gy: int, gm: int, gd: int) -> tuple:
+    """تبدیل تاریخ میلادی به شمسی — الگوریتم استاندارد و شناخته‌شده."""
+    g_d_m = (0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)
+    gy2 = gy + 1 if gm > 2 else gy
+    days = (355666 + (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100)
+            + ((gy2 + 399) // 400) + gd + g_d_m[gm - 1])
+    jy = -1595 + (33 * (days // 12053))
+    days %= 12053
+    jy += 4 * (days // 1461)
+    days %= 1461
+    if days > 365:
+        jy += (days - 1) // 365
+        days = (days - 1) % 365
+    if days < 186:
+        jm = 1 + (days // 31)
+        jd = 1 + (days % 31)
+    else:
+        jm = 7 + ((days - 186) // 30)
+        jd = 1 + ((days - 186) % 30)
+    return jy, jm, jd
 
 _client: httpx.AsyncClient | None = None
 
@@ -178,18 +221,23 @@ def try_book(slot_id: int, name: str, phone: str, bale_chat_id):
 # ==================== متن‌ها و فرمت‌ها ====================
 
 def fmt_dt(dt: datetime) -> str:
-    """نمایش زمان اسلات — همان مقدار ذخیره‌شده که ساعتِ ورودیِ مطب است."""
+    """نمایش زمان اسلات با تاریخ شمسی و ارقام فارسی (مثال: پنجشنبه ۱۶ آبان ۱۴۰۵ — ۱۴:۰۰)."""
+    jy, jm, jd = gregorian_to_jalali(dt.year, dt.month, dt.day)
     return (
-        f"{WEEKDAYS_FA[dt.weekday()]} {dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
-        f" ساعت {dt.hour:02d}:{dt.minute:02d}"
+        f"{WEEKDAYS_FA[dt.weekday()]} {fa_digits(jd)} {JALALI_MONTHS[jm - 1]} "
+        f"{fa_digits(jy)} — ساعت {fa_digits(f'{dt.hour:02d}:{dt.minute:02d}')}"
     )
 
 
 TXT_START = (
-    "سلام! به ربات نوبتیار خوش آمدید 🩺\n\n"
-    "نوبتیار سامانه نوبت‌دهی آنلاین مطب‌ها و درمانگاه‌های شیراز است.\n"
-    "با این ربات می‌توانید مطب‌های فعال را ببینید و بدون تماس تلفنی نوبت بگیرید.\n\n"
-    "👇 یکی از گزینه‌های زیر را انتخاب کنید:"
+    "سلام! به نوبتیار خوش آمدید 🩺\n\n"
+    "نوبتیار دستیار جامع بیمار در شیراز است:\n"
+    "🗓 نوبت‌دهی آنلاین مطب‌ها و درمانگاه‌ها\n"
+    "🗺 مسیریابی به مطب با گوگل‌مپ، نشان و بلد\n"
+    "🚕 درخواست اسنپ و تپسی با مقصدِ مطب شما\n"
+    "🎁 دعوت دوستان و دریافت تخفیف\n"
+    "💊 داروخانه‌های معتبر شیراز\n\n"
+    "👇 برای شروع، یکی از گزینه‌های زیر را انتخاب کنید:"
 )
 
 TXT_INTRO = (
@@ -202,21 +250,62 @@ TXT_INTRO = (
 )
 
 TXT_HELP = (
-    "❓ راهنما\n\n"
+    "❓ راهنمای نوبتیار\n\n"
     "/start — منوی اصلی\n"
     "/clinics — لیست مطب‌های فعال\n"
     "/help — همین راهنما\n\n"
-    "جریان رزرو: دریافت نوبت ← انتخاب مطب ← انتخاب زمان ← نام بیمار ← شماره موبایل ← تأیید\n"
-    "پس از ثبت، نوبت شما در وضعیت «در انتظار تأیید مطب» قرار می‌گیرد."
+    "🗓 دریافت نوبت: انتخاب مطب ← انتخاب زمان ← نام بیمار ← شماره موبایل ← تأیید\n"
+    "پس از ثبت، نوبت شما در وضعیت «در انتظار تأیید مطب» قرار می‌گیرد.\n\n"
+    "🗺 مسیریابی: آدرس واقعی مطب از دیتابیس خوانده می‌شود و لینک اختصاصی برای "
+    "گوگل‌مپ، نشان و بلد ساخته می‌شود.\n\n"
+    "🚕 اسنپ و تپسی: مقصد به‌طور خودکار روی مطبِ انتخابی شما تنظیم می‌شود "
+    "(در نسخه فعلی: کپی آدرس و واردکردن در اپ).\n\n"
+    "🎁 دعوت و تخفیف و 💊 داروخانه‌ها: در نسخه‌های بعدی فعال می‌شوند."
+)
+
+TXT_INVITE = (
+    "🎁 دعوت دوستان و دریافت تخفیف\n\n"
+    "به‌زودی هر بیمار یک لینک دعوت اختصاصی می‌گیرد و می‌تواند لینک ربات و کانال رسمی "
+    "نوبتیار را با دوستانش به اشتراک بگذارد.\n\n"
+    "پیشنهاد مدل تخفیف (برای تأیید مدیریت نوبتیار):\n"
+    "• دوستِ دعوت‌شده: ۱۰٪ تخفیف روی اولین نوبت\n"
+    "• معرف: ۱۵٪ تخفیف برای هر دعوت موفق — حداکثر ۵ دعوت در ماه\n"
+    "• دعوت فقط وقتی «موفق» ثبت می‌شود که دوست شما اولین نوبت واقعی خود را بگیرد\n"
+    "• هر کاربر فقط یک‌بار می‌تواند معرف داشته باشد؛ دعوت خودی و تکراری رد می‌شود\n\n"
+    "⛔ این قابلیت در نسخه بعدی فعال می‌شود؛ در این نسخه فقط طرح آن ارائه شده است."
+)
+
+TXT_PHARMACY = (
+    "💊 داروخانه‌های مطرح شیراز\n\n"
+    "در نسخه بعدی، فهرست داروخانه‌های معتبر شیراز با این ساختار ارائه می‌شود:\n"
+    "• دسته‌بندی بر اساس مناطق شهر\n"
+    "• داروخانه‌های شبانه‌روزی\n"
+    "• بخش ویژه داروخانه‌های داروهای خاص و کمیاب\n"
+    "• نام، آدرس، تلفن، ساعات کاری + دکمه تماس و مسیریابی\n\n"
+    "⚠️ فقط داروخانه‌هایی که اطلاعات‌شان راستی‌آزمایی شود منتشر خواهد شد و موجودی دارو "
+    "بدون تأیید خود داروخانه اعلام نمی‌شود.\n\n"
+    "⛔ این بخش در نسخه بعدی فعال می‌شود."
 )
 
 
 def kb_home() -> list:
+    """منوی اصلی — دکمه‌های بزرگ و خوانا برای همه سنین."""
     return [
-        [{"text": "🏥 معرفی نوبتیار", "callback_data": "intro"}],
-        [{"text": "🔎 مطب‌های فعال", "callback_data": "clinics"}],
-        [{"text": "🗓 دریافت نوبت", "callback_data": "book"}],
-        [{"text": "❓ راهنما", "callback_data": "help"}],
+        [
+            {"text": "🗓 دریافت نوبت", "callback_data": "book"},
+            {"text": "🔎 مطب‌های فعال", "callback_data": "clinics"},
+        ],
+        [{"text": "🗺 مسیریابی به مطب", "callback_data": "nav"}],
+        [
+            {"text": "🚕 درخواست اسنپ", "callback_data": "ridesnapp"},
+            {"text": "🚙 درخواست تپسی", "callback_data": "ridetapsi"},
+        ],
+        [{"text": "🎁 دعوت دوستان و دریافت تخفیف", "callback_data": "invite"}],
+        [{"text": "💊 داروخانه‌های شیراز", "callback_data": "pharmacy"}],
+        [
+            {"text": "ℹ️ معرفی نوبتیار", "callback_data": "intro"},
+            {"text": "❓ راهنما", "callback_data": "help"},
+        ],
     ]
 
 
@@ -228,13 +317,45 @@ def kb_back_clinics() -> list:
     return [[{"text": "🔙 بازگشت به لیست مطب‌ها", "callback_data": "clinics"}]]
 
 
-def clinics_screen():
+# ==================== لینک‌های نقشه و حمل‌ونقل ====================
+# فقط فرمت‌های تأییدشده و رسمی:
+# - گوگل‌مپ: فرمت رسمی Maps URLs (developers.google.com/maps/documentation/urls)
+# - نشان: جستجوی وب نقشه نشان (neshan.org/maps/search/...)
+# - بلد: جستجوی وب نقشه بلد (balad.ir/search?query=...)
+# - اسنپ/تپسی: لینک عمومی رسمیِ «مقصد از پیش تعیین‌شده» موجود نیست → مسیر جایگزین
+
+def url_google_maps(address: str) -> str:
+    return f"https://www.google.com/maps/dir/?api=1&destination={quote(address)}&travelmode=driving"
+
+
+def url_neshan(address: str) -> str:
+    return f"https://neshan.org/maps/search/{quote(address)}"
+
+
+def url_balad(address: str) -> str:
+    return f"https://balad.ir/search?query={quote(address)}"
+
+
+MAP_PROVIDERS = {
+    "google": ("🔵 گوگل‌مپ", url_google_maps),
+    "neshan": ("🟢 نشان", url_neshan),
+    "balad": ("🔷 بلد", url_balad),
+}
+
+RIDE_APPS = {
+    "snapp": {"name": "اسنپ", "emoji": "🚕", "site": "https://snapp.ir"},
+    "tapsi": {"name": "تپسی", "emoji": "🚙", "site": "https://tapsi.ir"},
+}
+
+
+def clinics_screen(pick_cb: str = "clinic", title: str | None = None):
+    """لیست مطب‌های فعال؛ برای نوبت، مسیریابی و درخواست خودرو مشترک است."""
     clinics = get_active_clinics()
     if not clinics:
         return "در حال حاضر مطب فعالی ثبت نشده است. بعداً دوباره امتحان کنید.", kb_home()
-    kb = [[{"text": f"🏥 {c.name} — {c.specialty}", "callback_data": f"clinic:{c.id}"}] for c in clinics]
+    kb = [[{"text": f"🏥 {c.name} — {c.specialty}", "callback_data": f"{pick_cb}:{c.id}"}] for c in clinics]
     kb.append([{"text": "🔙 بازگشت به منوی اصلی", "callback_data": "home"}])
-    return "🔎 مطب‌های فعال شیراز — برای دیدن اسلات‌ها انتخاب کنید:", kb
+    return title or "🔎 مطب‌های فعال شیراز — برای دیدن اسلات‌ها انتخاب کنید:", kb
 
 
 def slots_screen(clinic_id: int):
@@ -253,6 +374,68 @@ def slots_screen(clinic_id: int):
     text += "🗓 زمان دلخواه خود را انتخاب کنید:"
     kb = [[{"text": f"🕐 {fmt_dt(s.start_datetime)}", "callback_data": f"slot:{s.id}"}] for s in slots]
     kb.append([{"text": "🔙 بازگشت به لیست مطب‌ها", "callback_data": "clinics"}])
+    return text, kb
+
+
+def nav_screen(clinic) -> tuple:
+    """صفحه مسیریابی یک مطب: انتخاب بین گوگل‌مپ، نشان و بلد."""
+    text = (
+        "🗺 مسیریابی به مطب\n\n"
+        f"🏥 {clinic.name}\n"
+        f"• تخصص: {clinic.specialty}\n"
+        f"• آدرس: {clinic.address}\n"
+        f"• تلفن: {clinic.phone}\n\n"
+        "نقشه دلخواه خود را انتخاب کنید:"
+    )
+    kb = [
+        [
+            {"text": "🔵 گوگل‌مپ", "callback_data": f"map:google:{clinic.id}"},
+            {"text": "🟢 نشان", "callback_data": f"map:neshan:{clinic.id}"},
+        ],
+        [{"text": "🔷 بلد", "callback_data": f"map:balad:{clinic.id}"}],
+        [
+            {"text": "🚕 اسنپ", "callback_data": f"ridepick:snapp:{clinic.id}"},
+            {"text": "🚙 تپسی", "callback_data": f"ridepick:tapsi:{clinic.id}"},
+        ],
+        [{"text": "🔙 بازگشت به لیست مطب‌ها", "callback_data": "nav"}],
+    ]
+    return text, kb
+
+
+def map_link_message(provider: str, clinic) -> str:
+    """پیام لینک مسیریابی — آدرس واقعی از دیتابیس."""
+    label, builder = MAP_PROVIDERS[provider]
+    return (
+        f"{label} — مسیریابی به {clinic.name}\n\n"
+        f"📍 آدرس: {clinic.address}\n\n"
+        "لینک مسیریابی:\n"
+        f"{builder(clinic.address)}\n\n"
+        "💡 لینک را باز کنید؛ اگر برنامه روی گوشی نصب باشد، معمولاً در همان برنامه باز می‌شود."
+    )
+
+
+def ride_screen(provider: str, clinic) -> tuple:
+    """درخواست اسنپ/تپسی با مقصد خودکار = مطب انتخابی (مسیر جایگزین: کپی آدرس)."""
+    app = RIDE_APPS[provider]
+    text = (
+        f"{app['emoji']} درخواست {app['name']}\n\n"
+        "📍 مقصد شما (مطبِ انتخاب‌شده):\n"
+        f"🏥 {clinic.name}\n"
+        f"• آدرس: {clinic.address}\n"
+        f"• تلفن: {clinic.phone}\n\n"
+        "مسیر جایگزین (لینک مستقیم با مقصد از پیش تعیین‌شده هنوز به‌صورت رسمی عرضه نشده است):\n"
+        "۱️⃣ آدرس بالا را کپی کنید\n"
+        f"۲️⃣ اپ {app['name']} را باز کنید و آن را در بخش «مقصد» وارد کنید\n\n"
+        f"🔗 وب‌سایت رسمی: {app['site']}"
+    )
+    kb = [
+        [
+            {"text": "🔵 مسیریابی با گوگل‌مپ", "callback_data": f"map:google:{clinic.id}"},
+            {"text": "🟢 نشان", "callback_data": f"map:neshan:{clinic.id}"},
+        ],
+        [{"text": "🔷 بلد", "callback_data": f"map:balad:{clinic.id}"}],
+        [{"text": "🔙 بازگشت به لیست مطب‌ها", "callback_data": f"ride{provider}"}],
+    ]
     return text, kb
 
 
@@ -288,6 +471,77 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         states.pop(chat_id, None)
         text, kb = clinics_screen()
         await edit(chat_id, message_id, text, kb)
+
+    elif data == "nav":
+        states.pop(chat_id, None)
+        text, kb = clinics_screen("navclinic", "🗺 برای کدام مطب مسیر نشان بدهیم؟")
+        await edit(chat_id, message_id, text, kb)
+
+    elif data.startswith("navclinic:"):
+        try:
+            cid = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        clinic = get_clinic(cid)
+        if not clinic:
+            await edit(chat_id, message_id, "❌ این مطب فعال نیست یا یافت نشد.", kb_home())
+            return
+        text, kb = nav_screen(clinic)
+        await edit(chat_id, message_id, text, kb)
+
+    elif data.startswith("map:"):
+        parts = data.split(":", 2)
+        provider = parts[1] if len(parts) > 1 else ""
+        if provider not in MAP_PROVIDERS:
+            return
+        try:
+            cid = int(parts[2])
+        except (IndexError, ValueError):
+            return
+        clinic = get_clinic(cid)
+        if not clinic:
+            await send(chat_id, "❌ این مطب فعال نیست یا یافت نشد.")
+            return
+        # پیام جدید با لینک تمیز و قابل کلیک (به‌جای ویرایش منو)
+        await send(
+            chat_id,
+            map_link_message(provider, clinic),
+            [[{"text": "🔙 بازگشت به اطلاعات مطب", "callback_data": f"navclinic:{cid}"}]],
+        )
+
+    elif data in ("ridesnapp", "ridetapsi"):
+        provider = data[len("ride"):]
+        states.pop(chat_id, None)
+        app_info = RIDE_APPS[provider]
+        text, kb = clinics_screen(
+            f"ridepick:{provider}",
+            f"{app_info['emoji']} برای کدام مطب {app_info['name']} می‌خواهید؟"
+        )
+        await edit(chat_id, message_id, text, kb)
+
+    elif data.startswith("ridepick:"):
+        parts = data.split(":", 2)
+        provider = parts[1] if len(parts) > 1 else ""
+        if provider not in RIDE_APPS:
+            return
+        try:
+            cid = int(parts[2])
+        except (IndexError, ValueError):
+            return
+        clinic = get_clinic(cid)
+        if not clinic:
+            await edit(chat_id, message_id, "❌ این مطب فعال نیست یا یافت نشد.", kb_home())
+            return
+        text, kb = ride_screen(provider, clinic)
+        await edit(chat_id, message_id, text, kb)
+
+    elif data == "invite":
+        states.pop(chat_id, None)
+        await edit(chat_id, message_id, TXT_INVITE, kb_back_home())
+
+    elif data == "pharmacy":
+        states.pop(chat_id, None)
+        await edit(chat_id, message_id, TXT_PHARMACY, kb_back_home())
 
     elif data.startswith("clinic:"):
         try:
@@ -351,8 +605,16 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             f"• بیمار: {appt.patient_name}\n"
             f"• موبایل: {appt.patient_phone}\n\n"
             "وضعیت: ⏳ در انتظار تأیید مطب\n"
-            "نتیجه تأیید از طریق مطب به شما اعلام می‌شود.",
-            kb_home(),
+            "نتیجه تأیید از طریق مطب به شما اعلام می‌شود.\n\n"
+            "📍 برای رفت‌وآمد، مقصد به‌طور خودکار روی همین مطب تنظیم می‌شود:",
+            [
+                [{"text": "🗺 مسیریابی به مطب", "callback_data": f"navclinic:{appt.clinic_id}"}],
+                [
+                    {"text": "🚕 درخواست اسنپ", "callback_data": f"ridepick:snapp:{appt.clinic_id}"},
+                    {"text": "🚙 درخواست تپسی", "callback_data": f"ridepick:tapsi:{appt.clinic_id}"},
+                ],
+                [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+            ],
         )
 
     elif data == "cancel":

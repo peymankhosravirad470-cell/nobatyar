@@ -30,8 +30,8 @@ import bale_bot
 
 app = FastAPI(
     title="نوبتیار",
-    description="سیستم نوبت‌دهی خودسرویس برای مطب‌های شیراز",
-    version="0.1.0"
+    description="دستیار جامع بیمار در شیراز: نوبت‌دهی، مسیریابی، درخواست خودرو، داروخانه",
+    version="0.2.0"
 )
 
 app.add_middleware(
