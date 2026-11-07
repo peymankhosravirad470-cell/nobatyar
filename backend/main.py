@@ -14,7 +14,7 @@ from sqlalchemy import and_
 
 from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
-    Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback,
+    Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
     FeedbackStatus
 )
@@ -23,7 +23,7 @@ from schemas import (
     WorkingHourIn, WorkingHourOut, GenerateSlotsRequest, AvailableSlotOut,
     AppointmentCreate, AppointmentOut, AppointmentStatusUpdate,
     FeedbackCreate, FeedbackOut, FeedbackReply, ClinicAdminUpdate,
-    PasswordChange
+    PasswordChange, LabCreate, LabUpdate, LabOut
 )
 from auth import (
     hash_password, verify_password, create_access_token,
@@ -37,7 +37,7 @@ import bale_bot
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version="0.4.1"
+    version="0.5.0"
 )
 
 app.add_middleware(
@@ -772,10 +772,118 @@ def update_appointment_status(
 @app.get("/api/health")
 def health():
     return {
-        "status": "ok", "service": "نوبتیار", "version": "0.4.1",
+        "status": "ok", "service": "نوبتیار", "version": "0.5.0",
         "database": "postgresql" if IS_POSTGRES else "sqlite",
         "time": datetime.utcnow().isoformat()
     }
+
+
+# ==================== API: آزمایشگاه‌ها (ساختار مستقل و قابل توسعه) ====================
+
+def _search_labs_query(db: Session, q: Optional[str]):
+    """فیلتر جست‌وجوی فارسی آزمایشگاه — نرمال‌سازی ی/ك/أ/ة و ارقام (fa_utils).
+
+    ساختار مستقل از جست‌وجوی مراکز درمانی؛ در نسخه‌های بعد قابل توسعه
+    به جست‌وجوی بر اساس خدمات آزمایشگاهی است."""
+    from fa_utils import normalize_fa
+    if not q or not q.strip():
+        return db.query(Lab)
+    ns = normalize_fa(q.strip())[:60]
+    if not ns:
+        return db.query(Lab)
+    rows = db.query(Lab).all()
+    ids = []
+    for lab in rows:
+        if (ns in normalize_fa(lab.name)
+                or ns in normalize_fa(lab.category or "")
+                or ns in normalize_fa(lab.address or "")):
+            ids.append(lab.id)
+    if not ids:
+        # هیچ نتیجه‌ای → کوئری خالی (بدون خطا)
+        return db.query(Lab).filter(Lab.id == -1)
+    return db.query(Lab).filter(Lab.id.in_(ids))
+
+
+@app.get("/api/labs")
+def list_public_labs(
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+    db: Session = Depends(get_db)
+):
+    """فهرست عمومی آزمایشگاه‌های فعال — فقط status=active نمایش داده می‌شود."""
+    per_page = max(1, min(per_page, 100))
+    query = _search_labs_query(db, q).filter(Lab.status == "active")
+    if category:
+        query = query.filter(Lab.category == category.strip()[:50])
+    total = query.count()
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, pages))
+    items = (query.order_by(Lab.name)
+             .offset((page - 1) * per_page).limit(per_page).all())
+    return {
+        "items": [LabOut.model_validate(l).model_dump(mode="json") for l in items],
+        "total": total, "page": page, "pages": pages,
+    }
+
+
+@app.get("/api/admin/labs", response_model=List[LabOut])
+def list_admin_labs(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """همه آزمایشگاه‌ها (فعال و غیرفعال) برای پنل مدیریت."""
+    return db.query(Lab).order_by(Lab.name).limit(500).all()
+
+
+@app.post("/api/admin/labs", response_model=LabOut)
+def create_lab(
+    data: LabCreate,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    lab = Lab(
+        name=data.name.strip(),
+        category=data.category.strip(),
+        address=(data.address or "").strip() or None,
+        phone=(data.phone or "").strip() or None,
+        working_hours=(data.working_hours or "").strip() or None,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        status=data.status,
+    )
+    db.add(lab)
+    db.commit()
+    db.refresh(lab)
+    return lab
+
+
+@app.patch("/api/admin/labs/{lab_id}", response_model=LabOut)
+def update_lab(
+    lab_id: int,
+    data: LabUpdate,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(404, "آزمایشگاه یافت نشد")
+    changes = data.model_dump(exclude_unset=True, exclude_none=True)
+    if "status" in data.model_dump(exclude_unset=True):
+        lab.status = data.status or lab.status  # فقط active/inactive مجاز است (pattern)
+    for field in ("name", "category"):
+        if field in changes:
+            setattr(lab, field, changes[field].strip())
+    for field in ("address", "phone", "working_hours"):
+        if field in changes:
+            setattr(lab, field, changes[field].strip() or None)
+    for field in ("latitude", "longitude"):
+        if field in changes:
+            setattr(lab, field, changes[field])
+    db.commit()
+    db.refresh(lab)
+    return lab
 
 
 # ==================== API: صندوق پیشنهادات و انتقادات ====================

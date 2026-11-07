@@ -140,10 +140,15 @@ asyncio.run(bale_bot.handle_callback(CHAT, 10, f"ridepick:tapsi:{CID}"))
 txt = last_text("editMessageText")
 check("تپسی: مقصد و سایت رسمی", "تپسی" in txt and "https://tapsi.ir" in txt)
 
-# ---------- ۴) دعوت و داروخانه (از راهنما) ----------
+# ---------- ۴) دعوت و داروخانه (از منوی اصلی — نسخه 0.5.0) ----------
 asyncio.run(bale_bot.handle_callback(CHAT, 10, "help"))
 btns = kb_texts("editMessageText")
-check("راهنما: دکمه دعوت و داروخانه", any("دعوت" in b for b in btns) and any("داروخانه" in b for b in btns))
+check("راهنما: دیگر میزبان دعوت/داروخانه نیست (انتقال به منوی اصلی)",
+      not any("دعوت" in b for b in btns) and not any("داروخانه" in b for b in btns))
+asyncio.run(bale_bot.handle_callback(CHAT, 10, "home"))
+mbtns = kb_texts("editMessageText")
+check("منوی اصلی: دعوت و داروخانه مستقیماً در منو هستند",
+      any("دعوت" in b for b in mbtns) and any("داروخانه" in b for b in mbtns))
 asyncio.run(bale_bot.handle_callback(CHAT, 10, "invite"))
 txt = last_text("editMessageText")
 check("دعوت: مدل پیشنهادی + اعلام صادقانه نسخه بعدی",
