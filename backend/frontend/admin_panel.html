@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل ادمین | نوبتیار</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>پنل ادمین نوبتیار</h1>
+      <nav><a href="#" id="logoutBtn">خروج</a></nav>
+    </div>
+  </header>
+  <main class="container">
+    <div id="msg"></div>
+    <div class="card">
+      <h2>درخواست‌های در انتظار تأیید</h2>
+      <button class="btn-sm" onclick="loadPending()">بروزرسانی</button>
+      <table>
+        <thead>
+          <tr>
+            <th>نام</th>
+            <th>تخصص</th>
+            <th>آدرس</th>
+            <th>تلفن</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="pendingBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <div id="approveModal" class="card hidden" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);max-width:400px;z-index:100;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <h2>تأیید مطب و ایجاد حساب</h2>
+    <input type="hidden" id="approveClinicId">
+    <label>نام کاربری ورود مطب</label>
+    <input type="text" id="approveUsername" placeholder="مثلاً clinic1">
+    <label>رمز عبور اولیه</label>
+    <input type="text" id="approvePassword" placeholder="رمز موقت">
+    <button id="confirmApprove">تأیید و فعال‌سازی</button>
+    <button class="btn-outline" onclick="document.getElementById('approveModal').classList.add('hidden')">انصراف</button>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('admin_token');
+    if (!token) window.location.href = '/admin/login';
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    async function loadPending() {
+      const res = await fetch('/api/admin/clinics/pending', { headers });
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return;
+      }
+      const list = await res.json();
+      const tbody = document.getElementById('pendingBody');
+      tbody.innerHTML = list.map(c => `
+        <tr>
+          <td>${c.name}</td>
+          <td>${c.specialty}</td>
+          <td>${c.address}</td>
+          <td>${c.phone}</td>
+          <td>
+            <button class="btn-sm btn-success" onclick="openApprove(${c.id})">تأیید</button>
+            <button class="btn-sm btn-danger" onclick="rejectClinic(${c.id})">رد</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="5">درخواستی در انتظار نیست</td></tr>';
+    }
+
+    function openApprove(id) {
+      document.getElementById('approveClinicId').value = id;
+      document.getElementById('approveUsername').value = 'clinic' + id;
+      document.getElementById('approvePassword').value = 'pass' + id;
+      document.getElementById('approveModal').classList.remove('hidden');
+    }
+
+    document.getElementById('confirmApprove').onclick = async () => {
+      const data = {
+        clinic_id: parseInt(document.getElementById('approveClinicId').value),
+        login_username: document.getElementById('approveUsername').value.trim(),
+        password: document.getElementById('approvePassword').value
+      };
+      const res = await fetch('/api/admin/clinics/approve', {
+        method: 'POST', headers, body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      document.getElementById('approveModal').classList.add('hidden');
+      document.getElementById('msg').innerHTML = res.ok
+        ? `<div class="alert alert-success">مطب تأیید شد. یوزرنیم: ${data.login_username}</div>`
+        : `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+      loadPending();
+    };
+
+    async function rejectClinic(id) {
+      if (!confirm('آیا مطمئن هستید؟')) return;
+      await fetch(`/api/admin/clinics/${id}/reject`, { method: 'POST', headers });
+      loadPending();
+    }
+
+    document.getElementById('logoutBtn').onclick = () => {
+      localStorage.removeItem('admin_token');
+      window.location.href = '/admin/login';
+    };
+
+    loadPending();
+  </script>
+</body>
+</html>

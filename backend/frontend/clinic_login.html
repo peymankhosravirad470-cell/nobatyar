@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود مطب | نوبتیار</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>نوبتیار</h1>
+      <nav><a href="/">خانه</a></nav>
+    </div>
+  </header>
+  <main class="container">
+    <div class="card" style="max-width: 400px; margin: 2rem auto;">
+      <h2>ورود به پنل مطب</h2>
+      <div id="msg"></div>
+      <form id="loginForm">
+        <label>نام کاربری</label>
+        <input type="text" name="username" required>
+        <label>رمز عبور</label>
+        <input type="password" name="password" required>
+        <button type="submit">ورود</button>
+      </form>
+    </div>
+  </main>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const res = await fetch('/api/clinic/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.username.value, password: form.password.value })
+      });
+      const json = await res.json();
+      const msg = document.getElementById('msg');
+      if (!res.ok) {
+        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        return;
+      }
+      localStorage.setItem('clinic_token', json.access_token);
+      localStorage.setItem('clinic_info', JSON.stringify(json.clinic));
+      window.location.href = '/clinic/panel';
+    });
+  </script>
+</body>
+</html>

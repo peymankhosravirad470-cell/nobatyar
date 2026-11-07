@@ -45,7 +45,8 @@ app.add_middleware(
 import os
 from fastapi.responses import FileResponse
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
+# داخل backend قرار دارد تا با Root Directory=backend روی لیارا کار کند
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND_DIR, "static")), name="static")
 
 

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل مطب | نوبتیار</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>پنل مطب — <span id="clinicName"></span></h1>
+      <nav>
+        <a href="#" id="logoutBtn">خروج</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="msg"></div>
+
+    <div class="card">
+      <h2>ساعات کاری هفتگی</h2>
+      <div class="grid-2">
+        <div>
+          <label>روز هفته</label>
+          <select id="dayOfWeek">
+            <option value="0">شنبه</option>
+            <option value="1">یکشنبه</option>
+            <option value="2">دوشنبه</option>
+            <option value="3">سه‌شنبه</option>
+            <option value="4">چهارشنبه</option>
+            <option value="5">پنج‌شنبه</option>
+            <option value="6">جمعه</option>
+          </select>
+          <label>ساعت شروع</label>
+          <input type="time" id="startTime" value="09:00">
+          <label>ساعت پایان</label>
+          <input type="time" id="endTime" value="13:00">
+          <label>مدت هر اسلات (دقیقه)</label>
+          <input type="number" id="slotDur" value="30" min="10" max="120">
+          <button id="saveWH">ذخیره ساعات کاری</button>
+        </div>
+        <div>
+          <h3 style="margin-bottom:0.5rem;">ساعات تعریف‌شده</h3>
+          <ul id="whList" style="list-style:none;"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>تولید اسلات</h2>
+      <div class="grid-2">
+        <div>
+          <label>از تاریخ</label>
+          <input type="date" id="fromDate">
+          <label>تا تاریخ</label>
+          <input type="date" id="toDate">
+          <button id="genSlots">تولید اسلات‌های خالی</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>نوبت‌ها</h2>
+      <button class="btn-sm" onclick="loadAppointments()">بروزرسانی</button>
+      <table>
+        <thead>
+          <tr>
+            <th>بیمار</th>
+            <th>تلفن</th>
+            <th>زمان</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="apptBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    const token = localStorage.getItem('clinic_token');
+    if (!token) window.location.href = '/clinic/login';
+    const clinicInfo = JSON.parse(localStorage.getItem('clinic_info') || '{}');
+    document.getElementById('clinicName').textContent = clinicInfo.name || '';
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    const dayNames = ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنج‌شنبه','جمعه'];
+
+    async function loadWorkingHours() {
+      const res = await fetch('/api/clinic/working-hours', { headers });
+      const list = await res.json();
+      const ul = document.getElementById('whList');
+      ul.innerHTML = list.map(w => 
+        `<li style="padding:0.3rem 0;">${dayNames[w.day_of_week]}: ${w.start_time.slice(0,5)} تا ${w.end_time.slice(0,5)} (${w.slot_duration_minutes} دقیقه)</li>`
+      ).join('') || '<li>هنوز تعریف نشده</li>';
+    }
+
+    document.getElementById('saveWH').onclick = async () => {
+      const data = {
+        day_of_week: parseInt(document.getElementById('dayOfWeek').value),
+        start_time: document.getElementById('startTime').value + ':00',
+        end_time: document.getElementById('endTime').value + ':00',
+        slot_duration_minutes: parseInt(document.getElementById('slotDur').value)
+      };
+      const res = await fetch('/api/clinic/working-hours', {
+        method: 'POST', headers, body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      const msg = document.getElementById('msg');
+      if (!res.ok) {
+        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        return;
+      }
+      msg.innerHTML = '<div class="alert alert-success">ساعات کاری ذخیره شد</div>';
+      loadWorkingHours();
+    };
+
+    document.getElementById('genSlots').onclick = async () => {
+      const from = document.getElementById('fromDate').value;
+      const to = document.getElementById('toDate').value;
+      if (!from || !to) {
+        document.getElementById('msg').innerHTML = '<div class="alert alert-error">تاریخ‌ها را وارد کنید</div>';
+        return;
+      }
+      const res = await fetch('/api/clinic/slots/generate', {
+        method: 'POST', headers,
+        body: JSON.stringify({ from_date: from, to_date: to })
+      });
+      const json = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? `<div class="alert alert-success">${json.message}</div>`
+        : `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+    };
+
+    async function loadAppointments() {
+      const res = await fetch('/api/clinic/appointments', { headers });
+      const list = await res.json();
+      const tbody = document.getElementById('apptBody');
+      tbody.innerHTML = list.map(a => {
+        const dt = new Date(a.appointment_datetime).toLocaleString('fa-IR');
+        let actions = '';
+        if (a.status === 'pending') {
+          actions = `
+            <button class="btn-sm btn-success" onclick="updateStatus(${a.id},'confirmed')">تأیید</button>
+            <button class="btn-sm btn-danger" onclick="updateStatus(${a.id},'cancelled')">لغو</button>
+          `;
+        }
+        return `<tr>
+          <td>${a.patient_name}</td>
+          <td>${a.patient_phone}</td>
+          <td>${dt}</td>
+          <td><span class="badge badge-${a.status}">${a.status}</span></td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="5">نوبتی وجود ندارد</td></tr>';
+    }
+
+    async function updateStatus(id, status) {
+      const res = await fetch(`/api/clinic/appointments/${id}/status`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) loadAppointments();
+    }
+
+    document.getElementById('logoutBtn').onclick = () => {
+      localStorage.removeItem('clinic_token');
+      localStorage.removeItem('clinic_info');
+      window.location.href = '/clinic/login';
+    };
+
+    // تاریخ پیش‌فرض
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('fromDate').value = today;
+    const nextWeek = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
+    document.getElementById('toDate').value = nextWeek;
+
+    loadWorkingHours();
+    loadAppointments();
+  </script>
+</body>
+</html>

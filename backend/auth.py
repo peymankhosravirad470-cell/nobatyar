@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Admin, Clinic
 
-# تنظیمات ساده (در تولید باید از env خوانده شود)
-SECRET_KEY = "nobatyar-shiraz-secret-change-me-in-production-2026"
+import os
+# در لیارا از متغیر محیطی SECRET_KEY استفاده می‌شود
+SECRET_KEY = os.environ.get("SECRET_KEY", "nobatyar-shiraz-secret-change-me-in-production-2026")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12  # ۱۲ ساعت
 
