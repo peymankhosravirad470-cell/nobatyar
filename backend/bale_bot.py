@@ -478,7 +478,16 @@ def bind_admin_chat(admin_id: int, chat_id) -> None:
         admin = db.get(Admin, admin_id)
         if admin:
             admin.bale_chat_id = str(chat_id)
+            # پیام‌های در صف اعلان (مثلاً وقتی ادمینی متصل نبود) شانس تلاش تازه می‌گیرند
+            db.execute(
+                update(Feedback)
+                .where(Feedback.notify_status.in_(("pending", "failed")))
+                .values(notify_attempts=0, notify_status="pending",
+                        notify_updated_at=datetime.utcnow())
+            )
             db.commit()
+            LOG.info("admin connected admin_id=%s chat=%s — pending notifications re-armed",
+                     admin_id, mask_chat(chat_id))
     finally:
         db.close()
 
