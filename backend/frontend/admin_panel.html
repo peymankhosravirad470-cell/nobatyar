@@ -32,6 +32,24 @@
         <tbody id="pendingBody"></tbody>
       </table>
     </div>
+
+    <div class="card">
+      <h2>صندوق پیشنهادات و انتقادات</h2>
+      <button class="btn-sm" onclick="loadFeedback()">بروزرسانی</button>
+      <table>
+        <thead>
+          <tr>
+            <th>کد</th>
+            <th>موضوع</th>
+            <th>پیام</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="feedbackBody"></tbody>
+      </table>
+      <p style="color:#666;font-size:0.85em">پاسخ ثبت‌شده در پنل، اگر بیمار از طریق ربات بله پیام داده باشد، مستقیماً برای او ارسال می‌شود.</p>
+    </div>
   </main>
 
   <div id="approveModal" class="card hidden" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);max-width:400px;z-index:100;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
@@ -106,12 +124,48 @@
       loadPending();
     }
 
+    async function loadFeedback() {
+      const res = await fetch('/api/admin/feedback', { headers });
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return;
+      }
+      const list = await res.json();
+      const tbody = document.getElementById('feedbackBody');
+      tbody.innerHTML = list.map(f => `
+        <tr>
+          <td>${f.id}</td>
+          <td>${f.subject || 'بدون موضوع'}</td>
+          <td style="max-width:280px;white-space:pre-wrap">${f.message}</td>
+          <td>${f.status === 'answered' ? '✅ پاسخ داده شد' : '⏳ در انتظار بررسی'}</td>
+          <td>
+            ${f.status !== 'answered' ? `<button class="btn-sm btn-success" onclick="replyFeedback(${f.id})">پاسخ</button>` : (f.admin_reply ? `<span title="">${f.admin_reply}</span>` : '—')}
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="5">پیامی ثبت نشده است</td></tr>';
+    }
+
+    async function replyFeedback(id) {
+      const reply = prompt('متن پاسخ به بیمار:');
+      if (!reply || reply.trim().length < 2) return;
+      const res = await fetch(`/api/admin/feedback/${id}/reply`, {
+        method: 'POST', headers, body: JSON.stringify({ reply })
+      });
+      const json = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">پاسخ ثبت و ارسال شد.</div>'
+        : `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+      loadFeedback();
+    }
+
     document.getElementById('logoutBtn').onclick = () => {
       localStorage.removeItem('admin_token');
       window.location.href = '/admin/login';
     };
 
     loadPending();
+    loadFeedback();
   </script>
 </body>
 </html>

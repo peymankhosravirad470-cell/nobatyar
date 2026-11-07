@@ -14,13 +14,15 @@ from sqlalchemy import and_
 
 from database import get_db, init_db, engine, SessionLocal
 from models import (
-    Admin, Clinic, WorkingHour, AvailableSlot, Appointment,
-    ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource
+    Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback,
+    ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
+    FeedbackStatus
 )
 from schemas import (
     ClinicRegister, ClinicOut, ClinicLogin, AdminLogin, ClinicApprove,
     WorkingHourIn, WorkingHourOut, GenerateSlotsRequest, AvailableSlotOut,
-    AppointmentCreate, AppointmentOut, AppointmentStatusUpdate
+    AppointmentCreate, AppointmentOut, AppointmentStatusUpdate,
+    FeedbackCreate, FeedbackOut, FeedbackReply, ClinicAdminUpdate
 )
 from auth import (
     hash_password, verify_password, create_access_token,
@@ -30,8 +32,8 @@ import bale_bot
 
 app = FastAPI(
     title="نوبتیار",
-    description="دستیار جامع بیمار در شیراز: نوبت‌دهی، مسیریابی، درخواست خودرو، داروخانه",
-    version="0.2.0"
+    description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
+    version="0.3.0"
 )
 
 app.add_middleware(
@@ -126,6 +128,8 @@ def register_clinic(data: ClinicRegister, db: Session = Depends(get_db)):
         specialty=data.specialty,
         address=data.address,
         phone=data.phone,
+        type=data.type,
+        doctor_name=(data.doctor_name or "").strip()[:100] or None,
         status=ClinicStatus.pending,
         subscription_status=SubscriptionStatus.inactive,
     )
@@ -136,13 +140,31 @@ def register_clinic(data: ClinicRegister, db: Session = Depends(get_db)):
 
 
 @app.get("/api/clinics/public", response_model=List[ClinicOut])
-def list_public_clinics(db: Session = Depends(get_db)):
-    """فقط مطب‌های تأییدشده و فعال برای نمایش به بیمار"""
-    clinics = db.query(Clinic).filter(
+def list_public_clinics(
+    type: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """فقط مراکز تأییدشده و فعال؛ فیلتر اختیاری نوع (clinic/office) و جست‌وجوی فارسی"""
+    q = db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active
-    ).all()
-    return clinics
+    )
+    if type in ("clinic", "office"):
+        q = q.filter(Clinic.type == type)
+    items = q.all()
+    if search:
+        from fa_utils import normalize_fa
+        ns = normalize_fa(search)
+        if ns:
+            items = [
+                c for c in items
+                if ns in normalize_fa(c.name)
+                or ns in normalize_fa(c.doctor_name or "")
+                or ns in normalize_fa(c.specialty or "")
+                or ns in normalize_fa(c.address or "")
+            ]
+    return items
 
 
 @app.get("/api/clinics/{clinic_id}", response_model=ClinicOut)
@@ -211,6 +233,28 @@ def reject_clinic(
     clinic.status = ClinicStatus.rejected
     db.commit()
     return {"message": "مطب رد شد"}
+
+
+@app.patch("/api/admin/clinics/{clinic_id}", response_model=ClinicOut)
+def admin_update_clinic(
+    clinic_id: int,
+    data: ClinicAdminUpdate,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """بروزرسانی ادمینی مرکز: نوع (درمانگاه/مطب)، نام پزشک، وضعیت اشتراک"""
+    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+    if not clinic:
+        raise HTTPException(404, "مطب یافت نشد")
+    if data.type is not None:
+        clinic.type = data.type
+    if data.doctor_name is not None:
+        clinic.doctor_name = data.doctor_name.strip()[:100] or None
+    if data.subscription_status is not None:
+        clinic.subscription_status = SubscriptionStatus(data.subscription_status)
+    db.commit()
+    db.refresh(clinic)
+    return clinic
 
 
 # ==================== API: ورود مطب ====================
@@ -473,4 +517,66 @@ def update_appointment_status(
 # Health
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "نوبتیار", "time": datetime.utcnow().isoformat()}
+    return {"status": "ok", "service": "نوبتیار", "version": "0.3.0", "time": datetime.utcnow().isoformat()}
+
+
+# ==================== API: صندوق پیشنهادات و انتقادات ====================
+
+@app.post("/api/feedback", response_model=FeedbackOut)
+def create_feedback(data: FeedbackCreate, db: Session = Depends(get_db)):
+    """ثبت پیام بیمار؛ در صورت اتصال ادمین‌ها به ربات، اطلاع‌رسانی خودکار انجام می‌شود"""
+    fb = Feedback(
+        chat_id=(data.chat_id or "").strip()[:50] or None,
+        subject=(data.subject or "").strip()[:120] or None,
+        message=data.message.strip(),
+        status=FeedbackStatus.new,
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+    try:
+        import bale_bot
+        bale_bot.notify_admins_new_feedback(fb.id)
+    except Exception:
+        pass  # اطلاع‌رسانی اختیاری است؛ ثبت پیام نباید شکست بخورد
+    return fb
+
+
+@app.get("/api/admin/feedback", response_model=List[FeedbackOut])
+def list_feedback(
+    status_filter: Optional[str] = None,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Feedback)
+    if status_filter:
+        try:
+            q = q.filter(Feedback.status == FeedbackStatus(status_filter))
+        except ValueError:
+            raise HTTPException(400, "وضعیت نامعتبر")
+    return q.order_by(Feedback.created_at.desc()).limit(200).all()
+
+
+@app.post("/api/admin/feedback/{feedback_id}/reply", response_model=FeedbackOut)
+def reply_feedback(
+    feedback_id: int,
+    data: FeedbackReply,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
+    if not fb:
+        raise HTTPException(404, "پیام یافت نشد")
+    fb.admin_reply = data.reply.strip()
+    fb.status = FeedbackStatus.answered
+    fb.answered_by = admin.id
+    fb.answered_at = datetime.utcnow()
+    db.commit()
+    db.refresh(fb)
+    if fb.chat_id:
+        try:
+            import bale_bot
+            bale_bot.push_feedback_reply(fb.chat_id, fb.id)
+        except Exception:
+            pass
+    return fb

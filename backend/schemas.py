@@ -14,6 +14,9 @@ class ClinicRegister(BaseModel):
     specialty: str = Field(..., min_length=2, max_length=100)
     address: str = Field(..., min_length=5)
     phone: str = Field(..., min_length=10, max_length=20)
+    # نوع مرکز: درمانگاه یا مطب (پیش‌فرض: درمانگاه)
+    type: str = Field("clinic", pattern="^(clinic|office)$")
+    doctor_name: Optional[str] = Field(None, max_length=100)
 
     @field_validator("phone")
     @classmethod
@@ -36,6 +39,8 @@ class ClinicOut(BaseModel):
     status: str
     subscription_status: str
     subscription_expires_at: Optional[datetime] = None
+    type: Optional[str] = None
+    doctor_name: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -100,6 +105,8 @@ class AppointmentCreate(BaseModel):
     slot_id: int
     patient_name: str = Field(..., min_length=2, max_length=100)
     patient_phone: str
+    patient_national_code: Optional[str] = Field(None, max_length=10)
+    phone_verified: bool = False
     source: str = "web"  # web | bale
     bale_chat_id: Optional[str] = None
     notes: Optional[str] = None
@@ -110,6 +117,8 @@ class AppointmentOut(BaseModel):
     clinic_id: int
     patient_name: str
     patient_phone: str
+    patient_national_code: Optional[str] = None
+    phone_verified: bool = False
     appointment_datetime: datetime
     status: str
     source: str
@@ -122,3 +131,35 @@ class AppointmentOut(BaseModel):
 
 class AppointmentStatusUpdate(BaseModel):
     status: str  # confirmed | cancelled | completed
+
+
+# ---------- Feedback (صندوق پیشنهادات) ----------
+class FeedbackCreate(BaseModel):
+    chat_id: Optional[str] = Field(None, max_length=50)
+    subject: Optional[str] = Field(None, max_length=120)
+    message: str = Field(..., min_length=5, max_length=2000)
+
+
+class FeedbackOut(BaseModel):
+    id: int
+    chat_id: Optional[str] = None
+    subject: Optional[str] = None
+    message: str
+    status: str
+    admin_reply: Optional[str] = None
+    answered_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FeedbackReply(BaseModel):
+    reply: str = Field(..., min_length=2, max_length=2000)
+
+
+class ClinicAdminUpdate(BaseModel):
+    """بروزرسانی ادمین: نوع مرکز، نام پزشک، وضعیت اشتراک"""
+    type: Optional[str] = Field(None, pattern="^(clinic|office)$")
+    doctor_name: Optional[str] = Field(None, max_length=100)
+    subscription_status: Optional[str] = Field(None, pattern="^(active|inactive)$")

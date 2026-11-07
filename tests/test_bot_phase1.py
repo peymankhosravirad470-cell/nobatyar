@@ -1,13 +1,13 @@
 """
-تست فاز ۱ ربات بله نوبتیار — بدون شبکه واقعی (call_api ساختگی)
+تست رگرسیون فاز ۱ ربات بله نوبتیار (به‌روزشده برای منوی فاز ۲)
 
-سناریوها:
-۱-۲. منوی اصلی و شروع
-۳-۷. مسیریابی: nav → navclinic → map:google/neshan/balad
-۸-۹. اسنپ/تپسی: ridesnapp → ridepick:snapp
-۱۰-۱۱. دعوت و داروخانه (نسخه بعدی)
-۱۲-۱۶. جریان کامل رزرو (منطق قبلی نباید خراب شده باشد) + تاریخ شمسی + رزرو تکراری
-۱۷. صحت الگوریتم تاریخ شمسی با چند لنگرِ شناخته‌شده
+سناریوهایی که نباید خراب شده باشند:
+- منوی اصلی و شروع (ساختار جدید ۷گانه)
+- مسیریابی: nav → navclinic → map:google/neshan/balad (فرمت‌های رسمی)
+- تاکسی: taxi → taxiapp → ridepick (مقصد خودکار + سایت رسمی)
+- دعوت و داروخانه (از بخش راهنما)
+- جریان کامل رزرو با مسیر جدید (book → booktype → clin → slot → نام → کد ملی → شماره)
+- رزرو تکراری همان اسلات + الگوریتم تاریخ شمسی
 """
 
 import sys, os, asyncio, re
@@ -59,6 +59,7 @@ clinic = Clinic(
     name="مطب نمونه دکتر آزمون", specialty="داخلی",
     address="شیراز، خیابان زند، نبش کوچه ۱۲، ساختمان پزشکان مهر",
     phone="07132223344",
+    type="office",
     status=ClinicStatus.approved, subscription_status=SubscriptionStatus.active,
 )
 db.add(clinic)
@@ -79,23 +80,32 @@ db.close()
 
 CHAT = 999001
 
+def make_valid_nc(first9: str) -> str:
+    s = sum(int(d) * (10 - i) for i, d in enumerate(first9))
+    rem = s % 11
+    return first9 + (str(rem) if rem < 2 else str(11 - rem))
+
+VALID_NC = make_valid_nc("098765432")
+
 # ---------- ۱) /start و منوی جدید ----------
 asyncio.run(bale_bot.handle_text(CHAT, "/start"))
 txt = last_text("sendMessage")
 btns = kb_texts("sendMessage")
-check("منوی اصلی: پیام خوش‌آمد جدید", "دستیار جامع بیمار در شیراز" in txt)
+check("منوی اصلی: پیام خوش‌آمد", "به نوبتیار خوش آمدید" in txt)
 check("منوی اصلی: دکمه دریافت نوبت", "🗓 دریافت نوبت" in btns)
-check("منوی اصلی: دکمه مسیریابی", "🗺 مسیریابی به مطب" in btns)
-check("منوی اصلی: دکمه اسنپ و تپسی", "🚕 درخواست اسنپ" in btns and "🚙 درخواست تپسی" in btns)
-check("منوی اصلی: دکمه دعوت", "🎁 دعوت دوستان و دریافت تخفیف" in btns)
-check("منوی اصلی: دکمه داروخانه", "💊 داروخانه‌های شیراز" in btns)
+check("منوی اصلی: دکمه جست‌وجو", "🔎 جست‌وجو" in btns)
+check("منوی اصلی: دکمه تاکسی اینترنتی", "🚕 تاکسی اینترنتی" in btns)
+check("منوی اصلی: دکمه مسیریابی", "🗺 مسیریابی" in btns)
+check("منوی اصلی: دکمه نوبت‌های من", "🗂 نوبت‌های من" in btns)
+check("منوی اصلی: دکمه پیشنهادات و انتقادات", "💬 پیشنهادات و انتقادات" in btns)
+check("منوی اصلی: دکمه راهنما", "❓ راهنما و پشتیبانی" in btns)
 
 # ---------- ۲) مسیریابی ----------
 asyncio.run(bale_bot.handle_callback(CHAT, 10, "nav"))
 txt = last_text("editMessageText")
-check("مسیریابی: عنوان انتخاب مطب", "مسیر نشان بدهیم" in txt)
+check("مسیریابی: انتخاب نوع مرکز یا مقصد", "مقصد" in txt)
 
-asyncio.run(bale_bot.handle_callback(CHAT, 10, f"navclinic:{CID}"))
+asyncio.run(bale_bot.handle_callback(CHAT, 10, f"navclin:{CID}"))
 txt = last_text("editMessageText")
 btns = kb_texts("editMessageText")
 check("مسیریابی: آدرس واقعی از دیتابیس", "خیابان زند" in txt and "07132223344" in txt)
@@ -103,10 +113,8 @@ check("مسیریابی: دکمه هر سه نقشه",
       "🔵 گوگل‌مپ" in btns and "🟢 نشان" in btns and "🔷 بلد" in btns)
 
 asyncio.run(bale_bot.handle_callback(CHAT, 10, f"map:google:{CID}"))
-txt = last_text("sendMessage")
-check("گوگل‌مپ: فرمت رسمی Maps URLs + آدرس",
-      "google.com/maps/dir/?api=1&destination=" in txt and "zand" in txt.lower().replace("%d8%", "z") or
-      "google.com/maps/dir/?api=1&destination=" in txt)
+check("گوگل‌مپ: فرمت رسمی Maps URLs",
+      "google.com/maps/dir/?api=1&destination=" in last_text("sendMessage"))
 asyncio.run(bale_bot.handle_callback(CHAT, 10, f"map:neshan:{CID}"))
 check("نشان: فرمت تأییدشده", "neshan.org/maps/search/" in last_text("sendMessage"))
 asyncio.run(bale_bot.handle_callback(CHAT, 10, f"map:balad:{CID}"))
@@ -117,21 +125,25 @@ asyncio.run(bale_bot.handle_callback(CHAT, 10, f"map:balad:{CID}"))
 link = last_text("sendMessage").split("لینک مسیریابی:\n")[1].split("\n")[0]
 check("بلد: آدرس در لینک encode شده", "search?query=" in link and "%" in link)
 
-# ---------- ۳) اسنپ / تپسی ----------
-asyncio.run(bale_bot.handle_callback(CHAT, 10, "ridesnapp"))
+# ---------- ۳) تاکسی اینترنتی ----------
+asyncio.run(bale_bot.handle_callback(CHAT, 10, "taxi"))
 txt = last_text("editMessageText")
-check("اسنپ: انتخاب مطب", "اسنپ" in txt)
+btns = kb_texts("editMessageText")
+check("تاکسی: انتخاب سرویس", "سرویس" in txt and "🚕 اسنپ" in btns and "🚙 تپسی" in btns)
 asyncio.run(bale_bot.handle_callback(CHAT, 10, f"ridepick:snapp:{CID}"))
 txt = last_text("editMessageText")
-check("اسنپ: مقصد خودکار = آدرس مطب", "خیابان زند" in txt and "کپی" in txt)
+check("اسنپ: مقصد خودکار = آدرس مرکز", "خیابان زند" in txt and "کپی" in txt)
 check("اسنپ: سایت رسمی و اعلام صادقانه مسیر جایگزین",
-      "https://snapp.ir" in txt and "هنوز به‌صورت رسمی عرضه نشده" in txt)
+      "https://snapp.ir" in txt and "رسمی و مستند عرضه نشده" in txt)
 
 asyncio.run(bale_bot.handle_callback(CHAT, 10, f"ridepick:tapsi:{CID}"))
 txt = last_text("editMessageText")
 check("تپسی: مقصد و سایت رسمی", "تپسی" in txt and "https://tapsi.ir" in txt)
 
-# ---------- ۴) دعوت و داروخانه ----------
+# ---------- ۴) دعوت و داروخانه (از راهنما) ----------
+asyncio.run(bale_bot.handle_callback(CHAT, 10, "help"))
+btns = kb_texts("editMessageText")
+check("راهنما: دکمه دعوت و داروخانه", any("دعوت" in b for b in btns) and any("داروخانه" in b for b in btns))
 asyncio.run(bale_bot.handle_callback(CHAT, 10, "invite"))
 txt = last_text("editMessageText")
 check("دعوت: مدل پیشنهادی + اعلام صادقانه نسخه بعدی",
@@ -142,12 +154,16 @@ txt = last_text("editMessageText")
 check("داروخانه: ساختار + تعهد راستی‌آزمایی",
       "شبانه‌روزی" in txt and "راستی‌آزمایی" in txt and "نسخه بعدی" in txt)
 
-# ---------- ۵) جریان کامل رزرو (رجression) ----------
+# ---------- ۵) جریان کامل رزرو (مسیر جدید) ----------
 asyncio.run(bale_bot.handle_text(CHAT + 1, "/start"))
 asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, "book"))
-check("رزرو: لیست مطب (دکمه‌ها)", any("مطب نمونه" in b for b in kb_texts("editMessageText")))
-
-asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, f"clinic:{CID}"))
+btns = kb_texts("editMessageText")
+check("رزرو: انتخاب نوع مرکز", "🏥 درمانگاه‌ها" in btns and "🩺 مطب‌ها" in btns)
+asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, "booktype:o"))
+btns = kb_texts("editMessageText")
+check("رزرو: دسته‌بندی تخصص‌ها نمایش داده شد", any("داخلی" in b or "📁" in b for b in btns))
+# مستقیم به مرکز (از طریق جست‌وجوی داخل لیست هم ممکن است) — با clin:
+asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, f"clin:{CID}"))
 btns = kb_texts("editMessageText")
 check("رزرو: اسلات با تاریخ شمسی و ارقام فارسی (دکمه اسلات)",
       any("ساعت" in b and re.search(r"[۰-۹]", b) and ("آبان" in b or "آذر" in b or "مهر" in b) for b in btns))
@@ -157,23 +173,28 @@ txt = last_text("editMessageText")
 check("رزرو: درخواست نام بیمار", "نام و نام‌خانوادگی" in txt)
 
 asyncio.run(bale_bot.handle_text(CHAT + 1, "علی رضایی"))
-check("رزرو: درخواست موبایل", "شماره موبایل" in last_text("sendMessage"))
+check("رزرو: درخواست کد ملی", "کد ملی" in last_text("sendMessage"))
+
+asyncio.run(bale_bot.handle_text(CHAT + 1, VALID_NC))
+check("رزرو: درخواست شماره موبایل", "شماره موبایل" in last_text("sendMessage"))
 
 asyncio.run(bale_bot.handle_text(CHAT + 1, "۰۹۱۷۱۲۳۴۵۶۷"))  # ارقام فارسی
 txt = last_text("sendMessage")
-check("رزرو: خلاصه با نرمال‌سازی ارقام", "09171234567" in txt and "خلاصه نوبت" in txt)
+check("رزرو: خلاصه با نرمال‌سازی ارقام (نمایش فارسی، ذخیره لاتین)",
+      ("۰۹۱۷۱۲۳۴۵۶۷" in txt or "09171234567" in txt) and "خلاصه نوبت" in txt)
 
 asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, "confirm"))
 txt = last_text("editMessageText")
 btns = kb_texts("editMessageText")
 check("رزرو: ثبت موفق + کد نوبت", "نوبت شما ثبت شد" in txt and "کد نوبت" in txt)
-check("رزرو: بعد از ثبت، دکمه مسیریابی و خودرو با همان مطب",
-      "🗺 مسیریابی به مطب" in btns and "🚕 درخواست اسنپ" in btns)
+check("رزرو: بعد از ثبت، دکمه مسیریابی و تاکسی",
+      any("مسیریابی" in b for b in btns) and any("تاکسی" in b for b in btns))
 
 db = SessionLocal()
 appt = db.query(Appointment).filter(Appointment.bale_chat_id == str(CHAT + 1)).first()
 check("رزرو: رکورد نوبت با منبع بله ذخیره شد",
-      appt is not None and appt.patient_phone == "09171234567")
+      appt is not None and appt.patient_phone == "09171234567"
+      and appt.patient_national_code == VALID_NC)
 s = db.query(AvailableSlot).filter(AvailableSlot.id == SID).first()
 check("رزرو: اسلات قفل شد", s.is_booked is True)
 db.close()
@@ -200,4 +221,4 @@ print(f"\n===== {len(PASS) - len(failed)}/{len(PASS)} سناریو پاس شد =
 if failed:
     print("شکست‌خورده:", failed)
     sys.exit(1)
-print("🎉 همه سناریوهای فاز ۱ پاس شدند.")
+print("🎉 همه سناریوهای رگرسیون فاز ۱ پاس شدند.")

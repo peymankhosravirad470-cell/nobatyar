@@ -5,7 +5,7 @@ Designed for hundreds of clinics in Shiraz.
 
 from datetime import datetime, date, time
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, Date, Time,
+    Column, Integer, String, Text, Boolean, DateTime, Date, Time, Float,
     ForeignKey, Enum as SAEnum, Index, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
@@ -37,12 +37,24 @@ class AppointmentSource(str, enum.Enum):
     bale = "bale"
 
 
+# نوع مرکز درمانی: درمانگاه (clinic) یا مطب (office)
+# به‌صورت String ذخیره می‌شود تا مهاجرت ستون در SQLite ساده بماند
+CLINIC_TYPES = ("clinic", "office")
+
+
+class FeedbackStatus(str, enum.Enum):
+    new = "new"            # در انتظار بررسی
+    answered = "answered"  # پاسخ داده شد
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+    # اتصال حساب ادمین به گفتگوی بله (برای اطلاع‌رسانی صندوق پیام‌ها)
+    bale_chat_id = Column(String(50), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -55,7 +67,16 @@ class Clinic(Base):
     address = Column(Text, nullable=False)
     phone = Column(String(20), nullable=False)
     status = Column(SAEnum(ClinicStatus), default=ClinicStatus.pending, nullable=False, index=True)
-    
+
+    # نوع مرکز: "clinic" = درمانگاه، "office" = مطب
+    # (مهاجرت ستون‌های جدید در database.init_db انجام می‌شود)
+    type = Column(String(10), default="clinic", nullable=False, server_default="clinic")
+    doctor_name = Column(String(100), nullable=True)
+
+    # مختصات اختیاری برای مسیریابی دقیق‌تر؛ فقط مقدار معتبر استفاده می‌شود
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
     # برای ورود به پنل مطب
     login_username = Column(String(50), unique=True, nullable=True, index=True)
     password_hash = Column(String(255), nullable=True)
@@ -128,6 +149,9 @@ class Appointment(Base):
     
     patient_name = Column(String(100), nullable=False)
     patient_phone = Column(String(20), nullable=False, index=True)
+    # هویت بیمار: کد ملی (اختیاری، برای جلوگیری از نوبت صوری) و وضعیت تأیید شماره
+    patient_national_code = Column(String(10), nullable=True, index=True)
+    phone_verified = Column(Boolean, default=False, nullable=False, server_default="0")
     
     appointment_datetime = Column(DateTime, nullable=False, index=True)
     status = Column(SAEnum(AppointmentStatus), default=AppointmentStatus.pending, nullable=False, index=True)
@@ -146,4 +170,24 @@ class Appointment(Base):
     __table_args__ = (
         Index("ix_appointments_clinic_status_dt", "clinic_id", "status", "appointment_datetime"),
         Index("ix_appointments_phone", "patient_phone"),
+        Index("ix_appointments_ncode", "patient_national_code"),
+    )
+
+
+class Feedback(Base):
+    """صندوق پیشنهادات و انتقادات — پیام بیمار + پاسخ مدیریت"""
+    __tablename__ = "feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String(50), nullable=True, index=True)  # گفتگوی بله فرستنده
+    subject = Column(String(120), nullable=True)
+    message = Column(Text, nullable=False)
+    status = Column(SAEnum(FeedbackStatus), default=FeedbackStatus.new, nullable=False, index=True)
+    admin_reply = Column(Text, nullable=True)
+    answered_by = Column(Integer, nullable=True)   # id ادمین
+    answered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_feedback_status_created", "status", "created_at"),
     )
