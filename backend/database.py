@@ -73,7 +73,7 @@ def init_db():
     - دیتابیس نسخه‌دار → ارتقای عادی تا head
     """
     from models import (  # noqa
-        Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback
+        Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab
     )
     from sqlalchemy import inspect as sa_inspect
 
@@ -114,7 +114,7 @@ def fix_pg_sequences():
     """پس از درج رکوردها با id صریح، شمارنده‌های SERIAL را بازتنظیم می‌کند (فقط PostgreSQL)."""
     if engine.dialect.name != "postgresql":
         return
-    tables = ["admins", "clinics", "working_hours", "available_slots", "appointments", "feedback"]
+    tables = ["admins", "clinics", "working_hours", "available_slots", "appointments", "feedback", "labs"]
     with engine.begin() as conn:
         for t in tables:
             conn.execute(text(

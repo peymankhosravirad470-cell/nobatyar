@@ -53,6 +53,51 @@
     </div>
 
     <div class="card">
+      <h2>🧪 مدیریت آزمایشگاه‌ها</h2>
+      <button class="btn-sm" onclick="loadLabs()">بروزرسانی</button>
+      <table>
+        <thead>
+          <tr>
+            <th>نام</th>
+            <th>دسته</th>
+            <th>تلفن</th>
+            <th>نشانی</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="labsBody"></tbody>
+      </table>
+      <p style="color:#666;font-size:0.85em">آزمایشگاه‌های «فعال» در ربات و فهرست عمومی نمایش داده می‌شوند. حذف قطعی وجود ندارد؛ فقط فعال/غیرفعال می‌شود تا داده‌ای از بین نرود.</p>
+
+      <h3 style="margin-top:18px">ثبت آزمایشگاه جدید</h3>
+      <div style="max-width:560px">
+        <label>نام آزمایشگاه *</label>
+        <input type="text" id="labName" placeholder="مثلاً آزمایشگاه مرکزی شیراز">
+        <label>دسته *</label>
+        <select id="labCategory">
+          <option>عمومی</option>
+          <option>تخصصی</option>
+          <option>پاتوبیولوژی</option>
+          <option>ژنتیک</option>
+          <option>تصویربرداری</option>
+          <option>سایر</option>
+        </select>
+        <label>تلفن</label>
+        <input type="text" id="labPhone" placeholder="0713xxxxxxx" style="direction:ltr">
+        <label>نشانی</label>
+        <input type="text" id="labAddress" placeholder="شیراز، خیابان ...">
+        <label>ساعات کاری</label>
+        <input type="text" id="labHours" placeholder="مثلاً شنبه تا پنجشنبه ۷ تا ۱۹">
+        <label>عرض جغرافیایی (اختیاری)</label>
+        <input type="number" step="any" id="labLat" placeholder="29.5926" style="direction:ltr">
+        <label>طول جغرافیایی (اختیاری)</label>
+        <input type="number" step="any" id="labLng" placeholder="52.5898" style="direction:ltr">
+        <button id="labSaveBtn">ثبت آزمایشگاه</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>اتصال امن ربات به حساب ادمین</h2>
       <p style="font-size:0.9em;line-height:2">
         برای دریافت پیام‌های صندوق در بله:
@@ -155,6 +200,114 @@
       loadPending();
     }
 
+    // ---------- آزمایشگاه‌ها ----------
+    async function loadLabs() {
+      const res = await fetch('/api/admin/labs', { headers });
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return;
+      }
+      const list = await res.json();
+      const tbody = document.getElementById('labsBody');
+      tbody.innerHTML = list.map(l => `
+        <tr>
+          <td>${l.name}</td>
+          <td>${l.category}</td>
+          <td style="direction:ltr">${l.phone || '—'}</td>
+          <td style="max-width:220px">${l.address || '—'}</td>
+          <td>${l.status === 'active' ? '🟢 فعال' : '⚪️ غیرفعال'}</td>
+          <td>
+            <button class="btn-sm" onclick="editLab(${l.id})">ویرایش</button>
+            ${l.status === 'active'
+              ? `<button class="btn-sm btn-outline" onclick="toggleLab(${l.id}, 'inactive')">غیرفعال</button>`
+              : `<button class="btn-sm btn-success" onclick="toggleLab(${l.id}, 'active')">فعال</button>`}
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="6">آزمایشگاهی ثبت نشده است</td></tr>';
+    }
+
+    function labFormPayload() {
+      const lat = document.getElementById('labLat').value;
+      const lng = document.getElementById('labLng').value;
+      return {
+        name: document.getElementById('labName').value.trim(),
+        category: document.getElementById('labCategory').value,
+        phone: document.getElementById('labPhone').value.trim() || null,
+        address: document.getElementById('labAddress').value.trim() || null,
+        working_hours: document.getElementById('labHours').value.trim() || null,
+        latitude: lat === '' ? null : parseFloat(lat),
+        longitude: lng === '' ? null : parseFloat(lng),
+      };
+    }
+
+    function labFillForm(l) {
+      document.getElementById('labName').value = l.name || '';
+      document.getElementById('labCategory').value = l.category || 'عمومی';
+      document.getElementById('labPhone').value = l.phone || '';
+      document.getElementById('labAddress').value = l.address || '';
+      document.getElementById('labHours').value = l.working_hours || '';
+      document.getElementById('labLat').value = (l.latitude === null || l.latitude === undefined) ? '' : l.latitude;
+      document.getElementById('labLng').value = (l.longitude === null || l.longitude === undefined) ? '' : l.longitude;
+    }
+
+    function labClearForm() {
+      ['labName','labPhone','labAddress','labHours','labLat','labLng'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('labCategory').value = 'عمومی';
+    }
+
+    document.getElementById('labSaveBtn').onclick = async () => {
+      const msg = document.getElementById('msg');
+      const editing = document.getElementById('labSaveBtn').dataset.editing;
+      const payload = labFormPayload();
+      if (!payload.name || payload.name.length < 2) {
+        msg.innerHTML = '<div class="alert alert-error">نام آزمایشگاه الزامی است</div>';
+        return;
+      }
+      const res = await fetch(editing ? `/api/admin/labs/${editing}` : '/api/admin/labs', {
+        method: editing ? 'PATCH' : 'POST', headers, body: JSON.stringify(payload)
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        msg.innerHTML = `<div class="alert alert-success">${editing ? 'آزمایشگاه ویرایش شد.' : 'آزمایشگاه ثبت شد.'}</div>`;
+        delete document.getElementById('labSaveBtn').dataset.editing;
+        document.getElementById('labSaveBtn').textContent = 'ثبت آزمایشگاه';
+        labClearForm();
+        loadLabs();
+      } else {
+        const detail = Array.isArray(json.detail) ? 'مقادیر ارسالی نامعتبر است' : (json.detail || 'خطا');
+        msg.innerHTML = `<div class="alert alert-error">${detail}</div>`;
+      }
+    };
+
+    async function editLab(id) {
+      const res = await fetch('/api/admin/labs', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const list = await res.json();
+      const lab = list.find(x => x.id === id);
+      if (!lab) return;
+      labFillForm(lab);
+      document.getElementById('labSaveBtn').dataset.editing = id;
+      document.getElementById('labSaveBtn').textContent = 'ذخیره تغییرات';
+      document.getElementById('labName').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function toggleLab(id, status) {
+      const res = await fetch(`/api/admin/labs/${id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ status })
+      });
+      const msg = document.getElementById('msg');
+      if (res.ok) {
+        msg.innerHTML = '<div class="alert alert-success">وضعیت آزمایشگاه تغییر کرد.</div>';
+        loadLabs();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+      }
+    }
+
+    // ---------- /آزمایشگاه‌ها ----------
+
     async function loadFeedback() {
       const res = await fetch('/api/admin/feedback', { headers });
       if (res.status === 401) {
@@ -251,6 +404,7 @@
 
     loadPending();
     loadFeedback();
+    loadLabs();
   </script>
 </body>
 </html>

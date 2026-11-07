@@ -213,3 +213,61 @@ class PasswordChange(BaseModel):
         if not re.search(r"[A-Za-z]", v) or not re.search(r"\d", v):
             raise ValueError("رمز جدید باید هم حرف و هم رقم داشته باشد")
         return v
+
+
+# ---------- آزمایشگاه‌ها (ساختار مستقل و قابل توسعه) ----------
+class LabCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=200)
+    category: str = Field("عمومی", min_length=2, max_length=50)
+    address: Optional[str] = Field(None, max_length=500)
+    phone: Optional[str] = Field(None, max_length=20)
+    working_hours: Optional[str] = Field(None, max_length=200)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    status: str = Field("active", pattern="^(active|inactive)$")
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = re.sub(r"[\s\-\(\)]", "", v.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")))
+        if not cleaned:
+            return None
+        if not re.match(r"^(\+?98|0)?\d{10,11}$", cleaned):
+            raise ValueError("شماره تماس معتبر نیست")
+        return cleaned
+
+    @field_validator("category", "name")
+    @classmethod
+    def _trim(cls, v: str) -> str:
+        return " ".join(v.split())
+
+
+class LabUpdate(BaseModel):
+    """بروزرسانی آزمایشگاه — همه فیلدها اختیاری (فقط موارد ارسالی تغییر می‌کند)."""
+    name: Optional[str] = Field(None, min_length=2, max_length=200)
+    category: Optional[str] = Field(None, min_length=2, max_length=50)
+    address: Optional[str] = Field(None, max_length=500)
+    phone: Optional[str] = Field(None, max_length=20)
+    working_hours: Optional[str] = Field(None, max_length=200)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    status: Optional[str] = Field(None, pattern="^(active|inactive)$")
+
+
+class LabOut(BaseModel):
+    id: int
+    name: str
+    category: str
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    working_hours: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    status: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

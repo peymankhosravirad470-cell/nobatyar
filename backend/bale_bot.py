@@ -1,8 +1,13 @@
 """
-ربات بله نوبتیار — نسخه ۲: سامانه حرفه‌ای نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز
+ربات بله نوبتیار — نسخه ۰.۵: منوی کامل + آزمایشگاه‌ها
 
 اصول این نسخه:
-- منوی اصلی کاملاً مستقل از وجود مطب/درمانگاه است؛ خالی بودن دیتابیس فقط
+- منوی اصلی شامل دریافت نوبت، جست‌وجو، تاکسی، مسیریابی، نوبت‌های من،
+  پیشنهادات و انتقادات، داروخانه‌ها، آزمایشگاه‌ها و دعوت دوستان است؛
+  هیچ گزینه‌ای زیرمجموعه بخش دیگر نیست.
+- آزمایشگاه‌ها ساختار مستقل دارند (جدول، جست‌وجو و صفحات جدا از مراکز درمانی)
+  و ثبت/مدیریت آن‌ها از پنل ادمین انجام می‌شود.
+- منوی اصلی کاملاً مستقل از وجود مطب/درمانگاه/آزمایشگاه است؛ خالی بودن دیتابیس فقط
   در همان بخش پیام مناسب نشان می‌دهد و هیچ مسیر بسته‌ای وجود ندارد.
 - در همه مراحل: بازگشت به منوی اصلی، انصراف و تغییر انتخاب ممکن است.
 - جست‌وجوی سریع فارسی با یکسان‌سازی ی/ك/أ/ة و ارقام عربی/فارسی (fa_utils).
@@ -34,7 +39,7 @@ from sqlalchemy import update
 
 from database import SessionLocal
 from models import (
-    Clinic, AvailableSlot, Appointment, Admin, Feedback,
+    Clinic, AvailableSlot, Appointment, Admin, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
     FeedbackStatus,
 )
@@ -66,9 +71,16 @@ JALALI_MONTHS = (
 # ==================== تنظیمات نمایش ====================
 PER_PAGE_CENTERS = 8      # تعداد مراکز در هر صفحه
 PER_PAGE_SLOTS = 6        # تعداد اسلات در هر صفحه
+PER_PAGE_LABS = 6         # تعداد آزمایشگاه در هر صفحه
 MAX_ACTIVE_APPTS = 3      # سقف نوبت فعال برای هر کد ملی (ضد سوءاستفاده)
 SESSION_TTL = 30 * 60     # انقضای جلسه گفتگو: ۳۰ دقیقه
 APPT_ACTIVE_STATUSES = (AppointmentStatus.pending, AppointmentStatus.confirmed)
+
+# ---------- آدرس اصلی سایت (تک منبع حقیقت برای همه لینک‌ها) ----------
+# دامنه اصلی: https://shirazhealthtour.ir (دامنه قدیمی nobatyar.liara.run
+# تا تأیید کامل دامنه جدید از دسترس خارج نمی‌شود، ولی همه پیام‌ها
+# آدرس اصلی را نشان می‌دهند؛ در صورت نیاز با NOBATYAR_SITE_URL قابل تغییر است)
+SITE_URL = (os.environ.get("NOBATYAR_SITE_URL") or "https://shirazhealthtour.ir").rstrip("/")
 
 # ---------- تنظیمات اعلان صندوق ----------
 NOTIFY_MAX_ATTEMPTS = 10          # حداکثر تلاش برای اعلان هر پیام
@@ -330,6 +342,52 @@ def search_centers(query: str, ctype: str | None = None, limit: int = 10):
     return [c for _, _, c in scored[:limit]]
 
 
+# ==================== آزمایشگاه‌ها (ساختار مستقل و قابل توسعه) ====================
+
+def get_active_labs() -> list:
+    """همه آزمایشگاه‌های فعال، مرتب بر اساس نام — ساختار مستقل از مراکز درمانی."""
+    db = SessionLocal()
+    try:
+        return db.query(Lab).filter(Lab.status == "active").order_by(Lab.name).all()
+    finally:
+        db.close()
+
+
+def get_active_lab(lab_id: int):
+    db = SessionLocal()
+    try:
+        return db.query(Lab).filter(
+            Lab.id == lab_id, Lab.status == "active").first()
+    finally:
+        db.close()
+
+
+def search_labs(query: str, limit: int = 10):
+    """جست‌وجوی فارسی مستقل آزمایشگاه — روی نام، دسته و آدرس.
+
+    امتیازدهی: نام > دسته > آدرس. نرمال‌سازی همان fa_utils (ی/ك/أ/ة، ارقام)."""
+    ns = normalize_fa(query)
+    if not ns:
+        return []
+    rows = get_active_labs()
+    scored = []
+    for lab in rows:
+        n_name = normalize_fa(lab.name)
+        n_cat = normalize_fa(lab.category or "")
+        n_addr = normalize_fa(lab.address or "")
+        score = 0
+        if ns in n_name:
+            score = 3
+        elif ns in n_cat:
+            score = 2
+        elif ns in n_addr:
+            score = 1
+        if score:
+            scored.append((score, lab.id, lab))
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    return [l for _, _, l in scored[:limit]]
+
+
 def has_duplicate_active(db, national_code: str, clinic_id: int):
     """نوبت فعال تکراری همان بیمار در همان مرکز؟"""
     return db.query(Appointment).filter(
@@ -538,10 +596,13 @@ TXT_START = (
     "سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز:\n"
     "🗓 دریافت نوبت از درمانگاه‌ها و مطب‌ها\n"
     "🔎 جست‌وجوی سریع پزشک، تخصص و درمانگاه\n"
+    "💊 داروخانه‌های مطرح شیراز\n"
+    "🧪 آزمایشگاه‌های ثبت‌شده\n"
     "🚕 تاکسی اینترنتی با مقصدِ خود مرکز درمانی\n"
     "🗺 مسیریابی با گوگل‌مپ، نشان و بلد\n"
     "🗂 سوابق نوبت‌های شما\n"
-    "💬 پیشنهادات و انتقادات مستقیم به مدیریت\n\n"
+    "💬 پیشنهادات و انتقادات مستقیم به مدیریت\n"
+    "🎁 دعوت دوستان و دریافت تخفیف\n\n"
     "👇 یکی از گزینه‌های زیر را انتخاب کنید:"
 )
 
@@ -556,8 +617,9 @@ TXT_HELP = (
     "اگر شماره را دستی تایپ کنید، در سوابق «تأییدنشده» ثبت می‌شود.\n\n"
     "🔒 حریم خصوصی: اطلاعات شما فقط برای ثبت نوبت استفاده می‌شود و در هیچ لاگی ذخیره نمی‌شود.\n\n"
     "🗂 نوبت‌های من: سوابق و لغو نوبت\n"
-    "🚕 تاکسی اینترنتی و 🗺 مسیریابی: مقصد خودکار روی مرکز انتخابی شما تنظیم می‌شود\n\n"
-    "☎️ وب‌سایت: nobatyar.liara.run"
+    "🚕 تاکسی اینترنتی و 🗺 مسیریابی: مقصد خودکار روی مرکز انتخابی شما تنظیم می‌شود\n"
+    "💊 داروخانه‌ها، 🧪 آزمایشگاه‌ها و 🎁 دعوت دوستان: مستقیماً از منوی اصلی\n\n"
+    f"☎️ وب‌سایت: {SITE_URL}"
 )
 
 TXT_INVITE = (
@@ -590,14 +652,17 @@ TXT_INTRO = (
     "• مرکز درمانی، ساعات کاری و اسلات‌های آزاد خود را تعریف می‌کند\n"
     "• بیمار از همین ربات یا وب‌سایت، نوبت دلخواهش را رزرو می‌کند\n"
     "• مرکز نوبت‌ها را در پنل خود تأیید یا لغو می‌کند\n\n"
-    "☎️ وب‌سایت: nobatyar.liara.run"
+    f"☎️ وب‌سایت: {SITE_URL}"
 )
 
 
 # ==================== کیبوردها و صفحات ====================
 
 def kb_home() -> list:
-    """منوی اصلی ۷گانه — مستقل از دیتابیس؛ چیدمان بهینه برای موبایل."""
+    """منوی اصلی ۹گانه — مستقل از دیتابیس؛ چیدمان بهینه برای موبایل.
+
+    «داروخانه‌ها»، «آزمایشگاه‌ها» و «دعوت دوستان» مستقیماً در منوی اصلی هستند
+    و زیرمجموعه هیچ بخش دیگری نیستند."""
     return [
         [
             {"text": "🗓 دریافت نوبت", "callback_data": "book"},
@@ -607,8 +672,15 @@ def kb_home() -> list:
             {"text": "🚕 تاکسی اینترنتی", "callback_data": "taxi"},
             {"text": "🗺 مسیریابی", "callback_data": "nav"},
         ],
-        [{"text": "🗂 نوبت‌های من", "callback_data": "myappts"}],
-        [{"text": "💬 پیشنهادات و انتقادات", "callback_data": "feedback"}],
+        [
+            {"text": "🗂 نوبت‌های من", "callback_data": "myappts"},
+            {"text": "💬 پیشنهادات و انتقادات", "callback_data": "feedback"},
+        ],
+        [
+            {"text": "💊 داروخانه‌ها", "callback_data": "pharmacy"},
+            {"text": "🧪 آزمایشگاه‌ها", "callback_data": "labs"},
+        ],
+        [{"text": "🎁 دعوت دوستان", "callback_data": "invite"}],
         [{"text": "❓ راهنما و پشتیبانی", "callback_data": "help"}],
     ]
 
@@ -921,6 +993,146 @@ def map_link_message(provider: str, clinic) -> str:
     )
 
 
+# ---------- آزمایشگاه‌ها: صفحات ربات ----------
+
+def labs_list_screen(page: int = 1) -> tuple:
+    """فهرست آزمایشگاه‌های فعال — مستقل از مراکز درمانی؛ با جست‌وجوی اختصاصی.
+
+    اگر آزمایشگاهی ثبت نشده باشد پیام مناسب نمایش داده می‌شود و دکمه‌ها
+    (جست‌وجو/بازگشت) همچنان در دسترس می‌مانند."""
+    labs = get_active_labs()
+    total = len(labs)
+    pages = max(1, (total + PER_PAGE_LABS - 1) // PER_PAGE_LABS)
+    page = min(max(1, page), pages)
+    if not total:
+        text = (
+            "🧪 آزمایشگاه‌ها\n\n"
+            "هنوز آزمایشگاهی ثبت نشده است.\n\n"
+            "به‌محض ثبت آزمایشگاه‌های معتبر توسط مدیریت نوبتیار، فهرست آن‌ها با "
+            "اطلاعات تماس، نشانی و مسیریابی همین‌جا نمایش داده می‌شود.\n"
+            "می‌توانید جست‌وجو کنید یا به‌زودی دوباره سر بزنید."
+        )
+        kb = [
+            [{"text": "🔎 جست‌وجوی آزمایشگاه", "callback_data": "labsearch"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ]
+        return text, kb
+    start = (page - 1) * PER_PAGE_LABS
+    chunk = labs[start:start + PER_PAGE_LABS]
+    text = (
+        "🧪 آزمایشگاه‌های ثبت‌شده و فعال\n\n"
+        f"• مجموع: {fa_digits(total)} آزمایشگاه\n"
+        "برای مشاهده اطلاعات تماس، نشانی و مسیریابی انتخاب کنید:"
+    )
+    rows = [[{"text": f"🧪 {l.name}", "callback_data": f"lab:{l.id}"}] for l in chunk]
+    rows.append([{"text": "🔎 جست‌وجوی آزمایشگاه", "callback_data": "labsearch"}])
+    kb = kb_pager("labpage", page, pages, rows + [
+        [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+    ])
+    return text, kb
+
+
+def lab_detail_screen(lab_id: int) -> tuple:
+    """جزئیات آزمایشگاه: تماس، نشانی، ساعات کاری + مسیریابی (فقط با اطلاعات معتبر)."""
+    lab = get_active_lab(lab_id)
+    if not lab:
+        return "❌ این آزمایشگاه فعال نیست یا یافت نشد.", [
+            [{"text": "🧪 آزمایشگاه‌ها", "callback_data": "labs"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ]
+    text = (
+        f"🧪 {lab.name}\n\n"
+        f"• دسته: {lab.category or 'عمومی'}\n"
+        f"• تلفن: {lab.phone or '— ثبت نشده —'}\n"
+        f"• نشانی: {lab.address or '— ثبت نشده —'}\n"
+        + (f"• ساعات کاری: {lab.working_hours}\n" if lab.working_hours else "")
+        + "\nℹ️ اطلاعات تماس و نشانی همان چیزی است که مدیریت نوبتیار ثبت کرده است."
+    )
+    rows = []
+    if (lab.address or "").strip() or valid_coords(lab.latitude, lab.longitude):
+        rows.append([{"text": "🗺 مسیریابی به آزمایشگاه", "callback_data": f"labnav:{lab.id}"}])
+    rows.append([{"text": "🧪 فهرست آزمایشگاه‌ها", "callback_data": "labs"}])
+    rows.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
+    return text, rows
+
+
+def lab_nav_screen(lab) -> tuple:
+    """مسیریابی آزمایشگاه — همان قواعد صادقانه مراکز: بدون آدرس معتبر، لینک جعلی ساخته نمی‌شود."""
+    if not ((lab.address or "").strip() or valid_coords(lab.latitude, lab.longitude)):
+        text = (
+            "🗺 مسیریابی\n\n"
+            f"🧪 {lab.name}\n\n"
+            "⚠️ نشانی این آزمایشگاه در دیتابیس ثبت نشده است؛ بنابراین لینک مسیریابی قابل ساخت نیست.\n"
+            f"برای دریافت نشانی با آزمایشگاه تماس بگیرید: {lab.phone or '—'}"
+        )
+        kb = [
+            [{"text": "🧪 فهرست آزمایشگاه‌ها", "callback_data": "labs"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ]
+        return text, kb
+    text = (
+        "🗺 مسیریابی به آزمایشگاه\n\n"
+        f"🧪 {lab.name}\n"
+        f"• دسته: {lab.category or 'عمومی'}\n"
+        f"• نشانی: {lab.address or '— ثبت نشده —'}\n\n"
+        "📍 نشانی بالا را می‌توانید با نگه‌داشتن انگشت کپی کنید.\n"
+        "نقشه دلخواه خود را انتخاب کنید — لینک بر اساس اطلاعات ثبت‌شده ساخته می‌شود:"
+    )
+    kb = [
+        [
+            {"text": "🔵 گوگل‌مپ", "callback_data": f"labmap:google:{lab.id}"},
+            {"text": "🟢 نشان", "callback_data": f"labmap:neshan:{lab.id}"},
+        ],
+        [{"text": "🔷 بلد", "callback_data": f"labmap:balad:{lab.id}"}],
+        [
+            {"text": "🚕 اسنپ", "callback_data": f"labride:snapp:{lab.id}"},
+            {"text": "🚙 تپسی", "callback_data": f"labride:tapsi:{lab.id}"},
+        ],
+        [{"text": "🧪 فهرست آزمایشگاه‌ها", "callback_data": "labs"}],
+        [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+    ]
+    return text, kb
+
+
+def lab_map_message(provider: str, lab) -> str:
+    """پیام لینک مسیریابی آزمایشگاه — آدرس/مختصات واقعی؛ بدون لینک جعلی."""
+    label, builder = MAP_PROVIDERS[provider]
+    use_coords = provider == "google" and valid_coords(lab.latitude, lab.longitude)
+    if use_coords:
+        link = (f"https://www.google.com/maps/dir/?api=1"
+                f"&destination={lab.latitude},{lab.longitude}&travelmode=driving")
+        src = "بر اساس مختصات ثبت‌شده آزمایشگاه"
+    else:
+        link = builder(lab.address)
+        src = "بر اساس نشانی ثبت‌شده آزمایشگاه"
+    return (
+        f"{label} — مسیریابی به {lab.name}\n\n"
+        f"📍 نشانی: {lab.address}\n\n"
+        "لینک مسیریابی:\n"
+        f"{link}\n\n"
+        f"ℹ️ {src}.\n"
+        "💡 لینک را باز کنید؛ اگر برنامه روی گوشی نصب باشد، معمولاً در همان برنامه باز می‌شود."
+    )
+
+
+def lab_ride_message(provider: str, lab) -> str:
+    """تاکسی اینترنتی به آزمایشگاه — همان مسیر جایگزین صادقانه مراکز."""
+    app = RIDE_APPS[provider]
+    return (
+        f"{app['emoji']} درخواست {app['name']}\n\n"
+        "📍 مقصد شما:\n"
+        f"🧪 {lab.name}\n"
+        f"• دسته: {lab.category or 'عمومی'}\n"
+        f"• نشانی: {lab.address or '— ثبت نشده —'}\n"
+        f"• تلفن: {lab.phone or '— ثبت نشده —'}\n\n"
+        "لینک مستقیمِ «تعیین مقصد از پیش» برای این سرویس به‌صورت رسمی و مستند عرضه نشده است؛ "
+        "بنابراین مسیر جایگزین:\n"
+        "۱️⃣ نشانی بالا را با نگه‌داشتن انگشت کپی کنید\n"
+        f"۲️⃣ اپ {app['name']} را باز کنید و در بخش «مقصد» بچسبانید\n\n"
+        f"🔗 وب‌سایت رسمی: {app['site']}"
+    )
+
+
 def ride_screen(provider: str, clinic) -> tuple:
     """درخواست اسنپ/تپسی — مقصد = مرکز انتخابی (مسیر جایگزین صادقانه)."""
     app = RIDE_APPS[provider]
@@ -1030,10 +1242,6 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
     if data == "help":
         _pop(chat_id)
         await edit(chat_id, message_id, TXT_HELP, [
-            [
-                {"text": "🎁 دعوت دوستان", "callback_data": "invite"},
-                {"text": "💊 داروخانه‌ها", "callback_data": "pharmacy"},
-            ],
             [{"text": "ℹ️ معرفی نوبتیار", "callback_data": "intro"}],
             [{"text": "🔙 بازگشت به منوی اصلی", "callback_data": "home"}],
         ])
@@ -1049,6 +1257,84 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     if data == "pharmacy":
         await edit(chat_id, message_id, TXT_PHARMACY, kb_back_home())
+        return
+
+    # ---------- آزمایشگاه‌ها (ساختار مستقل) ----------
+    if data == "labs":
+        _pop(chat_id)
+        text, kb = labs_list_screen(1)
+        await edit(chat_id, message_id, text, kb)
+        return
+
+    if data.startswith("labpage:"):
+        page = _int_or(data.split(":")[1], 1)
+        text, kb = labs_list_screen(page)
+        await edit(chat_id, message_id, text, kb)
+        return
+
+    if data.startswith("lab:"):
+        try:
+            lab_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        text, kb = lab_detail_screen(lab_id)
+        await edit(chat_id, message_id, text, kb)
+        return
+
+    if data.startswith("labnav:"):
+        lab = get_active_lab(_int_or(data.split(":")[1], 0))
+        if not lab:
+            await edit(chat_id, message_id, "❌ این آزمایشگاه فعال نیست یا یافت نشد.",
+                       kb_back_home())
+            return
+        text, kb = lab_nav_screen(lab)
+        await edit(chat_id, message_id, text, kb)
+        return
+
+    if data.startswith("labmap:"):
+        parts = data.split(":")
+        provider = parts[1] if len(parts) > 1 else ""
+        if provider not in MAP_PROVIDERS:
+            return
+        lab = get_active_lab(_int_or(parts[2] if len(parts) > 2 else "0", 0))
+        if not lab:
+            await edit(chat_id, message_id, "❌ این آزمایشگاه فعال نیست یا یافت نشد.",
+                       kb_back_home())
+            return
+        if not ((lab.address or "").strip() or valid_coords(lab.latitude, lab.longitude)):
+            # بدون آدرس معتبر لینکی ساخته نمی‌شود
+            text, kb = lab_nav_screen(lab)
+            await edit(chat_id, message_id, text, kb)
+            return
+        await send(chat_id, lab_map_message(provider, lab),
+                   [[{"text": "🗺 نقشه دیگر", "callback_data": f"labnav:{lab.id}"}],
+                    [{"text": "🧪 فهرست آزمایشگاه‌ها", "callback_data": "labs"}],
+                    [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
+        return
+
+    if data.startswith("labride:"):
+        parts = data.split(":")
+        provider = parts[1] if len(parts) > 1 else ""
+        if provider not in RIDE_APPS:
+            return
+        lab = get_active_lab(_int_or(parts[2] if len(parts) > 2 else "0", 0))
+        if not lab:
+            await edit(chat_id, message_id, "❌ این آزمایشگاه فعال نیست یا یافت نشد.",
+                       kb_back_home())
+            return
+        await send(chat_id, lab_ride_message(provider, lab),
+                   [[{"text": "🗺 مسیریابی", "callback_data": f"labnav:{lab.id}"}],
+                    [{"text": "🧪 فهرست آزمایشگاه‌ها", "callback_data": "labs"}],
+                    [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
+        return
+
+    if data == "labsearch":
+        _pop(chat_id)
+        _set(chat_id, step="labsearch")
+        await edit(chat_id, message_id,
+                   "🔎 جست‌وجوی آزمایشگاه\n\n"
+                   "نام آزمایشگاه، دسته (مثلاً «پاتوبیولوژی»، «ژنتیک») یا بخشی از نشانی را بنویسید:",
+                   _kb_cancel())
         return
 
     # ---------- دریافت نوبت ----------
@@ -1538,7 +1824,7 @@ async def handle_text(chat_id, text: str) -> None:
         _set(chat_id, step="admin_code", tries=0)
         await send(chat_id,
                    "🔐 اتصال امن ادمین به ربات\n\n"
-                   "۱. وارد پنل مدیریت شوید (nobatyar.liara.run/admin/panel)\n"
+                   f"۱. وارد پنل مدیریت شوید ({SITE_URL}/admin/panel)\n"
                    "۲. در بخش «اتصال ربات» کد یک‌بارمصرف بگیرید\n"
                    "۳. کد را همین‌جا ارسال کنید (اعتبار: ۵ دقیقه، فقط یک‌بار مصرف)\n\n"
                    "🔒 رمز عبور هرگز در چت ارسال نمی‌شود.", _kb_cancel())
@@ -1567,6 +1853,37 @@ async def handle_text(chat_id, text: str) -> None:
         await send(chat_id, "❌ کد نامعتبر، منقضی یا مصرف‌شده است.\n"
                             "کد جدید از پنل بگیرید و همین‌جا ارسال کنید:",
                    _kb_cancel())
+        return
+
+    # ---------- FSM: جست‌وجوی آزمایشگاه (ساختار مستقل از جست‌وجوی مراکز) ----------
+    if st and st.get("step") == "labsearch":
+        q = text.strip()[:60]
+        if len(normalize_fa(q)) < 2:
+            await send(chat_id,
+                       "⚠️ عبارت جست‌وجو خیلی کوتاه است. عبارت بلندتری بنویسید:")
+            return
+        results = search_labs(q, limit=10)
+        if not results:
+            await send(chat_id,
+                       f"❌ آزمایشگاهی برای «{q}» یافت نشد.\n\n"
+                       "💡 پیشنهاد:\n"
+                       "• عبارت را کوتاه‌تر بنویسید\n"
+                       "• املای دیگری را امتحان کنید\n"
+                       "• اگر آزمایشگاهی ثبت نشده باشد، نتیجه‌ای نمایش داده نمی‌شود",
+                       [
+                           [{"text": "🔎 جست‌وجوی جدید", "callback_data": "labsearch"}],
+                           [{"text": "🧪 فهرست آزمایشگاه‌ها", "callback_data": "labs"}],
+                           [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+                       ])
+            _pop(chat_id)
+            return
+        rows = [[{"text": f"🧪 {l.name}", "callback_data": f"lab:{l.id}"}] for l in results]
+        rows.append([{"text": "🔎 جست‌وجوی جدید", "callback_data": "labsearch"}])
+        rows.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
+        await send(chat_id,
+                   f"🔎 نتایج جست‌وجوی آزمایشگاه برای «{q}» ({fa_digits(len(results))} مورد):",
+                   rows)
+        _pop(chat_id)
         return
 
     # ---------- FSM: جست‌وجو ----------

@@ -384,8 +384,9 @@ check("انصراف از عمق منو → منوی اصلی",
       "لغو شد" in txt and "🗓 دریافت نوبت" in kb_texts("editMessageText"))
 asyncio.run(bale_bot.handle_callback(CHAT + 6, 100, "help"))
 btns = kb_texts("editMessageText")
-check("راهنما: دکمه‌های دعوت/داروخانه/معرفی حفظ شده",
-      any("دعوت" in b for b in btns) and any("داروخانه" in b for b in btns) and any("معرفی" in b for b in btns))
+check("راهنما: فقط معرفی — دعوت/داروخانه به منوی اصلی منتقل شده‌اند (0.5.0)",
+      any("معرفی" in b for b in btns)
+      and not any("دعوت" in b or "داروخانه" in b for b in btns))
 
 # ==================== ۱۲) اتصال ادمین به ربات (کد یک‌بارمصرف) ====================
 from admin_security import generate_connect_code

@@ -41,6 +41,12 @@ class AppointmentSource(str, enum.Enum):
 # به‌صورت String ذخیره می‌شود تا مهاجرت ستون در SQLite ساده بماند
 CLINIC_TYPES = ("clinic", "office")
 
+# دسته‌های آزمایشگاه — ساختار مستقل و قابل توسعه
+LAB_CATEGORIES = ("عمومی", "تخصصی", "پاتوبیولوژی", "ژنتیک", "تصویربرداری", "سایر")
+
+# وضعیت آزمایشگاه: active = در فهرست عمومی نمایش داده می‌شود
+LAB_STATUSES = ("active", "inactive")
+
 
 class FeedbackStatus(str, enum.Enum):
     new = "new"            # در انتظار بررسی
@@ -258,4 +264,37 @@ class Feedback(Base):
     __table_args__ = (
         Index("ix_feedback_status_created", "status", "created_at"),
         Index("ix_feedback_notify_retry", "notify_status", "notify_attempts"),
+    )
+
+
+class Lab(Base):
+    """آزمایشگاه — ساختار مستقل از درمانگاه‌ها و مطب‌ها (قابل توسعه).
+
+    - ثبت و مدیریت فقط از پنل ادمین انجام می‌شود (بدون فرم ثبت‌نام عمومی).
+    - فقط آزمایشگاه‌های با status=active در فهرست عمومی ربات/وب نمایش داده می‌شوند.
+    - آدرس/مختصات اختیاری است؛ مسیریابی فقط با اطلاعات معتبر ساخته می‌شود
+      (هیچ لینک جعلی‌ای تولید نمی‌شود).
+    """
+    __tablename__ = "labs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    category = Column(String(50), nullable=False, default="عمومی",
+                      server_default="عمومی", index=True)
+    address = Column(Text, nullable=True)
+    phone = Column(String(20), nullable=True)
+    # ساعات کاری به‌صورت متن آزاد (مثلاً «شنبه تا پنجشنبه ۷ تا ۱۹») — ساده و قابل توسعه
+    working_hours = Column(String(200), nullable=True)
+    # مختصات اختیاری برای مسیریابی دقیق‌تر؛ فقط مقدار معتبر استفاده می‌شود
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
+    status = Column(String(10), nullable=False, default="active",
+                    server_default="active", index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_labs_status_category", "status", "category"),
     )
