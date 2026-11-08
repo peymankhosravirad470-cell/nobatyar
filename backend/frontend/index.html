@@ -4,32 +4,58 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>نوبتیار | نوبت‌دهی آنلاین مطب‌های شیراز</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/nobatyar-mark.svg">
   <link rel="stylesheet" href="/static/css/style.css">
   <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
 </head>
 <body>
   <header>
     <div class="container">
-      <h1>نوبتیار</h1>
+      <a href="/" class="brand-inline" style="text-decoration:none;">
+        <img src="/static/img/nobatyar-logo-white.svg" alt="نوبتیار" style="height:44px;">
+      </a>
       <nav>
         <a href="/">خانه</a>
         <a href="/book">رزرو نوبت</a>
         <a href="/register">ثبت‌نام مطب</a>
         <a href="/clinic/login">ورود مطب</a>
-        <a href="/admin/login">ادمین</a>
+        <a href="https://ble.ir/nobatyarshirazbot">ربات بله</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
-    <div class="card" style="text-align: center; margin-top: 2rem;">
-      <h2 style="font-size: 1.8rem; margin-bottom: 0.5rem;">نوبت‌دهی آسان برای مطب‌های شیراز</h2>
-      <p style="color: #0f766e; margin-bottom: 1.5rem;">
-        بدون تماس تلفنی، بدون انتظار. نوبت خود را آنلاین بگیرید.
-      </p>
-      <a href="/book" class="btn" style="margin-left: 0.5rem;">رزرو نوبت بیمار</a>
+    <section class="hero">
+      <h2>نوبت‌دهی آسان برای مطب‌های شیراز</h2>
+      <p>بدون تماس تلفنی، بدون انتظار. نوبت خود را آنلاین بگیرید.</p>
+      <a href="/book" class="btn">رزرو نوبت بیمار</a>
       <a href="/register" class="btn btn-outline">ثبت‌نام مطب / درمانگاه</a>
-    </div>
+      <div>
+        <span class="feature-badge">🗓 رزرو آنلاین نوبت</span>
+        <span class="feature-badge">🧪 آزمایشگاه‌ها</span>
+        <span class="feature-badge">💊 داروخانه‌ها</span>
+        <span class="feature-badge">⏰ یادآوری دارو</span>
+      </div>
+    </section>
+
+    <!-- ======== بخش معرفی ربات بله (official Bale logo — بدون تغییر) ======== -->
+    <section class="bale-section">
+      <img src="/static/img/bale-logo.png" alt="لوگوی رسمی بله"
+           class="bale-logo" width="84" height="84">
+      <div class="bale-body">
+        <h3>نوبتیار در بله</h3>
+        <p>ربات رسمی نوبتیار در پیام‌رسان ملی بله؛ همهٔ خدمات نوبتیار در جیب شماست:</p>
+        <ul>
+          <li>🗓 دریافت نوبت از درمانگاه‌ها و مطب‌های شیراز</li>
+          <li>🗂 مدیریت «نوبت‌های من» و یادآوری خودکار نوبت</li>
+          <li>💊 یادآور دارو — هر روز سر ساعت مقرر</li>
+          <li>🎁 دعوت دوستان و دریافت تخفیف</li>
+          <li>💬 پیشنهادات و انتقادات، مستقیم به مدیریت</li>
+        </ul>
+        <a href="https://ble.ir/nobatyarshirazbot" class="btn-bale">ورود به نوبتیار در بله</a>
+        <div class="bale-note">این دکمه در اپلیکیشن بله مستقیماً ربات را باز می‌کند.</div>
+      </div>
+    </section>
 
     <div class="grid-2">
       <div class="card">
@@ -54,8 +80,14 @@
   </main>
 
   <footer>
-    نوبتیار — سیستم نوبت‌دهی خودسرویس برای مطب‌های شیراز<br>
-    نسخه ۰.۱ — تست اولیه
+    <img src="/static/img/nobatyar-logo-white.svg" alt="نوبتیار">
+    <br>
+    نوبتیار — سیستم نوبت‌دهی خودسرویس برای مطب‌های شیراز
+    <br>
+    <span class="foot-links">
+      <a href="https://ble.ir/nobatyarshirazbot">ربات بله</a>
+      <a href="/">خانه</a>
+      <a href="/book">رزرو نوبت</a>
+    </span>
   </footer>
 </body>
-</html>
