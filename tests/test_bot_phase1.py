@@ -93,7 +93,7 @@ txt = last_text("sendMessage")
 btns = kb_texts("sendMessage")
 check("منوی اصلی: پیام خوش‌آمد", "به نوبتیار خوش آمدید" in txt)
 check("منوی اصلی: دکمه دریافت نوبت", "🗓 دریافت نوبت" in btns)
-check("منوی اصلی: دکمه جست‌وجو", "🔎 جست‌وجو" in btns)
+check("منوی اصلی: دکمه جست‌وجو (متن کامل — نسخه 0.6)", "🔎 جست‌وجوی پزشک و درمانگاه" in btns)
 check("منوی اصلی: دکمه تاکسی اینترنتی", "🚕 تاکسی اینترنتی" in btns)
 check("منوی اصلی: دکمه مسیریابی", "🗺 مسیریابی" in btns)
 check("منوی اصلی: دکمه نوبت‌های من", "🗂 نوبت‌های من" in btns)
@@ -151,8 +151,8 @@ check("منوی اصلی: دعوت و داروخانه مستقیماً در م�
       any("دعوت" in b for b in mbtns) and any("داروخانه" in b for b in mbtns))
 asyncio.run(bale_bot.handle_callback(CHAT, 10, "invite"))
 txt = last_text("editMessageText")
-check("دعوت: مدل پیشنهادی + اعلام صادقانه نسخه بعدی",
-      "۱۰٪" in txt and "۱۵٪" in txt and "نسخه بعدی" in txt)
+check("دعوت: لینک اختصاصی + کد + پاداش واقعی (نسخه 0.6 — فعال)",
+      "ble.ir" in txt and "کد شما:" in txt and "۱۰٪ تخفیف واقعی" in txt and "نسخه بعدی" not in txt)
 
 asyncio.run(bale_bot.handle_callback(CHAT, 10, "pharmacy"))
 txt = last_text("editMessageText")

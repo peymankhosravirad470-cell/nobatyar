@@ -199,23 +199,29 @@ class Appointment(Base):
     id = Column(Integer, primary_key=True, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
     slot_id = Column(Integer, ForeignKey("available_slots.id", ondelete="SET NULL"), nullable=True, index=True)
-    
+
     patient_name = Column(String(100), nullable=False)
     patient_phone = Column(String(20), nullable=False, index=True)
     # هویت بیمار: کد ملی (اختیاری، برای جلوگیری از نوبت صوری) و وضعیت تأیید شماره
     patient_national_code = Column(String(10), nullable=True, index=True)
     phone_verified = Column(Boolean, default=False, nullable=False, server_default="0")
-    
+
     appointment_datetime = Column(DateTime, nullable=False, index=True)
     status = Column(SAEnum(AppointmentStatus), default=AppointmentStatus.pending, nullable=False, index=True)
     source = Column(SAEnum(AppointmentSource), nullable=False)
-    
+
     # برای ربات بله
     bale_chat_id = Column(String(50), nullable=True, index=True)
-    
+
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # ---------- ویژگی‌های نسخه 0.6 (مأموریت Shiraz Medical) ----------
+    # درصد تخفیف اعمال‌شده روی این نوبت (پاداش سیستم دعوت دوستان — ۰ یا ۱۰)
+    discount_pct = Column(Integer, nullable=False, default=0, server_default="0")
+    # زمان ارسال نظرسنجی رضایت پس از اتمام نوبت (فقط یک‌بار؛ NULL = هنوز ارسال نشده)
+    survey_sent_at = Column(DateTime, nullable=True)
 
     clinic = relationship("Clinic", back_populates="appointments")
     slot = relationship("AvailableSlot", back_populates="appointment")
@@ -297,4 +303,131 @@ class Lab(Base):
 
     __table_args__ = (
         Index("ix_labs_status_category", "status", "category"),
+    )
+
+
+# ==================== ویژگی‌های منتقل‌شده از Shiraz Medical (نسخه 0.6) ====================
+# اصل مأموریت: منطق، متن‌ها و ترتیب دکمه‌های اصلی Shiraz Medical حفظ می‌شود؛
+# تنها تغییر اجتنابی، جایگزینی ذخیره‌سازی JSON/فایل با PostgreSQL است
+# (الزام پروژه: پایگاه داده تنها منبع حقیقت است).
+
+REFERRAL_REWARD_PCT = 10   # پاداش معرف: ۱۰٪ تخفیف واقعی روی نوبت بعدی (مطابق Shiraz Medical)
+
+
+class Referral(Base):
+    """سیستم معرفی کاربران (Port from ShirazMedical services/referral.py).
+
+    چرخهٔ صادقانهٔ پاداش — عیناً مطابق منطق Shiraz Medical:
+    - invited با لینک دعوت وارد می‌شود → status="joined"، reward_status="pending"
+    - اولین «فعالیت واقعی» invited (تأیید نوبت توسط مرکز) → status="paid"،
+      reward_status="available"  ← نقطهٔ اتصال: در Shiraz Medical اولین پرداخت
+      موفق زرین‌پال بود؛ نوبتیار هنوز درگاه پرداخت ندارد، لذا «تأیید نوبت»
+      (فعالیت واقعی ثبت‌شده در DB) معادل آن است — تفاوت مستند شده است.
+    - پاداش available = ۱۰٪ تخفیف روی نوبت بعدی معرف؛ در لحظهٔ ثبت نوبت معرف
+      مصرف اتمیک می‌شود (consume_reward) و درصد روی رکورد نوبت ثبت می‌گردد.
+    - هر کاربر فقط یک‌بار می‌تواند «معرفی‌شده» باشد (یکتایی invited_chat_id).
+    """
+    __tablename__ = "referrals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_chat_id = Column(String(50), nullable=False, index=True)
+    invited_chat_id = Column(String(50), nullable=False, unique=True, index=True)
+    invited_username = Column(String(64), nullable=True)
+    invited_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # joined → paid
+    status = Column(String(10), default="joined", nullable=False, index=True)
+    # pending → available → used
+    reward_status = Column(String(10), default="pending", nullable=False, index=True)
+    paid_at = Column(DateTime, nullable=True)
+    used_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_referrals_referrer_status", "referrer_chat_id", "status"),
+        Index("ix_referrals_referrer_reward", "referrer_chat_id", "reward_status"),
+    )
+
+
+class MedicationReminder(Base):
+    """یادآور دارو (Port from ShirazMedical handlers/meds.py — ذخیره‌سازی PostgreSQL).
+
+    - حداکثر ۱۰ دارو فعال برای هر کاربر (مطابق limit در Shiraz Medical).
+    - نام دارو حداکثر ۶۰ کاراکتر؛ منطق افزودن/لیست/حذف عیناً حفظ شده.
+    - «paused» = توقف موقت یادآوری بدون حذف (قابلیت مکمل مأموریت).
+    - هیچ داده دارویی در لاگ نوشته نمی‌شود (داده سلامتی — الگوی Shiraz Medical).
+    """
+    __tablename__ = "med_reminders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String(50), nullable=False, index=True)
+    name = Column(String(60), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    paused = Column(Boolean, default=False, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    times = relationship("MedReminderTime", back_populates="reminder",
+                         cascade="all, delete-orphan", order_by="MedReminderTime.hh, MedReminderTime.mm")
+
+    __table_args__ = (
+        Index("ix_med_rem_chat_active", "chat_id", "is_active"),
+    )
+
+
+class MedReminderTime(Base):
+    """ساعت‌های مصرف هر دارو — رابطه‌ای (جایگزین JSON، الگوی ساعت‌های کاری)."""
+    __tablename__ = "med_reminder_times"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reminder_id = Column(Integer, ForeignKey("med_reminders.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    hh = Column(Integer, nullable=False)  # 0..23
+    mm = Column(Integer, nullable=False)  # 0..59
+
+    reminder = relationship("MedicationReminder", back_populates="times")
+
+    __table_args__ = (
+        UniqueConstraint("reminder_id", "hh", "mm", name="uq_med_rem_time"),
+    )
+
+
+class MedReminderLog(Base):
+    """لاگ ارسال یادآوری دارو — ضمانت عدم ارسال تکراری پس از Restart/Deploy.
+
+    هر (دارو، تاریخ، ساعت) فقط یک‌بار ارسال می‌شود؛ نتیجه و خطا ثبت می‌گردد.
+    """
+    __tablename__ = "med_reminder_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reminder_id = Column(Integer, ForeignKey("med_reminders.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    send_date = Column(Date, nullable=False)   # تاریخ تهرانِ لحظهٔ ارسال
+    hh = Column(Integer, nullable=False)
+    mm = Column(Integer, nullable=False)
+    chat_id = Column(String(50), nullable=False, index=True)
+    sent_ok = Column(Boolean, default=False, nullable=False)
+    error = Column(String(255), nullable=True)
+    sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("reminder_id", "send_date", "hh", "mm",
+                         name="uq_med_rem_send_once"),
+        Index("ix_med_rem_log_chat_date", "chat_id", "send_date"),
+    )
+
+
+class ApptReminderLog(Base):
+    """لاگ یادآور نوبت (۲۴ ساعت و ۲ ساعت قبل) — هر (نوبت، نوع) فقط یک‌بار (idempotent)."""
+    __tablename__ = "appt_reminder_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    appointment_id = Column(Integer, ForeignKey("appointments.id", ondelete="CASCADE"),
+                            nullable=False, index=True)
+    kind = Column(String(4), nullable=False)   # "1d" | "2h"
+    sent_ok = Column(Boolean, default=False, nullable=False)
+    error = Column(String(255), nullable=True)
+    sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("appointment_id", "kind", name="uq_appt_rem_once"),
+        Index("ix_appt_rem_sent_at", "sent_at"),
     )

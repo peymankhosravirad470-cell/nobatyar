@@ -137,7 +137,7 @@ assert bale_bot.valid_national_code(VALID_NC), "self-test national code"
 asyncio.run(bale_bot.handle_text(CHAT, "/start"))
 txt = last_text("sendMessage")
 btns = kb_texts("sendMessage")
-check("منوی ۷گانه: دریافت نوبت + جست‌وجو", "🗓 دریافت نوبت" in btns and "🔎 جست‌وجو" in btns)
+check("منوی ۱۱گانه (نسخه 0.6): دریافت نوبت + جست‌وجو", "🗓 دریافت نوبت" in btns and "🔎 جست‌وجوی پزشک و درمانگاه" in btns)
 check("منوی ۷گانه: تاکسی + مسیریابی", "🚕 تاکسی اینترنتی" in btns and "🗺 مسیریابی" in btns)
 check("منوی ۷گانه: نوبت‌های من + پیشنهادات + راهنما",
       "🗂 نوبت‌های من" in btns and "💬 پیشنهادات و انتقادات" in btns and "❓ راهنما و پشتیبانی" in btns)
@@ -347,7 +347,8 @@ asyncio.run(bale_bot.handle_text(CHAT + 5, "پیشنهاد می‌کنم نوب�
 # اعلان خودکار ممکن است در همان حلقه ارسال شده باشد؛ برای قطعیت، صف تلاش مجدد هم اجرا می‌شود
 asyncio.run(bale_bot._retry_pending_notifications())
 all_send_texts = [c["payload"].get("text", "") for c in SENT if c["method"] == "sendMessage"]
-check("فیدبک: تأییدیه با کد پیگیری", any("کد پیگیری" in t for t in all_send_texts))
+all_edit_texts = [c["payload"].get("text", "") for c in SENT if c["method"] == "editMessageText"]
+check("فیدبک: تأییدیه با کد پیگیری (رسید روی همان پیام — نسخه 0.6)", any("کد پیگیری" in t for t in all_send_texts + all_edit_texts))
 db = SessionLocal()
 fb = db.query(Feedback).filter(Feedback.chat_id == str(CHAT + 5)).first()
 check("فیدبک: در دیتابیس ذخیره شد با وضعیت new", fb is not None and fb.status == "new")
