@@ -33,11 +33,12 @@ from auth import (
 from booking import book_slot_atomic, BookingError, AppointmentSource
 from admin_security import generate_connect_code
 import bale_bot
+import referral
 
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version="0.5.0"
+    version="0.6.0"
 )
 
 app.add_middleware(
@@ -723,6 +724,15 @@ def create_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
     except BookingError as e:
         status_code = 409 if e.code in ("slot_taken", "duplicate_active", "max_active") else 400
         raise HTTPException(status_code, e.message)
+    # پاداش دعوت دوستان (مأموریت Shiraz Medical): مصرف اتمیک پاداش available
+    # در لحظهٔ ثبت نوبت معرف؛ درصد روی رکورد نوبت ثبت می‌شود.
+    if appt and data.bale_chat_id:
+        try:
+            if referral.consume_reward(db, data.bale_chat_id):
+                appt.discount_pct = referral.REFERRAL_REWARD_PCT
+                db.commit()
+        except Exception:
+            db.rollback()
     return appt
 
 
@@ -751,20 +761,34 @@ def update_appointment_status(
     ).first()
     if not appt:
         raise HTTPException(404, "نوبت یافت نشد")
-    
+
     valid = {"confirmed", "cancelled", "completed"}
     if data.status not in valid:
         raise HTTPException(400, "وضعیت نامعتبر")
-    
+
     appt.status = AppointmentStatus(data.status)
-    
+
     # اگر لغو شد، اسلات را آزاد کن
     if data.status == "cancelled" and appt.slot_id:
         slot = db.query(AvailableSlot).filter(AvailableSlot.id == appt.slot_id).first()
         if slot:
             slot.is_booked = False
-    
+
     db.commit()
+
+    # ---------- هُک‌های مأموریت Shiraz Medical (هیچ‌کدام جریان اصلی را نمی‌شکنند) ----------
+    try:
+        if data.status == "confirmed" and appt.bale_chat_id:
+            # سیستم دعوت دوستان: اولین نوبتِ تأییدشدهٔ معرفی‌شده → پاداش معرف فعال می‌شود
+            if referral.mark_referral_paid(db, appt.bale_chat_id):
+                logging.getLogger("nobatyar").info(
+                    "referral reward ACTIVATED invited=%s appt=%s", appt.id, appointment_id)
+        if data.status == "completed" and appt.bale_chat_id:
+            # نظرسنجی رضایت: فقط پس از اتمام واقعی نوبت و فقط یک‌بار (اسکن idempotent)
+            bale_bot.notify_survey_for_appointment(appointment_id)
+    except Exception:
+        logging.getLogger("nobatyar").exception("post-status hooks failed appt=%s", appointment_id)
+
     return {"message": "وضعیت به‌روز شد", "status": data.status}
 
 
@@ -772,7 +796,7 @@ def update_appointment_status(
 @app.get("/api/health")
 def health():
     return {
-        "status": "ok", "service": "نوبتیار", "version": "0.5.0",
+        "status": "ok", "service": "نوبتیار", "version": "0.6.0",
         "database": "postgresql" if IS_POSTGRES else "sqlite",
         "time": datetime.utcnow().isoformat()
     }

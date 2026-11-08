@@ -45,10 +45,11 @@ CHAT = 888001
 # ۱) منوی اصلی کامل
 asyncio.run(bale_bot.handle_text(CHAT, "/start"))
 btns = kb_texts("sendMessage")
-check("منوی اصلی با دیتابیس خالی کامل است (۷ دکمه)",
-      all(x in btns for x in ["🗓 دریافت نوبت", "🔎 جست‌وجو", "🚕 تاکسی اینترنتی",
-                              "🗺 مسیریابی", "🗂 نوبت‌های من",
-                              "💬 پیشنهادات و انتقادات", "❓ راهنما و پشتیبانی"]))
+check("منوی اصلی با دیتابیس خالی کامل است (۱۱ دکمه — نسخه 0.6)",
+      all(x in btns for x in ["🗓 دریافت نوبت", "🔎 جست‌وجوی پزشک و درمانگاه", "🚕 تاکسی اینترنتی",
+                              "🗺 مسیریابی", "🗂 نوبت‌های من", "⏰ یادآوری دارو",
+                              "💬 پیشنهادات و انتقادات", "❓ راهنما و پشتیبانی",
+                              "🎁 دعوت دوستان", "🧪 آزمایشگاه‌ها", "💊 داروخانه‌ها"]))
 
 # ۲) دریافت نوبت → درمانگاه‌ها: پیام خالی مناسب + مسیر باز
 asyncio.run(bale_bot.handle_callback(CHAT, 1, "book"))
@@ -101,7 +102,7 @@ asyncio.run(bale_bot.handle_callback(CHAT, 1, "feedback"))
 check("صندوق: حتی با دیتابیس خالی فعال است", "موضوع" in last_text("editMessageText"))
 asyncio.run(bale_bot.handle_text(CHAT, "بدون موضوع"))
 asyncio.run(bale_bot.handle_text(CHAT, "سلام، این یک پیام آزمایشی است."))
-check("صندوق: ثبت موفق در دیتابیس خالی", "کد پیگیری" in last_text("sendMessage"))
+check("صندوق: ثبت موفق در دیتابیس خالی", "کد پیگیری" in last_text("editMessageText"))
 
 failed = [n for n, c in PASS if not c]
 print(f"\n===== {len(PASS) - len(failed)}/{len(PASS)} سناریوی دیتابیس خالی پاس شد =====")

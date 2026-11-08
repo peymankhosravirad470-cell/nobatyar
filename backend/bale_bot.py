@@ -41,8 +41,12 @@ from database import SessionLocal
 from models import (
     Clinic, AvailableSlot, Appointment, Admin, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
-    FeedbackStatus,
+    FeedbackStatus, MedicationReminder, MedReminderLog, ApptReminderLog,
 )
+import referral as referral_svc
+import meds as meds_svc
+import survey as survey_svc
+import reminders as remind_svc
 from fa_utils import (
     normalize_fa, fa_digits, valid_national_code, normalize_mobile,
     valid_name, valid_coords, DIGIT_MAP,
@@ -87,6 +91,12 @@ NOTIFY_MAX_ATTEMPTS = 10          # حداکثر تلاش برای اعلان ه
 NOTIFY_STUCK_AFTER = 120          # «sending» گیرکرده پس از این ثانیه دوباره قابل claim می‌شود
 NOTIFY_RETRY_CYCLE = 10           # هر ۱۰ دور polling (~ چند دقیقه) صف اعلان بررسی می‌شود
 ADMIN_CONNECT_MAX_TRIES = 3       # حداکثر تلاش ورود کد در هر جلسه گفتگو
+
+# ---------- تنظیمات نسخه 0.6 (ویژگی‌های Shiraz Medical) ----------
+REMINDER_SCAN_CYCLE = 3           # هر ۳ دور polling (~۱ دقیقه) یادآوری‌ها اسکن می‌شوند
+BOT_USERNAME = "nobatyarshirazbot"       # نام کاربری رسمی ربات در بله
+BOT_URL = f"https://ble.ir/{BOT_USERNAME}"   # لینک مستقیم (در بله باز می‌شود)
+MEDS_MAX_PER_CHAT = meds_svc.MAX_MEDS_PER_CHAT
 
 _client: httpx.AsyncClient | None = None
 _LOOP: asyncio.AbstractEventLoop | None = None
@@ -192,6 +202,25 @@ async def edit(chat_id, message_id, text: str, keyboard: list | None = None) -> 
     res = await call_api("editMessageText", payload)
     if not res.get("ok"):
         res = await send(chat_id, text, keyboard)
+    return res
+
+
+async def _prompt(chat_id, text: str, keyboard: list | None = None) -> dict:
+    """ارسال/ویرایش پیام مرحلهٔ گفتگو (FSM) — رفع ایراد «ماندن منوی قدیمی».
+
+    تمام پیام‌های یک گفتگو روی «همان یک پیام» ویرایش می‌شوند تا هیچ پیام
+    قدیمی‌ای با دکمه‌های منقضی در چت باقی نماند و کاربر در ناوبری گم نشود.
+    شناسهٔ پیام گفتگو در state (fsm_msg) نگه‌داری می‌شود.
+    """
+    st = states.get(chat_id)
+    if st and st.get("fsm_msg"):
+        res = await edit(chat_id, st["fsm_msg"], text, keyboard)
+        if res.get("ok") and (res.get("result") or {}).get("message_id"):
+            return res
+    res = await send(chat_id, text, keyboard)
+    mid = (res.get("result") or {}).get("message_id")
+    if mid and st is not None:
+        st["fsm_msg"] = mid
     return res
 
 
@@ -408,6 +437,10 @@ def try_book(slot_id: int, name: str, phone: str, national_code: str,
              phone_verified: bool, bale_chat_id):
     """رزرو نوبت از ربات — از منطق اتمیک مشترک booking.book_slot_atomic استفاده می‌کند.
 
+    پاداش دعوت دوستان (مأموریت Shiraz Medical): اگر کاربر پاداش available داشته باشد،
+    در همین لحظهٔ ثبت نوبت به‌صورت اتمیک مصرف می‌شود و درصد تخفیف روی رکورد
+    نوبت ثبت می‌ماند (الگوی مصرف اتمیک Shiraz Medical؛ آمادهٔ اتصال درگاه پرداخت).
+
     بازگشت: (Appointment, None) در موفقیت؛ (None, پیام خطا) در شکست."""
     from booking import book_slot_atomic, BookingError, AppointmentSource
     db = SessionLocal()
@@ -424,6 +457,16 @@ def try_book(slot_id: int, name: str, phone: str, national_code: str,
             bale_chat_id=str(bale_chat_id),
             enforce_patient_limits=True,
         )
+        if appt:
+            try:
+                if referral_svc.consume_reward(db, str(bale_chat_id)):
+                    appt.discount_pct = referral_svc.REFERRAL_REWARD_PCT
+                    db.commit()
+                    LOG.info("referral reward consumed chat=%s appt=%s",
+                             mask_chat(bale_chat_id), appt.id)
+            except Exception:
+                db.rollback()
+                LOG.exception("reward consume failed chat=%s", mask_chat(bale_chat_id))
         return appt, None
     except BookingError as e:
         return None, e.message
@@ -596,13 +639,13 @@ TXT_START = (
     "سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز:\n"
     "🗓 دریافت نوبت از درمانگاه‌ها و مطب‌ها\n"
     "🔎 جست‌وجوی سریع پزشک، تخصص و درمانگاه\n"
-    "💊 داروخانه‌های مطرح شیراز\n"
     "🧪 آزمایشگاه‌های ثبت‌شده\n"
-    "🚕 تاکسی اینترنتی با مقصدِ خود مرکز درمانی\n"
-    "🗺 مسیریابی با گوگل‌مپ، نشان و بلد\n"
+    "💊 داروخانه‌های مطرح شیراز\n"
+    "⏰ یادآوری دارو — هر روز سر ساعت مصرف\n"
     "🗂 سوابق نوبت‌های شما\n"
     "💬 پیشنهادات و انتقادات مستقیم به مدیریت\n"
-    "🎁 دعوت دوستان و دریافت تخفیف\n\n"
+    "🎁 دعوت دوستان و دریافت تخفیف\n"
+    "🚕 تاکسی اینترنتی و 🗺 مسیریابی\n\n"
     "👇 یکی از گزینه‌های زیر را انتخاب کنید:"
 )
 
@@ -624,14 +667,15 @@ TXT_HELP = (
 
 TXT_INVITE = (
     "🎁 دعوت دوستان و دریافت تخفیف\n\n"
-    "به‌زودی هر بیمار یک لینک دعوت اختصاصی می‌گیرد و می‌تواند لینک ربات و کانال رسمی "
-    "نوبتیار را با دوستانش به اشتراک بگذارد.\n\n"
-    "پیشنهاد مدل تخفیف (برای تأیید مدیریت نوبتیار):\n"
-    "• دوستِ دعوت‌شده: ۱۰٪ تخفیف روی اولین نوبت\n"
-    "• معرف: ۱۵٪ تخفیف برای هر دعوت موفق — حداکثر ۵ دعوت در ماه\n"
-    "• دعوت فقط وقتی «موفق» ثبت می‌شود که دوست شما اولین نوبت واقعی خود را بگیرد\n"
-    "• هر کاربر فقط یک‌بار می‌تواند معرف داشته باشد؛ دعوت خودی و تکراری رد می‌شود\n\n"
-    "⛔ این قابلیت در نسخه بعدی فعال می‌شود؛ در این نسخه فقط طرح آن ارائه شده است."
+    "لینک دعوت اختصاصی شما:\n{link}\n\n"
+    "کد شما: {code}\n\n"
+    "📊 آمار دعوت شما:\n"
+    "• {joined} عضو دعوت‌شده\n"
+    "• {paid} نوبت تأییدشده\n"
+    "• پاداش فعال: {available} | مصرف‌شده: {used}\n\n"
+    "{notify}\n\n"
+    "🔗 لینک ربات نوبتیار: " + BOT_URL + "\n"
+    "دوستتان با باز کردن این لینک، مستقیم به ربات در بله می‌رسد."
 )
 
 TXT_PHARMACY = (
@@ -659,29 +703,36 @@ TXT_INTRO = (
 # ==================== کیبوردها و صفحات ====================
 
 def kb_home() -> list:
-    """منوی اصلی ۹گانه — مستقل از دیتابیس؛ چیدمان بهینه برای موبایل.
+    """منوی اصلی ۱۱‌گانه — چیدمان طبق سفارش پروژه (نسخه 0.6).
 
-    «داروخانه‌ها»، «آزمایشگاه‌ها» و «دعوت دوستان» مستقیماً در منوی اصلی هستند
-    و زیرمجموعه هیچ بخش دیگری نیستند."""
+    ترتیب الزامی: دریافت نوبت، جست‌وجو، آزمایشگاه‌ها، داروخانه‌ها، نوبت‌های من،
+    یادآوری دارو، پیشنهادات و انتقادات، دعوت دوستان، مسیریابی، تاکسی، راهنما.
+    «پیشنهادات و انتقادات» در ردیف کامل مستقل است تا متن دکمه در موبایل
+    کوتاه/تکه‌تکه نشود (رفع ایراد اعلام‌شده).
+    همه گزینه‌ها مستقل از دیتابیس هستند؛ خالی بودن دیتابیس فقط در همان بخش پیام مناسب نشان می‌دهد.
+    """
     return [
         [
             {"text": "🗓 دریافت نوبت", "callback_data": "book"},
-            {"text": "🔎 جست‌وجو", "callback_data": "search"},
+            {"text": "🔎 جست‌وجوی پزشک و درمانگاه", "callback_data": "search"},
         ],
         [
-            {"text": "🚕 تاکسی اینترنتی", "callback_data": "taxi"},
-            {"text": "🗺 مسیریابی", "callback_data": "nav"},
+            {"text": "🧪 آزمایشگاه‌ها", "callback_data": "labs"},
+            {"text": "💊 داروخانه‌ها", "callback_data": "pharmacy"},
         ],
         [
             {"text": "🗂 نوبت‌های من", "callback_data": "myappts"},
-            {"text": "💬 پیشنهادات و انتقادات", "callback_data": "feedback"},
+            {"text": "⏰ یادآوری دارو", "callback_data": "meds"},
+        ],
+        [{"text": "💬 پیشنهادات و انتقادات", "callback_data": "feedback"}],
+        [
+            {"text": "🎁 دعوت دوستان", "callback_data": "invite"},
+            {"text": "🗺 مسیریابی", "callback_data": "nav"},
         ],
         [
-            {"text": "💊 داروخانه‌ها", "callback_data": "pharmacy"},
-            {"text": "🧪 آزمایشگاه‌ها", "callback_data": "labs"},
+            {"text": "🚕 تاکسی اینترنتی", "callback_data": "taxi"},
+            {"text": "❓ راهنما و پشتیبانی", "callback_data": "help"},
         ],
-        [{"text": "🎁 دعوت دوستان", "callback_data": "invite"}],
-        [{"text": "❓ راهنما و پشتیبانی", "callback_data": "help"}],
     ]
 
 
@@ -1220,6 +1271,297 @@ def my_appts_screen(chat_id) -> tuple:
     return text, rows
 
 
+# ==================== یادآور دارو (مأموریت Shiraz Medical) ====================
+
+def _meds_kb_home(lang_default: bool = True) -> list:
+    """منوی یادآور دارو — ترتیب دکمه‌ها عیناً Shiraz Medical + توقف/ادامه (الزام مأموریت)."""
+    return [
+        [{"text": meds_svc.t("menu_btn_add"), "callback_data": "med_add"}],
+        [{"text": meds_svc.t("menu_btn_list"), "callback_data": "med_list"},
+         {"text": meds_svc.t("menu_btn_del"), "callback_data": "med_del"}],
+        [{"text": meds_svc.t("menu_btn_pause"), "callback_data": "med_pause"},
+         {"text": meds_svc.t("menu_btn_resume"), "callback_data": "med_resume"}],
+        [{"text": meds_svc.t("btn_back"), "callback_data": "home"},
+         {"text": meds_svc.t("btn_feedback"), "callback_data": "feedback"}],
+    ]
+
+
+async def meds_menu(chat_id, message_id=None) -> None:
+    """منوی اصلی یادآور دارو — متن عیناً Shiraz Medical."""
+    text = meds_svc.t("menu_title")
+    if message_id is not None:
+        await edit(chat_id, message_id, text, _meds_kb_home())
+    else:
+        await _prompt(chat_id, text, _meds_kb_home())
+
+
+async def meds_start_add(chat_id, message_id) -> None:
+    """ورود به گفتگوی افزودن دارو (مرحلهٔ نام) — حد ۱۰ دارو عیناً Shiraz Medical."""
+    db = SessionLocal()
+    try:
+        count = db.query(MedicationReminder.id).filter(
+            MedicationReminder.chat_id == str(chat_id),
+        ).count()
+    finally:
+        db.close()
+    if count >= MEDS_MAX_PER_CHAT:
+        await edit(chat_id, message_id, meds_svc.t("limit"), None)
+        await meds_menu(chat_id, message_id)
+        return
+    st = _sess(chat_id) or {}
+    st.pop("med_name", None)
+    st["step"] = "med_add_name"
+    st["ts"] = time.time()
+    states[chat_id] = st
+    await edit(chat_id, message_id, meds_svc.t("ask_name"), _kb_cancel())
+
+
+async def meds_action(chat_id, message_id, data: str) -> None:
+    """لیست / حذف / توقف / ادامه — منطق عیناً Shiraz Medical (خارج از گفتگو)."""
+    db = SessionLocal()
+    try:
+        if data == "med_list":
+            items = meds_svc.get_chat_meds(db, chat_id)
+            if not items:
+                await edit(chat_id, message_id, meds_svc.t("list_empty"), None)
+                await meds_menu(chat_id, message_id)
+                return
+            lines = [meds_svc.t("list_title")]
+            for i, med in enumerate(items, 1):
+                times = "، ".join(meds_svc.times_of(med))
+                paused_mark = meds_svc.t("paused_in_list") if med.paused else ""
+                lines.append(f"{fa_digits(i)}. 💊 {med.name}{paused_mark}\n   ⏰ {times}")
+            rows = [[{"text": meds_svc.t("menu_btn_add"), "callback_data": "med_add"}],
+                    [{"text": meds_svc.t("list_back"), "callback_data": "med_home"},
+                     {"text": meds_svc.t("btn_feedback"), "callback_data": "feedback"}]]
+            await edit(chat_id, message_id, "\n".join(lines), rows)
+            return
+
+        if data == "med_del":
+            items = meds_svc.get_chat_meds(db, chat_id)
+            if not items:
+                await edit(chat_id, message_id, meds_svc.t("del_empty"), None)
+                await meds_menu(chat_id, message_id)
+                return
+            rows = [[{"text": f"💊 {med.name} ({'، '.join(meds_svc.times_of(med))})",
+                      "callback_data": f"med_del:{med.id}"}] for med in items]
+            rows.append([{"text": meds_svc.t("list_back"), "callback_data": "med_home"},
+                         {"text": meds_svc.t("btn_feedback"), "callback_data": "feedback"}])
+            await edit(chat_id, message_id, meds_svc.t("del_title"), rows)
+            return
+
+        if data.startswith("med_del:"):
+            try:
+                rem_id = int(data.split(":", 1)[1])
+            except ValueError:
+                await meds_menu(chat_id, message_id)
+                return
+            rem = meds_svc.delete_med(db, chat_id, rem_id)
+            if rem:
+                await edit(chat_id, message_id,
+                           meds_svc.t("deleted").format(name=rem.name), None)
+            else:
+                await edit(chat_id, message_id, meds_svc.t("del_empty"), None)
+            await meds_menu(chat_id, message_id)
+            return
+
+        if data == "med_pause":
+            changed = meds_svc.set_all_paused(db, chat_id, True)
+            text = meds_svc.t("pause_empty") if changed == 0 else meds_svc.t("paused")
+            await edit(chat_id, message_id, text, None)
+            await meds_menu(chat_id, message_id)
+            return
+
+        if data == "med_resume":
+            changed = meds_svc.set_all_paused(db, chat_id, False)
+            text = meds_svc.t("resume_empty") if changed == 0 else meds_svc.t("resumed")
+            await edit(chat_id, message_id, text, None)
+            await meds_menu(chat_id, message_id)
+            return
+
+        # med_home
+        await meds_menu(chat_id, message_id)
+    except Exception:
+        LOG.exception("meds action failed chat=%s data=%s", mask_chat(chat_id), data.split(":")[0])
+        await edit(chat_id, message_id, meds_svc.t("save_failed"), None)
+        await meds_menu(chat_id, message_id)
+    finally:
+        db.close()
+
+
+async def _send_med_reminder_message(chat_id, log: MedReminderLog, name: str) -> dict:
+    """پیام یادآوری دارو با دکمه‌های الزام مأموریت:
+    مصرف شد / یادآوری مجدد / ویرایش برنامه / حذف یادآوری"""
+    kb = [
+        [{"text": meds_svc.t("btn_taken"), "callback_data": f"medtaken:{log.id}"},
+         {"text": meds_svc.t("btn_snooze"), "callback_data": f"medsnooze:{log.id}"}],
+        [{"text": meds_svc.t("btn_edit"), "callback_data": "mededit"},
+         {"text": meds_svc.t("btn_delete"), "callback_data": f"meddelask:{log.reminder_id}"}],
+    ]
+    return await send(chat_id, remind_svc.med_remind_text(name), kb)
+
+
+# ==================== نظرسنجی رضایت (مأموریت Shiraz Medical) ====================
+
+def _survey_intro_kb() -> list:
+    return [[{"text": survey_svc.BTN_YES, "callback_data": "survey_yes"},
+             {"text": survey_svc.BTN_NO, "callback_data": "survey_no"}]]
+
+
+def _survey_back_kb() -> list:
+    """الگوی استاندارد پایان جریان: بازگشت به منو + پیشنهادات کنار هم (عیناً Shiraz Medical)."""
+    return [[{"text": survey_svc.BTN_BACK_MENU, "callback_data": "home"},
+             {"text": survey_svc.BTN_FEEDBACK, "callback_data": "feedback"}]]
+
+
+async def handle_survey_callback(chat_id, message_id, data: str) -> None:
+    """پردازش پاسخ نظرسنجی — منطق و متن عیناً Shiraz Medical handlers/survey.py."""
+    _pop(chat_id)
+    if data == "survey_yes":
+        await edit(chat_id, message_id, survey_svc.THANKS_HAPPY, _survey_back_kb())
+        return
+    if data == "survey_no":
+        _set(chat_id, step="survey_reason", fsm_msg=message_id)
+        await edit(chat_id, message_id, survey_svc.ASK_REASON,
+                   [[{"text": survey_svc.BTN_CANCEL, "callback_data": "survey_cancel"}]])
+        return
+    if data == "survey_cancel":
+        await edit(chat_id, message_id, survey_svc.CANCELLED, _survey_back_kb())
+        return
+
+
+async def _survey_receive_reason(chat_id, text: str) -> None:
+    """دریافت علت نارضایتی → ثبت در PostgreSQL + اعلان ادمین (با تلاش مجدد)."""
+    reason = text.strip()[:1000]
+    fb_id = None
+    db = SessionLocal()
+    try:
+        fb = survey_svc.save_survey_response(db, chat_id, reason)
+        fb_id = fb.id
+    finally:
+        db.close()
+    st = _sess(chat_id)
+    if st:
+        st.pop("fsm_msg", None)
+    _pop(chat_id)
+    # ثبت پیام هرگز شکست نمی‌خورد؛ اعلان با ماشین وضعیت صندوق (claim + retry) ارسال می‌شود
+    if fb_id:
+        asyncio.create_task(_notify_feedback_coro(fb_id))
+    await send(chat_id, survey_svc.THANKS_FEEDBACK, _survey_back_kb())
+
+
+def _survey_admin_text(fb) -> str:
+    """متن اعلان ادمین برای پاسخ نظرسنجی — الگوی عیناً Shiraz Medical (HTML-free)."""
+    return (
+        f"🚨 نارضایتی کاربر (نظرسنجی)\n\n"
+        f"🆔 کد پیگیری: {fa_digits(fb.id)}\n\n"
+        f"📝 علت نارضایتی:\n{fb.message}"
+    )
+
+
+def reset_stranded_notify_attempts() -> int:
+    """پیام‌های صندوق که سقف تلاششان پیش از اتصال ادمین پر شده بود، دوباره شانس می‌گیرند.
+
+    در وضعیت واقعی تولیدی، ۳ پیام بیمار با notify_attempts=10 رها شده بودند
+    (ادمین هرگز متصل نشده بود) — پس از اتصال ادمین این پیام‌ها ارسال می‌شوند.
+    خروجی: تعداد ردیف‌های بازنشسته‌شده.
+    """
+    db = SessionLocal()
+    try:
+        res = db.execute(
+            update(Feedback)
+            .where(
+                Feedback.notify_status.in_(("pending", "failed", "sending")),
+                Feedback.created_at >= datetime.utcnow() - timedelta(days=7),
+            )
+            .values(notify_attempts=0, notify_updated_at=datetime.utcnow())
+        )
+        db.commit()
+        return res.rowcount or 0
+    except Exception:
+        db.rollback()
+        LOG.exception("notify attempts reset failed")
+        return 0
+    finally:
+        db.close()
+
+
+async def _send_survey_intro(appt) -> bool:
+    """ارسال پیام شروع نظرسنجی به بیمارِ نوبتِ اتمام‌شده — فقط یک‌بار (claim اتمیک).
+
+    claim با UPDATE اتمیک survey_sent_at انجام می‌شود تا با اجرای هم‌زمان وب و ربات،
+    نظرسنجی هرگز دوبار ارسال نشود. شکست ارسال → survey_sent_at به NULL برمی‌گردد
+    تا در دور بعد تلاش شود (هیچ نظرسنجی‌ای گم نمی‌شود).
+    """
+    if not appt.bale_chat_id:
+        return False
+    db = SessionLocal()
+    try:
+        res = db.execute(
+            update(Appointment)
+            .where(Appointment.id == appt.id, Appointment.survey_sent_at.is_(None))
+            .values(survey_sent_at=datetime.utcnow())
+        )
+        db.commit()
+        if res.rowcount != 1:
+            return False  # قبلاً ارسال/در جریان است
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    st_res = await send(appt.bale_chat_id, survey_svc.INTRO, _survey_intro_kb())
+    if not st_res.get("ok"):
+        # شکست ارسال → شفاف به حالت «ارسال‌نشده» برمی‌گردد تا تلاش مجدد شود
+        db = SessionLocal()
+        try:
+            db.execute(
+                update(Appointment)
+                .where(Appointment.id == appt.id)
+                .values(survey_sent_at=None)
+            )
+            db.commit()
+        finally:
+            db.close()
+        LOG.warning("survey send FAILED appt=%s chat=%s code=%s",
+                    appt.id, mask_chat(appt.bale_chat_id), st_res.get("error_code"))
+        return False
+    LOG.info("survey INTRO sent appt=%s chat=%s message_id=%s",
+             appt.id, mask_chat(appt.bale_chat_id),
+             (st_res.get("result") or {}).get("message_id"))
+    return True
+
+
+async def _scan_surveys() -> int:
+    """نظرسنجی برای نوبت‌های اتمام‌شدهٔ بدون نظرسنجی (فقط پس از مراجعه واقعی)."""
+    db = SessionLocal()
+    try:
+        rows = db.query(Appointment).filter(
+            Appointment.status == AppointmentStatus.completed,
+            Appointment.survey_sent_at.is_(None),
+            Appointment.bale_chat_id.isnot(None),
+            Appointment.appointment_datetime >= datetime.utcnow() - timedelta(days=7),
+        ).order_by(Appointment.id).limit(10).all()
+    finally:
+        db.close()
+    sent = 0
+    for appt in rows:
+        try:
+            if await _send_survey_intro(appt):
+                sent += 1
+        except Exception:
+            LOG.exception("survey scan row failed appt=%s", appt.id)
+    return sent
+
+
+def notify_survey_for_appointment(appt_id: int) -> dict:
+    """از main.py (threadpool) صدا زده می‌شود — اسکن نظرسنجی روی لوپ ربات."""
+    if not loop_active():
+        return {"queued": False, "reason": "loop_inactive"}
+    asyncio.run_coroutine_threadsafe(_scan_surveys(), _LOOP)
+    return {"queued": True}
+
+
 # ==================== پردازش آپدیت‌ها ====================
 
 async def handle_callback(chat_id, message_id, data: str) -> None:
@@ -1252,7 +1594,116 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         return
 
     if data == "invite":
-        await edit(chat_id, message_id, TXT_INVITE, kb_back_home())
+        # سیستم واقعی دعوت دوستان (مأموریت Shiraz Medical — ایراد ۱: بی‌قید و شرط)
+        # دکمه دعوت دوستان به هیچ وضعیت کلینیک/دیتابیس وابسته نیست؛ همیشه کار می‌کند.
+        db = SessionLocal()
+        try:
+            stats = referral_svc.get_referral_stats(db, chat_id)
+        except Exception:
+            LOG.exception("referral stats failed chat=%s", mask_chat(chat_id))
+            stats = {"code": "—", "joined": 0, "paid": 0,
+                     "available_rewards": 0, "used_rewards": 0}
+        finally:
+            db.close()
+        link = f"{BOT_URL}?start={stats.get('code') or referral_svc.referral_code(chat_id)}"
+        await edit(chat_id, message_id, TXT_INVITE.format(
+            link=link, code=stats.get("code", "—"),
+            joined=fa_digits(stats.get("joined", 0)),
+            paid=fa_digits(stats.get("paid", 0)),
+            available=fa_digits(stats.get("available_rewards", 0)),
+            used=fa_digits(stats.get("used_rewards", 0)),
+            notify=referral_svc.notify_text(),
+        ), kb_back_home())
+        return
+
+    # ---------- یادآور دارو (مأموریت Shiraz Medical) ----------
+    if data == "meds":
+        _pop(chat_id)
+        st = _set(chat_id, step="med_home", fsm_msg=message_id)
+        await meds_menu(chat_id, message_id)
+        return
+
+    if data in ("med_home", "med_list", "med_del", "med_pause", "med_resume") \
+            or data.startswith("med_del:"):
+        st = _set(chat_id, step="med_home", fsm_msg=message_id)
+        await meds_action(chat_id, message_id, data)
+        return
+
+    if data == "med_add":
+        # شروع گفتگوی افزودن دارو — همان الگوی ConversationHandler در Shiraz Medical
+        st = _set(chat_id, step="med_home", fsm_msg=message_id)
+        await meds_start_add(chat_id, message_id)
+        return
+
+    if data == "med_cancel":
+        st = _sess(chat_id)
+        if st:
+            st.pop("med_name", None)
+            st["step"] = "med_home"
+        await edit(chat_id, message_id, meds_svc.t("cancelled"), None)
+        await meds_menu(chat_id, message_id)
+        return
+
+    # ---------- یادآوری: دکمه‌های پیام یادآور (مصرف شد/یادآوری مجدد/ویرایش/حذف) ----------
+    if data.startswith("medtaken:"):
+        await send(chat_id, "👍 عالی! مصرف ثبت شد. سلامتی شما برای ما مهم است 💙")
+        return
+
+    if data.startswith("medsnooze:"):
+        try:
+            log_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            log = db.get(MedReminderLog, log_id)
+            if not log:
+                await send(chat_id, "⚠️ این یادآوری دیگر معتبر نیست.")
+                return
+            ok = remind_svc.schedule_med_snooze(db, log)
+        finally:
+            db.close()
+        if ok:
+            await send(chat_id,
+                       f"⏰ باشه، {fa_digits(remind_svc.SNOOZE_MINUTES)} دقیقهٔ دیگر دوباره یادآوری می‌کنم 💙")
+        else:
+            await send(chat_id, "⚠️ برای این یادآوری دیگر تلاش مجددی نمانده است.")
+        return
+
+    if data == "mededit":
+        st = _set(chat_id, step="med_home")
+        await meds_menu(chat_id)
+        return
+
+    if data.startswith("meddelask:"):
+        try:
+            rem_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        await edit(chat_id, message_id,
+                   "🗑 این دارو حذف شود و یادآوری‌هایش متوقف شود؟",
+                   [[{"text": "✅ بله، حذف کن", "callback_data": f"meddelyes:{rem_id}"},
+                     {"text": "❌ نه", "callback_data": "mededit"}]])
+        return
+
+    if data.startswith("meddelyes:"):
+        try:
+            rem_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            rem = meds_svc.delete_med(db, chat_id, rem_id)
+        finally:
+            db.close()
+        name = rem.name if rem else "—"
+        await edit(chat_id, message_id, meds_svc.t("deleted").format(name=name), None)
+        await meds_menu(chat_id)
+        return
+
+    # ---------- نظرسنجی رضایت (مأموریت Shiraz Medical) ----------
+    if data in ("survey_yes", "survey_no", "survey_cancel"):
+        await handle_survey_callback(chat_id, message_id, data)
         return
 
     if data == "pharmacy":
@@ -1658,7 +2109,9 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     # ---------- صندوق پیشنهادات ----------
     if data == "feedback":
-        _set(chat_id, step="fb_subject")
+        # پیام منو همان پیام گفتگو می‌شود — همهٔ مراحل روی همین پیام ویرایش می‌شوند
+        # تا هیچ منوی قدیمی باقی نماند (رفع ایراد ۳)
+        _set(chat_id, step="fb_subject", fsm_msg=message_id)
         await edit(chat_id, message_id,
                    "💬 صندوق پیشنهادات و انتقادات\n\n"
                    "پیام شما مستقیماً برای مدیریت نوبتیار ارسال می‌شود.\n\n"
@@ -1808,7 +2261,37 @@ async def handle_text(chat_id, text: str) -> None:
     # ---------- دستورها (اولویت بالاتر از FSM) ----------
     if text.startswith("/start"):
         _pop(chat_id)
+        payload = text[len("/start"):].strip()
         await send(chat_id, TXT_START, kb_home())
+        # سیستم دعوت دوستان (مأموریت Shiraz Medical): لینک ble.ir?start=<code>
+        if payload:
+            code = payload.split()[0]
+            referrer_id = referral_svc.parse_referral_code(code)
+            if referrer_id:
+                _db = SessionLocal()
+                try:
+                    recorded = referral_svc.record_referral(
+                        _db, referrer_id, chat_id, "")
+                except Exception:
+                    _db.rollback()
+                    LOG.exception("referral record failed chat=%s", mask_chat(chat_id))
+                    recorded = False
+                finally:
+                    _db.close()
+                if recorded:
+                    LOG.info("referral JOINED referrer=%s invited=%s",
+                             mask_chat(referrer_id), mask_chat(chat_id))
+                    try:
+                        await send(referrer_id,
+                                   "🎉 یک کاربر جدید با لینک دعوت شما وارد نوبتیار شد!\n\n"
+                                   "پاداش شما وقتی «فعال» می‌شود که او اولین نوبت تأییدشده‌اش "
+                                   "را داشته باشد — پاداش واقعی، بدون وعدهٔ بی‌پشتوانه 💙",
+                                   kb_back_home())
+                    except Exception as notify_error:
+                        LOG.warning("referral notify skipped: %s", notify_error)
+                else:
+                    LOG.info("referral ignored (dup/self/invalid) referrer=%s invited=%s",
+                             mask_chat(referrer_id), mask_chat(chat_id))
         return
 
     if text.startswith("/help"):
@@ -1838,10 +2321,21 @@ async def handle_text(chat_id, text: str) -> None:
         if admin_id:
             bind_admin_chat(admin_id, chat_id)
             _pop(chat_id)
+            # پیام‌های صندوق که پیش از اتصال ادمین نتوانستند ارسال شوند (سقف تلاش
+            # پر شده)، حالا که ادمین متصل است دوباره شانس ارسال می‌گیرند —
+            # هیچ پیام بیماری برای همیشه گم نمی‌شود (رفع ریشهٔ ایراد صندوق).
+            reset_count = reset_stranded_notify_attempts()
             await send(chat_id,
                        "✅ اتصال انجام شد — حساب ادمین به این گفتگو متصل شد.\n\n"
                        "از این پس پیام‌های جدید صندوق پیشنهادات همین‌جا ارسال می‌شود و "
-                       "می‌توانید مستقیم پاسخ دهید.", kb_home())
+                       "می‌توانید مستقیم پاسخ دهید."
+                       + (f"\n\n📬 {fa_digits(reset_count)} پیام در انتظارِ ارسال، همین حالا برایتان می‌آید."
+                          if reset_count else ""), kb_home())
+            # ارسال فوری صف اعلان‌های در انتظار
+            try:
+                asyncio.create_task(_retry_pending_notifications())
+            except Exception:
+                LOG.exception("post-connect notify retry failed")
             return
         if tries >= ADMIN_CONNECT_MAX_TRIES:
             _pop(chat_id)
@@ -1919,27 +2413,91 @@ async def handle_text(chat_id, text: str) -> None:
         _pop(chat_id)
         return
 
+    # ---------- FSM: یادآور دارو — افزودن (منطق عیناً Shiraz Medical) ----------
+    if st and st.get("step") == "med_add_name":
+        name = text.strip()
+        if len(name) < 2:
+            await _prompt(chat_id, meds_svc.t("ask_name"), _kb_cancel())
+            return
+        if len(name) > meds_svc.MAX_NAME_LEN:
+            await _prompt(chat_id, meds_svc.t("too_long"), _kb_cancel())
+            return
+        st = _set(chat_id, step="med_add_times", med_name=name)
+        await _prompt(chat_id, meds_svc.t("ask_times"), _kb_cancel())
+        return
+
+    if st and st.get("step") == "med_add_times":
+        times = meds_svc.parse_times(text)
+        if not times:
+            await _prompt(chat_id, meds_svc.t("invalid_time"), _kb_cancel())
+            return
+        chat_id_str = str(chat_id)
+        name = st.get("med_name", "💊")
+        db = SessionLocal()
+        try:
+            try:
+                meds_svc.add_med(db, chat_id_str, name, times)
+            except Exception:
+                db.rollback()
+                LOG.exception("meds save failed for chat=%s", mask_chat(chat_id))
+                st.pop("med_name", None)
+                st["step"] = "med_home"
+                await _prompt(chat_id, meds_svc.t("save_failed"), None)
+                await meds_menu(chat_id)
+                return
+            saved_count = db.query(MedicationReminder.id).filter(
+                MedicationReminder.chat_id == chat_id_str).count()
+        finally:
+            db.close()
+        st.pop("med_name", None)
+        st["step"] = "med_home"
+        await _prompt(chat_id, meds_svc.t("saved").format(
+            name=name, times="، ".join(fa_digits(x) for x in times)), None)
+        await meds_menu(chat_id)
+        return
+
+    # ---------- FSM: نظرسنجی — علت نارضایتی (متن عیناً Shiraz Medical) ----------
+    if st and st.get("step") == "survey_reason":
+        if len(text.strip()) < 2:
+            await _prompt(chat_id, survey_svc.ASK_REASON,
+                          [[{"text": survey_svc.BTN_CANCEL, "callback_data": "survey_cancel"}]])
+            return
+        await _survey_receive_reason(chat_id, text)
+        return
+
     # ---------- FSM: صندوق پیشنهادات ----------
     if st and st.get("step") == "fb_subject":
         subject = text.strip()[:120]
         _set(chat_id, step="fb_message", subject=subject)
-        await send(chat_id, "۲️⃣ متن پیام خود را بنویسید (حداقل ۱۰ حرف):", _kb_cancel())
+        # روی «همان پیام» ویرایش می‌شود — هیچ منوی قدیمی باقی نمی‌ماند (رفع ایراد ۳)
+        await _prompt(chat_id, "۲️⃣ متن پیام خود را بنویسید (حداقل ۱۰ حرف):", _kb_cancel())
         return
 
     if st and st.get("step") == "fb_message":
         message = text.strip()
         if len(message) < 10:
-            await send(chat_id, "⚠️ متن پیام خیلی کوتاه است (حداقل ۱۰ حرف). دوباره بنویسید:")
+            await _prompt(chat_id, "⚠️ متن پیام خیلی کوتاه است (حداقل ۱۰ حرف). دوباره بنویسید:")
             return
         if len(message) > 1000:
             message = message[:1000]
         fb = create_feedback(chat_id, st.get("subject"), message)
+        # پایان گفتگو: پیام گفتگو به «رسید ثبت» ویرایش می‌شود — هیچ پیام قدیمی‌ای
+        # با دکمه‌های منقضی در چت نمی‌ماند (رفع ایراد ۳) و کاربر با کد پیگیری
+        # و دکمه‌های فعال به مسیر درست هدایت می‌شود.
+        fsm_msg = st.get("fsm_msg")
         _pop(chat_id)
-        await send(chat_id,
-                   f"✅ پیام شما ثبت شد.\n\n• کد پیگیری: {fa_digits(fb.id)}\n"
-                   "• وضعیت: در انتظار بررسی مدیریت\n\n"
-                   "پاسخ مدیریت از طریق همین ربات برای شما ارسال می‌شود. 🙏",
-                   kb_home())
+        receipt = (
+            f"✅ پیام شما ثبت شد.\n\n• کد پیگیری: {fa_digits(fb.id)}\n"
+            "• وضعیت: در انتظار بررسی مدیریت\n\n"
+            "پاسخ مدیریت از طریق همین ربات برای شما ارسال می‌شود. 🙏"
+        )
+        if fsm_msg:
+            await edit(chat_id, fsm_msg, receipt, [
+                [{"text": "💬 پیام جدید", "callback_data": "feedback"}],
+                [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+            ])
+        else:
+            await send(chat_id, receipt, kb_home())
         # اعلان ادمین: نتیجه در دیتابیس (notify_status) ثبت و در صورت شکست تلاش مجدد می‌شود
         asyncio.create_task(_notify_feedback_coro(fb.id))
         return
@@ -2267,6 +2825,118 @@ def push_feedback_reply(patient_chat_id, fb_id: int) -> dict:
     return {"queued": True}
 
 
+# ==================== اسکن یادآوری‌ها (پایگاه داده = منبع حقیقت) ====================
+
+async def _reminder_scan_pass() -> dict:
+    """یک دور کامل اسکن یادآوری‌های نوبت و دارو — idempotent.
+
+    هر یادآوری پیش از ارسال claim اتمیک می‌شود؛ نتیجهٔ واقعی API بله ثبت می‌گردد.
+    شکست ارسال → ردیف claim‌شده ناموفق می‌ماند و در دور بعدی تلاش می‌شود.
+    """
+    sent_appt = sent_med = 0
+    # ---------- یادآور نوبت (۲۴ ساعت و ۲ ساعت قبل — فقط نوبت تأییدشده) ----------
+    db = SessionLocal()
+    try:
+        due_appts = remind_svc.scan_appointment_reminders(db)
+    finally:
+        db.close()
+    for log, appt, text in due_appts:
+        try:
+            res = await send(appt.bale_chat_id, text)
+            # نتیجه باید با نشست تازه به دیتابیس برسد (log از نشست اسکن جدا شده است)
+            db = SessionLocal()
+            try:
+                row = db.get(ApptReminderLog, log.id)
+                if row:
+                    row.sent_ok = bool(res.get("ok"))
+                    if not row.sent_ok:
+                        row.error = f"Bale code={res.get('error_code')} {res.get('error') or ''}"
+                    db.commit()
+                if res.get("ok"):
+                    sent_appt += 1
+                    LOG.info("appt reminder sent appt=%s kind=%s chat=%s",
+                             appt.id, log.kind, mask_chat(appt.bale_chat_id))
+                else:
+                    LOG.warning("appt reminder FAILED appt=%s kind=%s err=%s",
+                                appt.id, log.kind, row.error if row else "?")
+            finally:
+                db.close()
+        except Exception as exc:
+            db = SessionLocal()
+            try:
+                row = db.get(ApptReminderLog, log.id)
+                if row:
+                    row.sent_ok = False
+                    row.error = f"exception {type(exc).__name__}"
+                    db.commit()
+            finally:
+                db.close()
+            LOG.exception("appt reminder crashed appt=%s kind=%s", appt.id, log.kind)
+
+    # ---------- یادآور دارو (هر ساعت ثبت‌شده + یادآوری مجدد) ----------
+    db = SessionLocal()
+    try:
+        due_times = remind_svc.scan_med_due_times(db)
+        due_logs = remind_svc.scan_med_due_logs(db)
+        # همهٔ ورودی‌ها به «ردیف لاگ واقعی» نرمال می‌شوند تا دکمه‌ها id داشته باشند
+        today = remind_svc.tehran_now().date()
+        entries: list = []   # (chat_id, rem, log_row)
+        for rem, hh, mm in due_times:
+            row = db.query(MedReminderLog).filter(
+                MedReminderLog.reminder_id == rem.id,
+                MedReminderLog.hh == hh,
+                MedReminderLog.mm == mm,
+                MedReminderLog.send_date == today,
+            ).order_by(MedReminderLog.id.desc()).first()
+            if row:
+                entries.append((str(int(rem.chat_id)), rem, row))
+        for rem, log in due_logs:
+            entries.append((str(int(rem.chat_id)), rem, log))
+    finally:
+        db.close()
+    seen = set()
+    for chat_id, rem, log in entries:
+        # جلوگیری از ارسال دوباره در همین دور اسکن (یک دارو در یک ساعت فقط یک‌بار)
+        key = (chat_id, rem.id, log.hh, log.mm)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            res = await _send_med_reminder_message(chat_id, log, rem.name)
+            ok = bool(res.get("ok"))
+            # نتیجه با نشست تازه به دیتابیس می‌رسد (log از نشست اسکن جدا شده است)
+            db = SessionLocal()
+            try:
+                row = db.get(MedReminderLog, log.id)
+                if row:
+                    row.sent_ok = ok
+                    if not ok:
+                        row.error = f"Bale code={res.get('error_code')} {res.get('error') or ''}"
+                    db.commit()
+            finally:
+                db.close()
+            if ok:
+                sent_med += 1
+                LOG.info("med reminder sent rem=%s chat=%s", rem.id, mask_chat(chat_id))
+            else:
+                LOG.warning("med reminder FAILED rem=%s chat=%s err=%s",
+                            rem.id, mask_chat(chat_id), (res.get('error') or res.get('error_code')))
+        except Exception as exc:
+            LOG.exception("med reminder crashed rem=%s chat=%s", rem.id, mask_chat(chat_id))
+            db = SessionLocal()
+            try:
+                row = db.get(MedReminderLog, log.id)
+                if row:
+                    row.sent_ok = False
+                    row.error = f"exception {type(exc).__name__}"
+                    db.commit()
+            finally:
+                db.close()
+    if sent_appt or sent_med:
+        LOG.info("reminder pass: appt=%d med=%d", sent_appt, sent_med)
+    return {"appt": sent_appt, "med": sent_med}
+
+
 # ==================== حلقه polling ====================
 
 async def get_updates(offset: int) -> dict:
@@ -2314,6 +2984,16 @@ async def polling_loop() -> None:
                     await _retry_pending_notifications()
                 except Exception:
                     LOG.exception("notify retry pass failed")
+            if counter % REMINDER_SCAN_CYCLE == 0:
+                # اسکن یادآوری‌ها از پایگاه داده (idempotent؛ پس از Restart/Deploy هم دقیق)
+                try:
+                    await _reminder_scan_pass()
+                except Exception:
+                    LOG.exception("reminder scan pass failed")
+                try:
+                    await _scan_surveys()
+                except Exception:
+                    LOG.exception("survey scan pass failed")
         else:
             await asyncio.sleep(5)
 
