@@ -1,51 +1,50 @@
-/* نوبتیار - استایل ساده و تمیز */
+/* ================================================================
+   نوبتیار — سیستم هویت بصری رسمی
+   برند: رنگ اصلی = سرمه‌ای (Navy) | مکمل = آبی / فیروزه‌ای-آبی
+   پس‌زمینه: سفید / سفید مایل به آبی | دکمهٔ اصلی: گرادیان آبی ← فیروزه‌ای
+   ممنوع: فیروزه‌ایِ سبز (teal) یا زعفرانی به‌عنوان رنگ اصلی
+   ================================================================ */
 :root {
-  --primary: #0d9488;
-  --primary-dark: #0f766e;
-  --bg: #f0fdfa;
-  --card: #ffffff;
-  --text: #134e4a;
-  --muted: #5eead4;
-  --danger: #dc2626;
-  --warning: #d97706;
-  --success: #059669;
+  --navy-900: #0d2149;      /* سرمه‌ای تیره — هدر/فوتر */
+  --primary:   #14355f;     /* رنگ اصلی برند — سرمه‌ای */
+  --blue:      #2563eb;     /* مکمل آبی */
+  --teal:      #0891b2;     /* مکمل فیروزه‌ای-آبی (فقط مکمل، نه رنگ اصلی) */
+  --grad:      linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
+  --grad-soft: linear-gradient(135deg, #3b82f6 0%, #22b8cf 100%);
+  --bg:        #f4f8fd;     /* سفید مایل به آبی */
+  --card:      #ffffff;
+  --text:      #1e293b;
+  --muted:     #64748b;
+  --line:      #dbe7f5;
+  --danger:    #dc2626;
+  --warning:   #d97706;
+  --success:   #059669;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: 'Vazirmatn', 'Tahoma', 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.6;
+  line-height: 1.7;
   direction: rtl;
   min-height: 100vh;
 }
 
-a {
-  color: var(--primary);
-  text-decoration: none;
-}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-a:hover {
-  text-decoration: underline;
-}
+.container { max-width: 1000px; margin: 0 auto; padding: 1rem; }
 
-.container {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 1rem;
-}
-
+/* ---------- هدر ---------- */
 header {
-  background: var(--primary);
+  background: var(--navy-900);
   color: white;
-  padding: 1rem 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 0.9rem 0;
+  box-shadow: 0 2px 10px rgba(13, 33, 73, 0.35);
+  position: relative;
+  z-index: 5;
 }
 
 header .container {
@@ -56,211 +55,214 @@ header .container {
   gap: 0.5rem;
 }
 
-header h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-}
+.brand { display: flex; align-items: center; gap: 0.5rem; }
+.brand img { height: 44px; width: auto; display: block; }
+.brand-white img { filter: none; }
+.brand-inline { display: flex; align-items: center; gap: 0.6rem; color: #fff; }
 
-nav a {
-  color: white;
-  margin-right: 1rem;
-  font-weight: 500;
-}
+header h1 { font-size: 1.35rem; font-weight: 800; }
 
-nav a:hover {
-  text-decoration: underline;
-}
+nav a { color: #cfe0f7; margin-right: 1rem; font-weight: 600; font-size: 0.95rem; }
+nav a:hover { color: #ffffff; text-decoration: none; }
 
+/* ---------- کارت ---------- */
 .card {
   background: var(--card);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 1.5rem;
   margin: 1rem 0;
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.08);
-  border: 1px solid #ccfbf1;
+  box-shadow: 0 4px 16px rgba(20, 53, 95, 0.08);
+  border: 1px solid var(--line);
 }
 
-.card h2 {
-  margin-bottom: 1rem;
-  color: var(--primary-dark);
-  font-size: 1.25rem;
-}
+.card h2 { margin-bottom: 1rem; color: var(--primary); font-size: 1.25rem; }
 
+/* ---------- فرم ---------- */
 label {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-weight: 600;
-  font-size: 0.9rem;
+  display: block; margin-bottom: 0.25rem;
+  font-weight: 600; font-size: 0.9rem; color: var(--primary);
 }
 
 input, select, textarea {
   width: 100%;
   padding: 0.6rem 0.8rem;
-  border: 1px solid #99f6e4;
+  border: 1px solid #b9cde8;
   border-radius: 8px;
   font-size: 1rem;
   margin-bottom: 1rem;
-  background: #f0fdfa;
+  background: #fbfdff;
   color: var(--text);
+  font-family: inherit;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
 
+/* ---------- دکمه‌ها ---------- */
 button, .btn {
   display: inline-block;
-  background: var(--primary);
+  background: var(--grad);            /* دکمهٔ اصلی: گرادیان آبی ← فیروزه‌ای */
   color: white;
   border: none;
   padding: 0.7rem 1.4rem;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: filter 0.2s, transform 0.1s;
+  font-family: inherit;
+  text-align: center;
 }
 
 button:hover, .btn:hover {
-  background: var(--primary-dark);
+  filter: brightness(0.94);
+  text-decoration: none;
+  color: #fff;
 }
 
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+button:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.btn-danger {
-  background: var(--danger);
-}
+.btn-danger { background: var(--danger); }
+.btn-danger:hover { background: #b91c1c; }
 
-.btn-danger:hover {
-  background: #b91c1c;
-}
-
-.btn-success {
-  background: var(--success);
-}
+.btn-success { background: var(--success); }
 
 .btn-outline {
   background: transparent;
-  border: 2px solid var(--primary);
-  color: var(--primary);
+  border: 2px solid var(--blue);
+  color: var(--blue);
 }
+.btn-outline:hover { color: var(--blue); }
 
-.btn-sm {
-  padding: 0.35rem 0.7rem;
-  font-size: 0.85rem;
-}
+.btn-sm { padding: 0.35rem 0.7rem; font-size: 0.85rem; }
 
-.alert {
-  padding: 0.8rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-}
+/* ---------- هشدارها ---------- */
+.alert { padding: 0.8rem 1rem; border-radius: 10px; margin-bottom: 1rem; }
+.alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.alert-info    { background: #e0efff; color: #14355f; border: 1px solid #93c2f7; }
 
-.alert-success {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #6ee7b7;
-}
+/* ---------- جدول ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { padding: 0.6rem; text-align: right; border-bottom: 1px solid var(--line); }
+th { background: #eef4fc; color: var(--primary); font-weight: 700; }
 
-.alert-error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
-}
-
-.alert-info {
-  background: #ccfbf1;
-  color: #134e4a;
-  border: 1px solid #5eead4;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-}
-
-th, td {
-  padding: 0.6rem;
-  text-align: right;
-  border-bottom: 1px solid #ccfbf1;
-}
-
-th {
-  background: #f0fdfa;
-  font-weight: 600;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-pending { background: #fef3c7; color: #92400e; }
-.badge-confirmed { background: #d1fae5; color: #065f46; }
-.badge-cancelled { background: #fee2e2; color: #991b1b; }
+/* ---------- نشان وضعیت ---------- */
+.badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+.badge-pending  { background: #fef3c7; color: #92400e; }
+.badge-confirmed{ background: #d1fae5; color: #065f46; }
+.badge-cancelled{ background: #fee2e2; color: #991b1b; }
 .badge-approved { background: #d1fae5; color: #065f46; }
 .badge-rejected { background: #fee2e2; color: #991b1b; }
 
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+/* ---------- شبکه ---------- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* ---------- هیرو صفحهٔ اصلی ---------- */
+.hero {
+  background: linear-gradient(150deg, var(--navy-900) 0%, #163a66 55%, #14537a 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 2.6rem 1.6rem;
+  margin: 1.2rem 0 1rem;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(13, 33, 73, 0.30);
+}
+.hero h2 { font-size: 1.75rem; font-weight: 800; margin-bottom: 0.6rem; }
+.hero p  { color: #cfe0f7; font-size: 1.05rem; margin-bottom: 1.4rem; }
+.hero .btn { padding: 0.8rem 1.7rem; font-size: 1.05rem; }
+.hero .btn-outline { border-color: #9fc3f2; color: #eaf2ff; margin-right: 0.5rem; }
+.hero .btn-outline:hover { color: #fff; border-color: #fff; }
+
+.feature-badge {
+  display: inline-block; margin-top: 1rem; margin-inline: 0.25rem;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #dbeafe;
+  border-radius: 999px; padding: 0.25rem 0.8rem; font-size: 0.85rem;
 }
 
-@media (max-width: 640px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
-  header .container {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+/* ---------- بخش معرفی ربات بله ---------- */
+.bale-section {
+  background: linear-gradient(140deg, #0b3f57 0%, #0d2149 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 2rem 1.6rem;
+  margin: 1.4rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  box-shadow: 0 8px 24px rgba(13, 33, 73, 0.28);
+  flex-wrap: wrap;
 }
+.bale-logo {
+  width: 84px; height: 84px; border-radius: 18px;
+  background: #fff; padding: 8px; flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.bale-body { flex: 1; min-width: 240px; }
+.bale-body h3 { font-size: 1.3rem; font-weight: 800; margin-bottom: 0.4rem; }
+.bale-body p  { color: #cfe0f7; margin-bottom: 1rem; }
+.bale-body ul { list-style: none; margin-bottom: 1.1rem; }
+.bale-body li { color: #dbeafe; font-size: 0.95rem; padding-inline-start: 1.3rem; position: relative; margin-bottom: 0.2rem; }
+.bale-body li::before { content: "✔"; position: absolute; inset-inline-start: 0; color: #67e8f9; }
 
-.slot-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.5rem;
-  margin: 1rem 0;
+.btn-bale {
+  background: var(--grad);
+  color: #fff;
+  padding: 0.85rem 1.8rem;
+  font-size: 1.08rem;
+  border-radius: 12px;
+  font-weight: 800;
+  display: inline-block;
+  box-shadow: 0 6px 18px rgba(8, 145, 178, 0.35);
 }
+.btn-bale:hover { color: #fff; filter: brightness(0.94); }
+.bale-note { font-size: 0.8rem; color: #9fc3f2; margin-top: 0.5rem; }
+
+/* ---------- اسلات‌ها ---------- */
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; margin: 1rem 0; }
 
 .slot-item {
   padding: 0.6rem;
-  border: 2px solid #99f6e4;
+  border: 2px solid #b9cde8;
   border-radius: 8px;
   text-align: center;
   cursor: pointer;
   background: white;
   transition: all 0.15s;
 }
+.slot-item:hover, .slot-item.selected { border-color: var(--blue); background: #e0efff; }
+.slot-item.booked { opacity: 0.5; cursor: not-allowed; background: #f1f5f9; }
 
-.slot-item:hover, .slot-item.selected {
-  border-color: var(--primary);
-  background: #ccfbf1;
-}
-
-.slot-item.booked {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #f1f5f9;
-}
-
+/* ---------- فوتر ---------- */
 footer {
+  background: var(--navy-900);
+  color: #cfe0f7;
+  margin-top: 2rem;
+  padding: 1.8rem 1rem;
   text-align: center;
-  padding: 2rem 1rem;
-  color: #5eead4;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
+footer img { height: 40px; width: auto; margin-bottom: 0.5rem; }
+footer .foot-links a { color: #93c2f7; margin: 0 0.5rem; }
+footer .foot-links a:hover { color: #fff; }
 
-.hidden {
-  display: none !important;
+.hidden { display: none !important; }
+
+/* ---------- موبایل ---------- */
+@media (max-width: 640px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  header .container { flex-direction: column; align-items: flex-start; }
+  nav a { display: inline-block; margin: 0.15rem 0.5rem 0.15rem 0; }
+  .hero h2 { font-size: 1.4rem; }
+  .hero .btn, .hero .btn-outline { display: block; width: 100%; margin: 0.5rem 0 0; }
+  /* بخش بله در موبایل پررنگ و تمام‌عرض */
+  .bale-section { flex-direction: column; text-align: center; padding: 1.6rem 1.1rem; }
+  .bale-logo { margin: 0 auto; }
+  .bale-body ul { text-align: right; }
+  .btn-bale { display: block; width: 100%; font-size: 1.1rem; }
 }
