@@ -7,7 +7,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.staticfiles import StaticFiles
 
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -147,6 +147,36 @@ def admin_login_page():
 @app.get("/admin/panel", response_class=HTMLResponse)
 def admin_panel_page():
     return _html("admin_panel.html")
+
+
+# ==================== SEO: تأیید Google Search Console و Sitemap ====================
+
+GSC_FILENAME = "google27f739a1bb0a6038.html"
+
+
+@app.get(f"/{GSC_FILENAME}", include_in_schema=False)
+def google_site_verification():
+    """فایل تأیید مالکیت Google Search Console — محتوای دقیق، مستقیم و بدون ریدایرکت."""
+    return FileResponse(os.path.join(FRONTEND_DIR, GSC_FILENAME), media_type="text/html")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml():
+    """Sitemap استاندارد XML — صفحات عمومی اصلی سایت."""
+    base = (os.environ.get("NOBATYAR_SITE_URL") or "https://shirazhealthtour.ir").rstrip("/")
+    today = datetime.utcnow().date().isoformat()
+    pages = [("/", "1.0"), ("/register", "0.8"), ("/book", "0.8")]
+    items = "".join(
+        f"<url><loc>{base}{path}</loc><lastmod>{today}</lastmod>"
+        f"<changefreq>weekly</changefreq><priority>{prio}</priority></url>"
+        for path, prio in pages
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{items}</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml")
 
 
 # ==================== API: ثبت‌نام مطب ====================
