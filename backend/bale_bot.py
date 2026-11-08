@@ -129,6 +129,29 @@ def _pop(chat_id) -> None:
     states.pop(chat_id, None)
 
 
+async def _neutralize_stale(chat_id, keep_msg_id=None) -> None:
+    """بستن گفتگوی قبلی — ریشه‌کن‌کردن «دکمه‌های قبلی روی منوی جدید».
+
+    اگر پیام گفتگوی قبلی (fsm_msg) با پیام فعلی فرق داشته باشد، همان پیام
+    به «این گفتگو پایان یافته + بازگشت به منوی اصلی» ویرایش می‌شود تا:
+    - هیچ دکمهٔ منقضی/مرده‌ای در چت باقی نماند؛
+    - بیمار از هر پیامی راه بازگشت به منو را ببیند؛
+    - برای خروج هرگز نیازی به پاک‌کردن مکالمه نباشد."""
+    st = states.get(chat_id)
+    if not st:
+        return
+    old_mid = st.get("fsm_msg")
+    states.pop(chat_id, None)
+    if old_mid and old_mid != keep_msg_id:
+        try:
+            await edit(chat_id, old_mid,
+                       "⌛ این گفتگو پایان یافته است — از منوی زیر ادامه دهید:",
+                       kb_back_home())
+        except Exception:
+            LOG.warning("stale fsm_msg cleanup failed chat=%s mid=%s",
+                        mask_chat(chat_id), old_mid)
+
+
 def cleanup_sessions() -> None:
     now = time.time()
     expired = [c for c, s in states.items() if now - s.get("ts", 0) > SESSION_TTL]
@@ -1418,9 +1441,11 @@ async def handle_survey_callback(chat_id, message_id, data: str) -> None:
     """پردازش پاسخ نظرسنجی — منطق و متن عیناً Shiraz Medical handlers/survey.py."""
     _pop(chat_id)
     if data == "survey_yes":
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         await edit(chat_id, message_id, survey_svc.THANKS_HAPPY, _survey_back_kb())
         return
     if data == "survey_no":
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="survey_reason", fsm_msg=message_id)
         await edit(chat_id, message_id, survey_svc.ASK_REASON,
                    [[{"text": survey_svc.BTN_CANCEL, "callback_data": "survey_cancel"}]])
@@ -1440,13 +1465,19 @@ async def _survey_receive_reason(chat_id, text: str) -> None:
         fb_id = fb.id
     finally:
         db.close()
+    # رفع «ماندن دکمهٔ انصراف نظرسنجی»: پیام نظرسنجی به پیام تشکر تبدیل می‌شود
     st = _sess(chat_id)
-    if st:
-        st.pop("fsm_msg", None)
+    old_mid = st.get("fsm_msg") if st else None
     _pop(chat_id)
     # ثبت پیام هرگز شکست نمی‌خورد؛ اعلان با ماشین وضعیت صندوق (claim + retry) ارسال می‌شود
     if fb_id:
         asyncio.create_task(_notify_feedback_coro(fb_id))
+    if old_mid:
+        try:
+            await edit(chat_id, old_mid, survey_svc.THANKS_FEEDBACK, _survey_back_kb())
+            return
+        except Exception:
+            LOG.warning("survey fsm edit failed chat=%s", mask_chat(chat_id))
     await send(chat_id, survey_svc.THANKS_FEEDBACK, _survey_back_kb())
 
 
@@ -1569,7 +1600,9 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     # ---------- منوی اصلی و صفحات ثابت ----------
     if data in ("home", "start"):
-        _pop(chat_id)
+        # رفع قطعی «گرفتار شدن»: هر گفتگوی باز با فشردن منو بسته می‌شود و پیام
+        # قبلیِ گفتگو هم به «بازگشت به منوی اصلی» تبدیل می‌شود (بدون دکمهٔ مرده)
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         await edit(chat_id, message_id, TXT_START, kb_home())
         return
 
@@ -1577,8 +1610,13 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         return
 
     if data == "cancel":
-        _pop(chat_id)
-        await edit(chat_id, message_id, "عملیات لغو شد. 🏠", kb_home())
+        # رفع قطعی ایراد «انصراف در پیشنهادات و انتقادات»:
+        # ۱) وضعیت مکالمه کاملاً پاک می‌شود ۲) پیام گفتگوی قبلی هم خنثی می‌شود
+        # ۳) منوی اصلی (همان «بازگشت به منوی اصلی») دوباره نمایش داده می‌شود؛
+        #    بیمار هرگز برای خروج مجبور به پاک‌کردن مکالمه نیست.
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
+        await edit(chat_id, message_id,
+                   "✅ عملیات لغو شد. 🏠\n\nاز منوی اصلی ادامه دهید:", kb_home())
         return
 
     if data == "help":
@@ -1618,7 +1656,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     # ---------- یادآور دارو (مأموریت Shiraz Medical) ----------
     if data == "meds":
-        _pop(chat_id)
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         st = _set(chat_id, step="med_home", fsm_msg=message_id)
         await meds_menu(chat_id, message_id)
         return
@@ -1631,6 +1669,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     if data == "med_add":
         # شروع گفتگوی افزودن دارو — همان الگوی ConversationHandler در Shiraz Medical
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         st = _set(chat_id, step="med_home", fsm_msg=message_id)
         await meds_start_add(chat_id, message_id)
         return
@@ -1780,7 +1819,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         return
 
     if data == "labsearch":
-        _pop(chat_id)
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="labsearch")
         await edit(chat_id, message_id,
                    "🔎 جست‌وجوی آزمایشگاه\n\n"
@@ -1883,6 +1922,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
                        [[{"text": "🗓 دریافت نوبت", "callback_data": "book"}],
                         [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
             return
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="bk_name", slot_id=sid,
              clinic_id=clinic_id, slot_dt=slot_dt)
         remember_dest(chat_id, clinic_id)
@@ -1896,6 +1936,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     # ---------- جست‌وجو ----------
     if data == "search":
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="search", sctx=None)
         await edit(chat_id, message_id,
                    "🔎 جست‌وجوی سریع\n\n"
@@ -1906,6 +1947,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     if data.startswith("searchctx:"):
         ctype = data.split(":")[1]
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="search", sctx=ctype)
         scope = "درمانگاه‌ها" if ctype == "c" else "مطب‌ها"
         await edit(chat_id, message_id,
@@ -2110,7 +2152,9 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
     # ---------- صندوق پیشنهادات ----------
     if data == "feedback":
         # پیام منو همان پیام گفتگو می‌شود — همهٔ مراحل روی همین پیام ویرایش می‌شوند
-        # تا هیچ منوی قدیمی باقی نماند (رفع ایراد ۳)
+        # تا هیچ منوی قدیمی باقی نماند (رفع ایراد ۳). اگر گفتگوی دیگری باز بود،
+        # پیام قبلیش هم خنثی می‌شود تا هیچ دکمهٔ مرده‌ای نماند.
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="fb_subject", fsm_msg=message_id)
         await edit(chat_id, message_id,
                    "💬 صندوق پیشنهادات و انتقادات\n\n"
@@ -2127,6 +2171,12 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             await edit(chat_id, message_id,
                        "۲️⃣ متن پیام خود را بنویسید (حداقل ۱۰ حرف):",
                        _kb_cancel())
+        else:
+            # هیچ دکمه‌ای بی‌صدا نمی‌ماند — دکمهٔ منقضی به منو هدایت می‌کند
+            await _neutralize_stale(chat_id, keep_msg_id=message_id)
+            await edit(chat_id, message_id,
+                       "⌛ این گفتگو پایان یافته است — از منوی اصلی ادامه دهید:",
+                       kb_home())
         return
 
     if data.startswith("fbreply:"):
@@ -2141,11 +2191,57 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         if not fb:
             await edit(chat_id, message_id, "❌ پیام یافت نشد.", kb_back_home())
             return
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
         _set(chat_id, step="fbreply_wait", fb_id=fb_id)
         await edit(chat_id, message_id,
                    f"📨 پاسخ به پیام کد {fa_digits(fb_id)}\n\n"
                    "متن پاسخ را بنویسید و ارسال کنید:",
                    _kb_cancel())
+        return
+
+    # ---------- صندوق ادمین: واکشی پیام‌های در انتظار + ارسال دوبارهٔ صف ----------
+    if data == "admininbox":
+        if not _admin_of_chat(chat_id):
+            await edit(chat_id, message_id, "⛔ این دکمه فقط برای ادمین‌های نوبتیار است.",
+                       kb_back_home())
+            return
+        db = SessionLocal()
+        try:
+            rows_db = db.query(Feedback).filter(Feedback.status == "new").order_by(
+                Feedback.id.desc()).limit(10).all()
+            n_total = db.query(Feedback).filter(Feedback.status == "new").count()
+        finally:
+            db.close()
+        if not rows_db:
+            await edit(chat_id, message_id,
+                       "📭 هیچ پیام در انتظاری نیست — صندوق خالی است. ✅",
+                       [[{"text": "🔄 تلاش مجدد ارسال صف اعلان‌ها", "callback_data": "adminretry"}],
+                        [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
+            return
+        lines = [f"📬 پیام‌های در انتظار پاسخ: {fa_digits(n_total)}\n"]
+        buttons = []
+        for fb in rows_db:
+            lines.append(f"• کد {fa_digits(fb.id)} | {fb.subject or 'بدون موضوع'} | "
+                         f"{(fb.message or '')[:60]}")
+            buttons.append([{"text": f"📨 پاسخ به کد {fa_digits(fb.id)}",
+                             "callback_data": f"fbreply:{fb.id}"}])
+        buttons.append([{"text": "🔄 تلاش مجدد ارسال صف اعلان‌ها", "callback_data": "adminretry"}])
+        buttons.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
+        await edit(chat_id, message_id, "\n".join(lines), buttons)
+        return
+
+    if data == "adminretry":
+        if not _admin_of_chat(chat_id):
+            await edit(chat_id, message_id, "⛔ این دکمه فقط برای ادمین‌های نوبتیار است.",
+                       kb_back_home())
+            return
+        n = await _retry_pending_notifications()
+        await edit(chat_id, message_id,
+                   ("🔄 صف اعلان‌ها بررسی شد — " +
+                    (f"{fa_digits(n)} پیام قدیمی برای ادمین‌های متصل ارسال شد. ✅"
+                     if n else "پیام در انتظارِ ارسالی نبود (همه قبلاً ارسال شده‌اند). ✅")),
+                   [[{"text": "📬 پیام‌های در انتظار", "callback_data": "admininbox"}],
+                    [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
         return
 
     # ---------- رزرو: تأیید ----------
@@ -2299,11 +2395,34 @@ async def handle_text(chat_id, text: str) -> None:
         return
 
     if text.startswith("/admin"):
-        if _admin_of_chat(chat_id):
+        admin = _admin_of_chat(chat_id)
+        if admin:
+            # وضعیت صندوق برای ادمین متصل + دکمهٔ واکشی فوری (تست تحویل تک‌تک ادمین‌ها)
+            db = SessionLocal()
+            try:
+                pending = db.query(Feedback).filter(
+                    Feedback.status == FeedbackStatus.new.value
+                ).order_by(Feedback.id.desc()).limit(5).all()
+                n_total = db.query(Feedback).filter(Feedback.status == "new").count()
+            finally:
+                db.close()
+            rows = [[{"text": f"📬 پیام‌های در انتظار ({fa_digits(n_total)})",
+                      "callback_data": "admininbox"}],
+                    [{"text": "🔄 تلاش مجدد ارسال صف اعلان‌ها",
+                      "callback_data": "adminretry"}]]
+            for fb in pending:
+                subj = fb.subject or "بدون موضوع"
+                rows.append([{"text": f"📨 پاسخ به کد {fa_digits(fb.id)} — {subj[:30]}",
+                              "callback_data": f"fbreply:{fb.id}"}])
+            rows.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
+            await _neutralize_stale(chat_id)
             await send(chat_id,
-                       "✅ این گفتگو قبلاً به حساب ادمین متصل شده است. "
-                       "پیام‌های جدید صندوق، خودکار به اینجا ارسال می‌شود.")
+                       "✅ این گفتگو به حساب ادمین متصل است.\n\n"
+                       "پیام‌های جدید صندوق، خودکار به همین‌جا ارسال می‌شود و "
+                       f"در حال حاضر {fa_digits(n_total)} پیام در انتظار پاسخ دارید.",
+                       rows)
             return
+        await _neutralize_stale(chat_id)
         _set(chat_id, step="admin_code", tries=0)
         await send(chat_id,
                    "🔐 اتصال امن ادمین به ربات\n\n"

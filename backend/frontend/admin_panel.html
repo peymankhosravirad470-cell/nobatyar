@@ -4,14 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>پنل ادمین | نوبتیار</title>
-  <link rel="icon" type="image/svg+xml" href="/static/img/nobatyar-mark.svg">
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="stylesheet" href="/static/css/style.css">
   <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+
+  <!-- Google tag (gtag.js) — Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-NVWBWMF1E4');
+  </script>
 </head>
 <body>
-  <header>
+  <header class="site-header">
     <div class="container">
-      <div class="brand-inline"><img src="/static/img/nobatyar-logo.svg" alt="نوبتیار" style="height:40px;background:#fff;border-radius:8px;padding:2px 6px;"><h1>پنل ادمین</h1></div>
+      <div class="brand-inline"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark"></picture><span class="brand-text"><b>نوبتیار</b><small><h1>پنل ادمین</h1></small></span></div>
       <nav><a href="#" id="logoutBtn">خروج</a></nav>
     </div>
   </header>

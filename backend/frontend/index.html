@@ -3,43 +3,212 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>نوبتیار | نوبت‌دهی آنلاین مطب‌های شیراز</title>
-  <link rel="icon" type="image/svg+xml" href="/static/img/nobatyar-mark.svg">
+  <meta name="description" content="نوبتیار — سامانه هوشمند نوبت‌دهی مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌های شیراز؛ رزرو آنلاین نوبت، یادآور دارو و نوبت، همراه ربات بله.">
+  <title>نوبتیار | همراه هوشمند سلامت در شیراز — نوبت بگیرید، راحت‌تر زندگی کنید</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="stylesheet" href="/static/css/style.css">
   <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+
+  <!-- Google tag (gtag.js) — Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-NVWBWMF1E4');
+  </script>
 </head>
 <body>
-  <header>
+
+  <header class="site-header">
     <div class="container">
-      <a href="/" class="brand-inline" style="text-decoration:none;">
-        <img src="/static/img/nobatyar-logo-white.svg" alt="نوبتیار" style="height:44px;">
+      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی">
+        <picture>
+          <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
+          <img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark">
+        </picture>
+        <span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
       </a>
-      <nav>
+      <input type="checkbox" id="navtg" class="nav-check" aria-hidden="true">
+      <label for="navtg" class="nav-burger" aria-label="باز و بسته کردن منو"><span></span><span></span><span></span></label>
+      <nav class="main-nav">
         <a href="/">خانه</a>
         <a href="/book">رزرو نوبت</a>
         <a href="/register">ثبت‌نام مطب</a>
         <a href="/clinic/login">ورود مطب</a>
-        <a href="https://ble.ir/nobatyarshirazbot">ربات بله</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="nav-cta">ربات بله</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
-    <section class="hero">
-      <h2>نوبت‌دهی آسان برای مطب‌های شیراز</h2>
-      <p>بدون تماس تلفنی، بدون انتظار. نوبت خود را آنلاین بگیرید.</p>
-      <a href="/book" class="btn">رزرو نوبت بیمار</a>
-      <a href="/register" class="btn btn-outline">ثبت‌نام مطب / درمانگاه</a>
-      <div>
-        <span class="feature-badge">🗓 رزرو آنلاین نوبت</span>
-        <span class="feature-badge">🧪 آزمایشگاه‌ها</span>
-        <span class="feature-badge">💊 داروخانه‌ها</span>
-        <span class="feature-badge">⏰ یادآوری دارو</span>
+
+    <!-- ============ هیرو ============ -->
+    <section class="hero-new" aria-label="معرفی نوبتیار">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow">✦ سامانه هوشمند نوبت‌دهی سلامت شیراز</span>
+          <h2>نوبت بگیرید، <span class="grad-text">راحت‌تر زندگی کنید</span></h2>
+          <p class="lead">نوبتیار نوبت‌دهی آنلاین مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌های شیراز را یک‌جا جمع کرده است؛ بدون تماس تلفنی، بدون معطلی در صف — از وب یا ربات بله.</p>
+          <div class="hero-actions">
+            <a href="/book" class="btn">🗓 رزرو نوبت بیمار</a>
+            <a href="/register" class="btn btn-outline">ثبت‌نام مطب / درمانگاه</a>
+          </div>
+          <div class="hero-chips">
+            <span class="feature-badge">🗓 رزرو آنلاین نوبت</span>
+            <span class="feature-badge">🧪 آزمایشگاه‌ها</span>
+            <span class="feature-badge">💊 داروخانه‌ها</span>
+            <span class="feature-badge">⏰ یادآوری دارو</span>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <div class="hero-logo-ring">
+            <picture>
+              <source type="image/webp" srcset="/static/img/nobatyar-logo.webp">
+              <img src="/static/img/nobatyar-logo.png" alt="لوگوی رسمی نوبتیار — همراه هوشمند سلامت در شیراز">
+            </picture>
+          </div>
+          <div class="float-card fc-1">
+            <span class="fc-icon">✅</span>
+            <span>نوبت شما ثبت شد<small>پنجشنبه ۱۶ آبان — ۱۴:۰۰</small></span>
+          </div>
+          <div class="float-card fc-2">
+            <span class="fc-icon">💊</span>
+            <span>یادآور دارو<small>هر روز سر ساعت مقرر</small></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ نوار اعتماد ============ -->
+    <section class="trust-strip" aria-label="مزایای نوبتیار">
+      <div class="trust-item">
+        <span class="t-icon">⚡</span>
+        <span><b>رزرو در چند ثانیه</b><span>بدون تماس تلفنی و صف</span></span>
+      </div>
+      <div class="trust-item">
+        <span class="t-icon">🔔</span>
+        <span><b>یادآوری خودکار</b><span>نوبت و دارو، سر وقت</span></span>
+      </div>
+      <div class="trust-item">
+        <span class="t-icon">🛡</span>
+        <span><b>اطلاعات محرمانه</b><span>احراز هویت امن و OTP</span></span>
+      </div>
+      <div class="trust-item">
+        <span class="t-icon">💬</span>
+        <span><b>پاسخ مستقیم مدیریت</b><span>پیشنهادات و انتقادات شما</span></span>
+      </div>
+    </section>
+
+    <!-- ============ خدمات ============ -->
+    <section class="section" id="services" aria-label="خدمات نوبتیار">
+      <div class="section-head">
+        <span class="kicker">خدمات نوبتیار</span>
+        <h2>هر چیزی که برای سلامتی‌تان لازم دارید، یک‌جا</h2>
+        <p>از رزرو نوبت تا یادآور دارو و مسیریابی تا مطب — همه با چند لمس</p>
+      </div>
+      <div class="services-grid">
+        <div class="service-card">
+          <span class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M9 15l2 2 4-4"/></svg></span>
+          <h3>دریافت نوبت آنلاین</h3>
+          <p>انتخاب تخصص و مرکز، دیدن زمان‌های خالی و ثبت نوبت در چند ثانیه؛ از وب یا ربات بله.</p>
+        </div>
+        <div class="service-card">
+          <span class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+          <h3>جست‌وجوی پزشک و درمانگاه</h3>
+          <p>جست‌وجوی سریع فارسی بین مطب‌ها و درمانگاه‌های شیراز بر اساس نام، تخصص یا نشانی.</p>
+        </div>
+        <div class="service-card">
+          <span class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.3L5.2 17A3 3 0 0 0 7.8 21h8.4a3 3 0 0 0 2.6-4L14 9.3V3"/><path d="M7.5 14.5h9"/></svg></span>
+          <h3>آزمایشگاه‌ها</h3>
+          <p>فهرست آزمایشگاه‌های شیراز با نشانی، تلفن و مسیریابی مستقیم روی نقشه.</p>
+        </div>
+        <div class="service-card">
+          <span class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a2.1 2.1 0 0 1 3-3l7 7a2.1 2.1 0 0 1-3 3Z"/><path d="m13 8 3-3a2.1 2.1 0 0 1 3 3l-3 3"/><path d="M4 20h4"/></svg></span>
+          <h3>داروخانه‌ها</h3>
+          <p>داروخانه‌های نزدیک شما با اطلاعات تماس و مسیر رسیدن — همیشه در جیب‌تان.</p>
+        </div>
+        <div class="service-card">
+          <span class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span>
+          <h3>یادآور دارو و نوبت</h3>
+          <p>هر روز سر ساعت مقرر یادتان می‌آوریم دارو را مصرف کنید و نوبت را فراموش نکنید.</p>
+        </div>
+        <div class="service-card">
+          <span class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.1 7-11a7 7 0 1 0-14 0c0 5.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+          <h3>مسیریابی و تاکسی اینترنتی</h3>
+          <p>مسیر تا مرکز درمانی روی نقشه‌های ایرانی و درخواست تاکسی با یک دکمه.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ برای مطب‌ها ============ -->
+    <section class="section" aria-label="خدمات برای مطب‌ها">
+      <div class="split-2">
+        <div class="split-img">
+          <img src="/static/img/img-clinic.jpg" alt="پزشک در محیط مطب — ثبت‌نام مطب در نوبتیار" loading="lazy">
+        </div>
+        <div>
+          <span class="kicker" style="color:var(--teal);font-weight:800;font-size:.85rem;">ویژه مطب‌ها و درمانگاه‌ها</span>
+          <h3>مطب خود را آنلاین کنید</h3>
+          <p>ثبت‌نام سریع، تأیید توسط تیم نوبتیار و مدیریت کامل نوبت‌ها در پنل اختصاصی — بدون هزینهٔ راه‌اندازی پیچیده.</p>
+          <ul class="check">
+            <li>تعریف ساعات کاری و اسلات‌های نوبت</li>
+            <li>مدیریت نوبت‌ها: تأیید، لغو و وضعیت مراجعه</li>
+            <li>مشاهدهٔ اطلاعات تماس بیماران برای هر نوبت</li>
+            <li>اشتراک ماهانهٔ ساده و شفاف</li>
+          </ul>
+          <a href="/register" class="btn">ثبت‌نام مطب / درمانگاه</a>
+        </div>
+      </div>
+
+      <div class="split-2">
+        <div>
+          <span class="kicker" style="color:var(--teal);font-weight:800;font-size:.85rem;">آزمایشگاه و داروخانه</span>
+          <h3>سلامت شما، در دسترس شما</h3>
+          <p>آزمایشگاه‌ها و داروخانه‌های شیراز با نشانی و تلفن، به‌همراه مسیریابی و تاکسی اینترنتی — همه در ربات نوبتیار.</p>
+          <ul class="check">
+            <li>فهرست کامل با جست‌وجوی فارسی</li>
+            <li>مسیر یابی روی نقشه‌های ایرانی (نشان/بلد/گوگل‌مپ)</li>
+            <li>درخواست تاکسی اینترنتی با یک دکمه</li>
+            <li>یادآور دارو برای برنامهٔ درمانی شما</li>
+          </ul>
+          <a href="https://ble.ir/nobatyarshirazbot" class="btn" target="_blank" rel="noopener">مشاهده در ربات بله</a>
+        </div>
+        <div class="split-img">
+          <img src="/static/img/img-lab.jpg" alt="آزمایشگاه مدرن — خدمات آزمایشگاهی نوبتیار" loading="lazy">
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ مراحل ============ -->
+    <section class="section" aria-label="نحوهٔ کار">
+      <div class="section-head">
+        <span class="kicker">فقط ۳ گام</span>
+        <h2>از ثبت‌نام تا یادآوری، خودکار و ساده</h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="num"></span>
+          <h3>مرکز و زمان را انتخاب کنید</h3>
+          <p>تخصص یا مرکز مورد نظر را جست‌وجو کنید و از بین زمان‌های خالی، نوبت‌تان را برگزینید.</p>
+        </div>
+        <div class="step">
+          <span class="num"></span>
+          <h3>نوبت را ثبت و تأیید کنید</h3>
+          <p>اطلاعات بیمار را وارد کنید؛ کد پیگیری بگیرید و وضعیت نوبت را همیشه ببینید.</p>
+        </div>
+        <div class="step">
+          <span class="num"></span>
+          <h3>سر وقت یادآوری شوید</h3>
+          <p>ربات بله، نوبت و دارو را یادآوری می‌کند و پاسخ مدیریت را مستقیم به شما می‌رساند.</p>
+        </div>
       </div>
     </section>
 
     <!-- ======== بخش معرفی ربات بله (official Bale logo — بدون تغییر) ======== -->
-    <section class="bale-section">
+    <section class="bale-section" aria-label="نوبتیار در بله">
       <img src="/static/img/bale-logo.png" alt="لوگوی رسمی بله"
            class="bale-logo" width="84" height="84">
       <div class="bale-body">
@@ -57,37 +226,74 @@
       </div>
     </section>
 
-    <div class="grid-2">
-      <div class="card">
-        <h2>برای بیماران</h2>
-        <ul style="padding-right: 1.2rem;">
-          <li>انتخاب مطب و تخصص</li>
-          <li>مشاهده اسلات‌های خالی</li>
-          <li>ثبت نوبت در چند ثانیه</li>
-          <li>از طریق وب یا ربات بله</li>
-        </ul>
+    <!-- ============ سوالات متداول ============ -->
+    <section class="section" aria-label="سوالات متداول">
+      <div class="section-head">
+        <span class="kicker">سوالات متداول</span>
+        <h2>هرچه باید بدانید</h2>
       </div>
-      <div class="card">
-        <h2>برای مطب‌ها</h2>
-        <ul style="padding-right: 1.2rem;">
-          <li>ثبت‌نام سریع و تأیید ادمین</li>
-          <li>تعریف ساعات کاری و اسلات</li>
-          <li>مدیریت نوبت‌ها (تأیید / لغو)</li>
-          <li>اشتراک ماهانه ساده</li>
-        </ul>
+      <div class="faq">
+        <details open>
+          <summary>رزرو نوبت در نوبتیار چطور انجام می‌شود؟</summary>
+          <p>از صفحهٔ «رزرو نوبت» یا ربات بله، تخصص یا مرکز مورد نظر را انتخاب می‌کنید، از میان زمان‌های خالی یک زمان را برمی‌دارید و با وارد کردن اطلاعات بیمار، نوبت با کد پیگیری ثبت می‌شود.</p>
+        </details>
+        <details>
+          <summary>آیا استفاده از ربات بله اجباری است؟</summary>
+          <p>خیر؛ رزرو از وب هم کامل است. اما ربات بله امکانات بیشتری دارد: یادآور دارو، یادآوری خودکار نوبت، دعوت دوستان و پاسخ مستقیم مدیریت.</p>
+        </details>
+        <details>
+          <summary>اطلاعات من چگونه محفوظ می‌ماند؟</summary>
+          <p>اتصال ادمین‌ها فقط از مسیر کد یک‌بارمصرف (OTP) انجام می‌شود، رمز عبور هرگز در چت رد و بدل نمی‌شود و اطلاعات هویتی بیماران فقط برای مدیریت نوبت استفاده می‌شود.</p>
+        </details>
+        <details>
+          <summary>مطب یا درمانگاه ما چگونه ثبت‌نام می‌کند؟</summary>
+          <p>از صفحهٔ «ثبت‌نام مطب» فرم را پر کنید؛ پس از تأیید تیم نوبتیار، پنل اختصاصی شما فعال می‌شود تا ساعات کاری و اسلات‌ها را تعریف و نوبت‌ها را مدیریت کنید.</p>
+        </details>
       </div>
-    </div>
+    </section>
+
+    <!-- ============ بنر CTA ============ -->
+    <section class="cta-banner" aria-label="شروع کنید">
+      <h2>همین حالا نوبت خود را بگیرید</h2>
+      <p>نوبت بگیرید، راحت‌تر زندگی کنید — نوبتیار کنار شماست</p>
+      <a href="/book" class="btn-white">🗓 رزرو نوبت</a>
+      <a href="https://ble.ir/nobatyarshirazbot" class="btn-ghost" target="_blank" rel="noopener">ورود به ربات بله</a>
+    </section>
+
   </main>
 
   <footer>
-    <img src="/static/img/nobatyar-logo-white.svg" alt="نوبتیار">
-    <br>
-    نوبتیار — سیستم نوبت‌دهی خودسرویس برای مطب‌های شیراز
-    <br>
-    <span class="foot-links">
-      <a href="https://ble.ir/nobatyarshirazbot">ربات بله</a>
-      <a href="/">خانه</a>
-      <a href="/book">رزرو نوبت</a>
-    </span>
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <picture>
+          <source type="image/webp" srcset="/static/img/nobatyar-badge.webp">
+          <img src="/static/img/nobatyar-badge.png" alt="لوگوی رسمی نوبتیار">
+        </picture>
+        <p>نوبتیار — همراه هوشمند سلامت در شیراز؛ سامانهٔ نوبت‌دهی خودسرویس برای مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌ها.</p>
+      </div>
+      <div class="footer-col">
+        <h4>دسترسی سریع</h4>
+        <a href="/">خانه</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/register">ثبت‌نام مطب</a>
+        <a href="/clinic/login">ورود مطب</a>
+        <a href="/admin/login">ورود مدیریت</a>
+      </div>
+      <div class="footer-col">
+        <h4>نوبتیار در بله</h4>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">🤖 ربات رسمی نوبتیار</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">💬 پیشنهادات و انتقادات</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">💊 یادآور دارو</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© نوبتیار — نوبت بگیرید، راحت‌تر زندگی کنید</span>
+      <span class="foot-links">
+        <a href="https://ble.ir/nobatyarshirazbot">ربات بله</a>
+        <a href="/">خانه</a>
+        <a href="/book">رزرو نوبت</a>
+      </span>
+    </div>
   </footer>
 </body>
+</html>
