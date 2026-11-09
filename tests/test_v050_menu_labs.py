@@ -49,7 +49,9 @@ def kb_texts(method):
     return [b["text"] for row in last_kb(method) for b in row]
 
 def kb_callbacks(method):
-    return [b["callback_data"] for row in last_kb(method) for b in row]
+    # دکمه‌های URL (مثل «🌐 وب‌سایت نوبتیار») callback_data ندارند — فیلتر می‌شوند
+    return [b["callback_data"] for row in last_kb(method) for b in row
+            if "callback_data" in b]
 
 PASS = []
 def check(name, cond):
@@ -73,12 +75,15 @@ CHAT = 777050
 asyncio.run(bale_bot.handle_text(CHAT, "/start"))
 btns = kb_texts("sendMessage")
 cbs = kb_callbacks("sendMessage")
+# نگاشت متن‌به‌callback — مستقل از دکمه‌های URL (فاقد callback_data)
+cb_of = {b["text"]: b["callback_data"] for row in last_kb("sendMessage") for b in row
+         if "callback_data" in b}
 check("منو: دکمه داروخانه‌ها در منوی اصلی",
-      "💊 داروخانه‌ها" in btns and cbs[btns.index("💊 داروخانه‌ها")] == "pharmacy")
+      "💊 داروخانه‌ها" in btns and cb_of.get("💊 داروخانه‌ها") == "pharmacy")
 check("منو: دکمه دعوت دوستان در منوی اصلی",
-      "🎁 دعوت دوستان" in btns and cbs[btns.index("🎁 دعوت دوستان")] == "invite")
+      "🎁 دعوت دوستان" in btns and cb_of.get("🎁 دعوت دوستان") == "invite")
 check("منو: دکمه آزمایشگاه‌ها در منوی اصلی",
-      "🧪 آزمایشگاه‌ها" in btns and cbs[btns.index("🧪 آزمایشگاه‌ها")] == "labs")
+      "🧪 آزمایشگاه‌ها" in btns and cb_of.get("🧪 آزمایشگاه‌ها") == "labs")
 check("منو: همه دکمه‌های قبلی حفظ شده‌اند",
       all(x in btns for x in ("🗓 دریافت نوبت", "🔎 جست‌وجوی پزشک و درمانگاه", "⏰ یادآوری دارو", "🚕 تاکسی اینترنتی",
                               "🗺 مسیریابی", "🗂 نوبت‌های من",
