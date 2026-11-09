@@ -151,6 +151,21 @@
     <button class="btn-outline" onclick="document.getElementById('approveModal').classList.add('hidden')">انصراف</button>
   </div>
 
+  <!-- بازیابی امن: مودال اجباری تغییر رمز در اولین ورود — قابل بستن نیست -->
+  <div id="mustChangeOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:200;"></div>
+  <div id="mustChangeModal" class="card hidden" style="position:fixed;top:16%;left:50%;transform:translateX(-50%);max-width:420px;width:calc(100% - 32px);z-index:210;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+    <h2>🔒 تغییر رمز عبور الزامی است</h2>
+    <p style="font-size:0.9em;line-height:1.9;color:#475569">رمز فعلی شما «موقت» است (از مسیر بازیابی امن). برای فعال‌شدن دسترسی‌های پنل، اکنون یک رمز جدید و قوی تنظیم کنید. این مرحله را نمی‌توان رد کرد.</p>
+    <div id="mustChangeMsg"></div>
+    <label>رمز موقت (فعلی)</label>
+    <input type="password" id="mcCurPass" autocomplete="current-password">
+    <label>رمز جدید (حداقل ۱۰ نویسه، شامل حرف و رقم)</label>
+    <input type="password" id="mcNewPass" autocomplete="new-password">
+    <label>تکرار رمز جدید</label>
+    <input type="password" id="mcNewPass2" autocomplete="new-password">
+    <button id="mustChangeBtn">ثبت رمز جدید</button>
+  </div>
+
   <script>
     const token = localStorage.getItem('admin_token');
     if (!token) window.location.href = '/admin/login';
@@ -158,6 +173,66 @@
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
+
+    // ---------- بازیابی امن: مودال اجباری تغییر رمز ----------
+    function openForcedChange() {
+      document.getElementById('mustChangeOverlay').classList.remove('hidden');
+      document.getElementById('mustChangeModal').classList.remove('hidden');
+    }
+
+    function _detailText(json) {
+      // جزئیات می‌تواند رشتهٔ ساده یا شیء {code, message} باشد
+      if (json && json.detail && typeof json.detail === 'object') {
+        return json.detail.message || 'خطا';
+      }
+      return (json && json.detail) || 'خطا';
+    }
+
+    // رهگیری سراسری: هر پاسخ 403 با کد must_change_password → نمایش مودال
+    (function () {
+      const _origFetch = window.fetch;
+      window.fetch = async (...args) => {
+        const res = await _origFetch(...args);
+        if (res && res.status === 403) {
+          try {
+            const j = await res.clone().json();
+            if (j && j.detail && typeof j.detail === 'object' && j.detail.code === 'must_change_password') {
+              openForcedChange();
+            }
+          } catch (e) { /* بدنهٔ غیر JSON — مهم نیست */ }
+        }
+        return res;
+      };
+    })();
+
+    document.getElementById('mustChangeBtn').onclick = async () => {
+      const cur = document.getElementById('mcCurPass').value;
+      const n1 = document.getElementById('mcNewPass').value;
+      const n2 = document.getElementById('mcNewPass2').value;
+      const m = document.getElementById('mustChangeMsg');
+      if (n1 !== n2) { m.innerHTML = '<div class="alert alert-error">تکرار رمز جدید مطابقت ندارد</div>'; return; }
+      if (n1.length < 10) { m.innerHTML = '<div class="alert alert-error">رمز جدید باید حداقل ۱۰ نویسه باشد</div>'; return; }
+      if (n1 === cur) { m.innerHTML = '<div class="alert alert-error">رمز جدید نباید همان رمز موقت باشد</div>'; return; }
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST', headers, body: JSON.stringify({ current_password: cur, new_password: n1 })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        document.getElementById('mustChangeOverlay').classList.add('hidden');
+        document.getElementById('mustChangeModal').classList.add('hidden');
+        history.replaceState(null, '', '/admin/panel');
+        document.getElementById('msg').innerHTML = '<div class="alert alert-success">رمز با موفقیت تغییر کرد و دسترسی کامل پنل فعال شد. همهٔ نشست‌های قبلی باطل شدند.</div>';
+        loadPending(); loadFeedback(); loadLabs();
+      } else {
+        m.innerHTML = `<div class="alert alert-error">${_detailText(json)}</div>`;
+      }
+    };
+    // ورود مستقیم با هش #must-change از صفحهٔ ورود
+    if (location.hash === '#must-change') {
+      history.replaceState(null, '', '/admin/panel');
+      openForcedChange();
+    }
+    // ---------- /بازیابی امن ----------
 
     async function loadPending() {
       const res = await fetch('/api/admin/clinics/pending', { headers });
@@ -409,8 +484,7 @@
         document.getElementById('newPass').value = '';
         document.getElementById('newPass2').value = '';
       } else {
-        const detail = Array.isArray(json.detail) ? 'مقدار نامعتبر است' : (json.detail || 'خطا');
-        msg.innerHTML = `<div class="alert alert-error">${detail}</div>`;
+        msg.innerHTML = `<div class="alert alert-error">${_detailText(json)}</div>`;
       }
     };
 

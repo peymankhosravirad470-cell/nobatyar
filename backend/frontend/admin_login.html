@@ -54,7 +54,12 @@
         return;
       }
       localStorage.setItem('admin_token', json.access_token);
-      window.location.href = '/admin/panel';
+      // بازیابی امن: پس از ورود با رمز موقت، پنل مودال اجباری تغییر رمز را نشان می‌دهد
+      if (json.must_change_password) {
+        window.location.href = '/admin/panel#must-change';
+      } else {
+        window.location.href = '/admin/panel';
+      }
     });
   </script>
 </body>
