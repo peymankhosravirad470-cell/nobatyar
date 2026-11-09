@@ -728,7 +728,7 @@ footer {
   max-width: 1080px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr;
   gap: 1.8rem;
   padding-bottom: 1.4rem;
   border-bottom: 1px solid rgba(255,255,255,0.10);
