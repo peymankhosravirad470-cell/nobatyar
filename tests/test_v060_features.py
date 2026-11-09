@@ -80,7 +80,9 @@ def kb_texts(method):
     return [b["text"] for row in last_kb(method) for b in row]
 
 def kb_callbacks(method):
-    return [b["callback_data"] for row in last_kb(method) for b in row]
+    # دکمه‌های URL (مثل «🌐 وب‌سایت نوبتیار») callback_data ندارند — فیلتر می‌شوند
+    return [b["callback_data"] for row in last_kb(method) for b in row
+            if "callback_data" in b]
 
 PASS = []
 def check(name, cond):
@@ -117,8 +119,12 @@ INVITED = 202020
 # ==================== ۱) منوی اصلی ۱۱‌گانه ====================
 asyncio.run(bale_bot.handle_text(1, "/start"))
 btns = [b["text"] for row in bale_bot.kb_home() for b in row]
-cbs = [b["callback_data"] for row in bale_bot.kb_home() for b in row]
-check("منو: ۱۱ دکمه", len(btns) == 11)
+cbs = [b["callback_data"] for row in bale_bot.kb_home() for b in row
+       if "callback_data" in b]  # دکمه‌های URL callback ندارند
+check("منو: ۱۱ دکمهٔ اصلی + دکمهٔ وب‌سایت", len(btns) == 12)
+check("منو: دکمهٔ وب‌سایت در ردیف اول با URL رسمی",
+      bale_bot.kb_home()[0] == [{"text": "🌐 وب‌سایت نوبتیار",
+                                 "url": "https://shirazhealthtour.ir"}])
 order_expected = [
     "🗓 دریافت نوبت", "🔎 جست‌وجوی پزشک و درمانگاه",
     "🧪 آزمایشگاه‌ها", "💊 داروخانه‌ها",
@@ -127,7 +133,8 @@ order_expected = [
     "🎁 دعوت دوستان", "🗺 مسیریابی",
     "🚕 تاکسی اینترنتی", "❓ راهنما و پشتیبانی",
 ]
-check("منو: ترتیب کامل مطابق سفارش پروژه", btns == order_expected)
+check("منو: ترتیب کامل مطابق سفارش پروژه (پس از دکمهٔ وب‌سایت)",
+      btns[1:] == order_expected)
 feedback_rows = [r for r in bale_bot.kb_home() if r[0]["text"] == "💬 پیشنهادات و انتقادات"]
 own_row = bool(feedback_rows) and len(feedback_rows[0]) == 1
 check("منو: دکمه پیشنهادات در ردیف کامل مستقل (رفع ایراد کوتاهی متن)", own_row)
