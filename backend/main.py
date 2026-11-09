@@ -130,6 +130,12 @@ def register_page():
     return _html("register.html")
 
 
+@app.get("/contact", response_class=HTMLResponse)
+def contact_page():
+    """صفحهٔ «تماس با ما» — فقط راه‌های ارتباطی واقعی و تأییدشده."""
+    return _html("contact.html")
+
+
 @app.get("/book", response_class=HTMLResponse)
 def book_page():
     return _html("book.html")
@@ -171,7 +177,7 @@ def sitemap_xml():
     """Sitemap استاندارد XML — صفحات عمومی اصلی سایت."""
     base = (os.environ.get("NOBATYAR_SITE_URL") or "https://shirazhealthtour.ir").rstrip("/")
     today = datetime.utcnow().date().isoformat()
-    pages = [("/", "1.0"), ("/register", "0.8"), ("/book", "0.8")]
+    pages = [("/", "1.0"), ("/book", "0.8"), ("/register", "0.8"), ("/contact", "0.6")]
     items = "".join(
         f"<url><loc>{base}{path}</loc><lastmod>{today}</lastmod>"
         f"<changefreq>weekly</changefreq><priority>{prio}</priority></url>"
