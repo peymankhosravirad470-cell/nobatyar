@@ -1,6 +1,6 @@
 """
 تست مهاجرت Alembic روی PostgreSQL واقعی (pgserver):
-- ارتقای دیتابیس خالی تا head (0004)
+- ارتقای دیتابیس خالی تا head (head پویا؛ از خود اسکریپت‌های alembic خوانده می‌شود)
 - وجود همهٔ جدول‌های جدید + ستون‌های جدید
 - سازگاری با مدل‌ها (create/drop کار می‌کند)
 - مقایسهٔ schema مدل‌ها با خروجی migration (فقط فهرست جدول/ستون)
@@ -50,7 +50,17 @@ cur = db.cursor()
 cur.execute("SELECT version_num FROM alembic_version")
 version = cur.fetchone()[0]
 db.close()
-check("نسخهٔ head = 0004_shirazmed_features", version == "0004_shirazmed_features")
+# انتظارِ head از خودِ اسکریپت‌های alembic خوانده می‌شود تا با افزودن مهاجرت‌های
+# جدید (0005 به بعد) این تست کهنه نشود — اصلاح 2026-11-09، فقط فایل تست
+from alembic.config import Config as _AlembicConfig  # noqa: E402
+from alembic.script import ScriptDirectory as _ScriptDirectory  # noqa: E402
+_cfg = _AlembicConfig()
+_cfg.set_main_option(
+    "script_location",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "alembic"),
+)
+_expected_head = _ScriptDirectory.from_config(_cfg).get_current_head()
+check("نسخهٔ head = آخرین مهاجرت موجود در اسکریپت‌ها", version == _expected_head)
 
 for t in ["admins", "clinics", "working_hours", "available_slots", "appointments",
           "feedback", "labs", "referrals", "med_reminders", "med_reminder_times",
