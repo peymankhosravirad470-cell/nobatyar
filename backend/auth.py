@@ -174,8 +174,24 @@ def login_clear(username: str, ip: str) -> None:
 
 
 def client_ip(request: Optional[Request]) -> str:
+    """IP واقعی کلاینت — اصلاح v0.9.2 برای محیط پشت Load Balancer لیارا.
+
+    - `request.client.host` پشت LB، آدرس داخلی LB است نه کاربر؛ در آن حالت
+      همهٔ کاربران یک IP می‌شدند و محدودیت IP-محورِ ورود یا کار نمی‌کرد یا
+      بدتر: یک مهاجم می‌توانست ورود «همهٔ» کاربران را قفل کند (DoS).
+    - راه‌حل: آخرین عضو X-Forwarded-For استفاده می‌شود — عضوی که توسط لبهٔ
+      معتبرِ شبکه افزوده می‌شود. اگر LB مقدار را بازنویسی کند یا ضمیمه کند،
+      در هر دو حالت آخرین عضو همان IP واقعی کلاینت است و با ارسال هدرِ
+      جعلی هم قابل دستکاری نیست (همیشه پشت هدرِ معتبرِ LB می‌نشیند).
+    - اگر هدر نبود (توسعهٔ محلی)، همان request.client.host برگردانده می‌شود.
+    """
     if request is None:
         return "-"
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        last = xff.split(",")[-1].strip()
+        if last:
+            return last[:45]
     return request.client.host if request.client else "-"
 
 

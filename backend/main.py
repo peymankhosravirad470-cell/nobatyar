@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+import os  # noqa: E402 — پیش از تنظیمات CORS استفاده می‌شود
+
 from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
     Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
@@ -35,22 +37,80 @@ from admin_security import generate_connect_code
 import bale_bot
 import referral
 
+APP_VERSION = "0.9.2"
+
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version="0.8.0"
+    version=APP_VERSION
 )
 
+# ---------- CORS محدودشده (اصلاح امنیتی v0.9.2) ----------
+# پیش‌فرض: فقط دامنهٔ رسمی. درخواست‌های همان‌دامنه (همهٔ صفحات سایت)
+# اصلاً به CORS نیاز ندارند؛ فهرست فقط برای ابزارهای داخلی/آینده است.
+# با NOBATYAR_CORS_ORIGINS (جدا با ویرگول) قابل گسترش است — بدون wildcard.
+_ALLOWED_ORIGINS = [
+    o.strip() for o in
+    (os.environ.get("NOBATYAR_CORS_ORIGINS") or "https://shirazhealthtour.ir").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
+# ---------- هدرهای امنیتی (اصلاح امنیتی v0.9.2) ----------
+# CSP واقع‌بینانه: اسکریپت‌های درون‌خطی صفحه‌ها و Google Analytics را نمی‌شکند؛
+# ولی frame-ancestors/object-src/base-uri سطح اضافه‌ای می‌سازند. XSS واقعی با
+# escape شدن دادهٔ کاربر در فرانت‌اند رفع شده است (همین نسخه).
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' data: https://cdn.jsdelivr.net; "
+        "img-src 'self' data:; "
+        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com; "
+        "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    ),
+    "Strict-Transport-Security": "max-age=15552000",
+}
+
+
+@app.middleware("http")
+async def _security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    for k, v in _SECURITY_HEADERS.items():
+        response.headers.setdefault(k, v)
+    return response
+
+
+# ---------- محدودسازی نرخ مسیرهای عمومی نوشتاری (ضد اسپم v0.9.2) ----------
+from rate_limit import SlidingWindow  # noqa: E402
+
+_feedback_limit = SlidingWindow(max_events=10, window_seconds=3600)
+_register_limit = SlidingWindow(max_events=10, window_seconds=3600)
+_appointment_limit = SlidingWindow(max_events=30, window_seconds=3600)
+
+
+def _throttle(request: Request, limiter: SlidingWindow) -> None:
+    """یک درخواست عمومی نوشتاری را می‌شمارد؛ عبور از حد → 429 با Retry-After."""
+    allowed, retry_after = limiter.hit(client_ip(request))
+    if not allowed:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "تعداد درخواست‌های شما بیش از حد مجاز است؛ لطفاً بعداً دوباره تلاش کنید.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
 # Static & Templates
-import os
 from fastapi.responses import FileResponse
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # داخل backend قرار دارد تا با Root Directory=backend روی لیارا کار کند
@@ -188,7 +248,8 @@ def sitemap_xml():
 # ==================== API: ثبت‌نام مطب ====================
 
 @app.post("/api/clinics/register", response_model=ClinicOut)
-def register_clinic(data: ClinicRegister, db: Session = Depends(get_db)):
+def register_clinic(data: ClinicRegister, request: Request, db: Session = Depends(get_db)):
+    _throttle(request, _register_limit)
     clinic = Clinic(
         name=data.name,
         specialty=data.specialty,
@@ -744,11 +805,12 @@ def public_free_slots(
 # ==================== API: نوبت‌ها ====================
 
 @app.post("/api/appointments", response_model=AppointmentOut)
-def create_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
+def create_appointment(data: AppointmentCreate, request: Request, db: Session = Depends(get_db)):
     """رزرو نوبت از وب — با همان منطق اتمیک مشترک ربات (booking.book_slot_atomic).
 
     قفل شرطی اسلات + بررسی rowcount + محدودیت یکتای جزئی slot_id در دیتابیس:
     دو درخواست هم‌زمان هرگز یک اسلات را نمی‌برند و نوبت تکراری غیرممکن است."""
+    _throttle(request, _appointment_limit)
     source = AppointmentSource.web if data.source == "web" else AppointmentSource.bale
     try:
         appt = book_slot_atomic(
@@ -839,7 +901,7 @@ def update_appointment_status(
 @app.get("/api/health")
 def health():
     return {
-        "status": "ok", "service": "نوبتیار", "version": "0.8.0",
+        "status": "ok", "service": "نوبتیار", "version": APP_VERSION,
         "database": "postgresql" if IS_POSTGRES else "sqlite",
         "time": datetime.utcnow().isoformat()
     }
@@ -956,7 +1018,8 @@ def update_lab(
 # ==================== API: صندوق پیشنهادات و انتقادات ====================
 
 @app.post("/api/feedback", response_model=FeedbackOut)
-def create_feedback(data: FeedbackCreate, db: Session = Depends(get_db)):
+def create_feedback(data: FeedbackCreate, request: Request, db: Session = Depends(get_db)):
+    _throttle(request, _feedback_limit)
     """ثبت پیام بیمار؛ اطلاع‌رسانی به ادمین‌های متصل با ثبت نتیجه و تلاش مجدد.
 
     ثبت پیام و اعلان کاملاً جدا هستند: حتی اگر اعلان شکست بخورد،

@@ -174,18 +174,24 @@
       'Authorization': `Bearer ${token}`
     };
 
+    // ---------- ضد XSS (اصلاح امنیتی v0.9.2) ----------
+    // هر داده‌ای که از سرور/کاربر می‌آید قبل از ورود به innerHTML باید esc() شود.
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    // پیام خطای سرور هرگز مستقیم در innerHTML نمی‌رود (جزئیات 422 می‌تواند ورودی کاربر باشد)
+    function _errHtml(json) {
+      let t = 'خطا';
+      if (json && Array.isArray(json.detail)) t = 'مقادیر ارسالی نامعتبر است';
+      else if (json && json.detail && typeof json.detail === 'object') t = json.detail.message || 'خطا';
+      else if (json && typeof json.detail === 'string') t = json.detail;
+      return `<div class="alert alert-error">${esc(t)}</div>`;
+    }
+
     // ---------- بازیابی امن: مودال اجباری تغییر رمز ----------
     function openForcedChange() {
       document.getElementById('mustChangeOverlay').classList.remove('hidden');
       document.getElementById('mustChangeModal').classList.remove('hidden');
-    }
-
-    function _detailText(json) {
-      // جزئیات می‌تواند رشتهٔ ساده یا شیء {code, message} باشد
-      if (json && json.detail && typeof json.detail === 'object') {
-        return json.detail.message || 'خطا';
-      }
-      return (json && json.detail) || 'خطا';
     }
 
     // رهگیری سراسری: هر پاسخ 403 با کد must_change_password → نمایش مودال
@@ -224,7 +230,7 @@
         document.getElementById('msg').innerHTML = '<div class="alert alert-success">رمز با موفقیت تغییر کرد و دسترسی کامل پنل فعال شد. همهٔ نشست‌های قبلی باطل شدند.</div>';
         loadPending(); loadFeedback(); loadLabs();
       } else {
-        m.innerHTML = `<div class="alert alert-error">${_detailText(json)}</div>`;
+        m.innerHTML = _errHtml(json);
       }
     };
     // ورود مستقیم با هش #must-change از صفحهٔ ورود
@@ -245,10 +251,10 @@
       const tbody = document.getElementById('pendingBody');
       tbody.innerHTML = list.map(c => `
         <tr>
-          <td>${c.name}</td>
-          <td>${c.specialty}</td>
-          <td>${c.address}</td>
-          <td>${c.phone}</td>
+          <td>${esc(c.name)}</td>
+          <td>${esc(c.specialty)}</td>
+          <td>${esc(c.address)}</td>
+          <td>${esc(c.phone)}</td>
           <td>
             <button class="btn-sm btn-success" onclick="openApprove(${c.id})">تأیید</button>
             <button class="btn-sm btn-danger" onclick="rejectClinic(${c.id})">رد</button>
@@ -276,8 +282,8 @@
       const json = await res.json();
       document.getElementById('approveModal').classList.add('hidden');
       document.getElementById('msg').innerHTML = res.ok
-        ? `<div class="alert alert-success">مطب تأیید شد. یوزرنیم: ${data.login_username}</div>`
-        : `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        ? `<div class="alert alert-success">مطب تأیید شد. یوزرنیم: ${esc(data.login_username)}</div>`
+        : _errHtml(json);
       loadPending();
     };
 
@@ -299,10 +305,10 @@
       const tbody = document.getElementById('labsBody');
       tbody.innerHTML = list.map(l => `
         <tr>
-          <td>${l.name}</td>
-          <td>${l.category}</td>
-          <td style="direction:ltr">${l.phone || '—'}</td>
-          <td style="max-width:220px">${l.address || '—'}</td>
+          <td>${esc(l.name)}</td>
+          <td>${esc(l.category)}</td>
+          <td style="direction:ltr">${esc(l.phone || '—')}</td>
+          <td style="max-width:220px">${esc(l.address || '—')}</td>
           <td>${l.status === 'active' ? '🟢 فعال' : '⚪️ غیرفعال'}</td>
           <td>
             <button class="btn-sm" onclick="editLab(${l.id})">ویرایش</button>
@@ -363,7 +369,7 @@
         loadLabs();
       } else {
         const detail = Array.isArray(json.detail) ? 'مقادیر ارسالی نامعتبر است' : (json.detail || 'خطا');
-        msg.innerHTML = `<div class="alert alert-error">${detail}</div>`;
+        msg.innerHTML = `<div class="alert alert-error">${esc(detail)}</div>`;
       }
     };
 
@@ -389,7 +395,7 @@
         loadLabs();
       } else {
         const json = await res.json().catch(() => ({}));
-        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        msg.innerHTML = _errHtml(json);
       }
     }
 
@@ -407,19 +413,19 @@
       tbody.innerHTML = list.map(f => `
         <tr>
           <td>${f.id}</td>
-          <td>${f.subject || 'بدون موضوع'}</td>
-          <td style="max-width:280px;white-space:pre-wrap">${f.message}</td>
+          <td>${esc(f.subject || 'بدون موضوع')}</td>
+          <td style="max-width:280px;white-space:pre-wrap">${esc(f.message)}</td>
           <td>${f.status === 'answered' ? '✅ پاسخ داده شد' : '⏳ در انتظار بررسی'}</td>
           <td>${notifyBadge(f)}</td>
           <td>
-            ${f.status !== 'answered' ? `<button class="btn-sm btn-success" onclick="replyFeedback(${f.id})">پاسخ</button>` : (f.admin_reply ? `<span title="">${f.admin_reply}</span>` : '—')}
+            ${f.status !== 'answered' ? `<button class="btn-sm btn-success" onclick="replyFeedback(${f.id})">پاسخ</button>` : (f.admin_reply ? `<span title="">${esc(f.admin_reply)}</span>` : '—')}
           </td>
         </tr>
       `).join('') || '<tr><td colspan="6">پیامی ثبت نشده است</td></tr>';
     }
 
     function notifyBadge(f) {
-      const t = (f.last_notify_error ? ` title="${String(f.last_notify_error).replace(/"/g, '&quot;')}"` : '');
+      const t = (f.last_notify_error ? ` title="${esc(f.last_notify_error)}"` : '');
       if (f.notify_status === 'sent') return `✅ تحویل شد${t}`;
       if (f.notify_status === 'failed') return `⚠️ ناموفق (${f.notify_attempts || 0} تلاش)${t}`;
       if (f.notify_status === 'sending') return `📤 در ارسال${t}`;
@@ -439,7 +445,7 @@
         document.getElementById('codeValue').textContent = json.code;
         document.getElementById('codeBox').classList.remove('hidden');
       } else {
-        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا در ساخت کد'}</div>`;
+        msg.innerHTML = _errHtml(json);
       }
     };
 
@@ -452,7 +458,7 @@
       const json = await res.json();
       document.getElementById('msg').innerHTML = res.ok
         ? '<div class="alert alert-success">پاسخ ثبت و ارسال شد.</div>'
-        : `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        : _errHtml(json);
       loadFeedback();
     }
 
@@ -484,7 +490,7 @@
         document.getElementById('newPass').value = '';
         document.getElementById('newPass2').value = '';
       } else {
-        msg.innerHTML = `<div class="alert alert-error">${_detailText(json)}</div>`;
+        msg.innerHTML = _errHtml(json);
       }
     };
 

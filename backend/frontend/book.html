@@ -64,6 +64,18 @@
     let selectedSlotId = null;
     let selectedClinicId = null;
 
+    // ---------- ضد XSS (اصلاح امنیتی v0.9.2) ----------
+    // جزئیات خطای سرور (مثلاً 422) می‌تواند شامل ورودی کاربر باشد؛ هرگز مستقیم innerHTML نمی‌رود.
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    function _errHtml(json) {
+      let t = 'خطا';
+      if (json && Array.isArray(json.detail)) t = 'مقادیر ارسالی نامعتبر است';
+      else if (json && typeof json.detail === 'string') t = json.detail;
+      return `<div class="alert alert-error">${esc(t)}</div>`;
+    }
+
     async function loadClinics() {
       const res = await fetch('/api/clinics/public');
       const clinics = await res.json();
@@ -135,7 +147,7 @@
       });
       const json = await res.json();
       if (!res.ok) {
-        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        msg.innerHTML = _errHtml(json);
         return;
       }
       msg.innerHTML = `<div class="alert alert-success">نوبت شما ثبت شد (کد: ${json.id}). وضعیت: در انتظار تأیید مطب</div>`;
