@@ -118,16 +118,17 @@ INVITED = 202020
 asyncio.run(bale_bot.handle_text(1, "/start"))
 btns = [b["text"] for row in bale_bot.kb_home() for b in row]
 cbs = [b["callback_data"] for row in bale_bot.kb_home() for b in row]
-check("منو: ۱۱ دکمه", len(btns) == 11)
+check("منو: ۱۲ دکمه (v0.10.0: همراه بیمار اضافه شد)", len(btns) == 12)
 order_expected = [
     "🗓 دریافت نوبت", "🔎 جست‌وجوی پزشک و درمانگاه",
     "🧪 آزمایشگاه‌ها", "💊 داروخانه‌ها",
     "🗂 نوبت‌های من", "⏰ یادآوری دارو",
+    "🤝 همراه بیمار", "🎁 دعوت دوستان",
     "💬 پیشنهادات و انتقادات",
-    "🎁 دعوت دوستان", "🗺 مسیریابی",
-    "🚕 تاکسی اینترنتی", "❓ راهنما و پشتیبانی",
+    "🗺 مسیریابی", "🚕 تاکسی اینترنتی",
+    "❓ راهنما و پشتیبانی",
 ]
-check("منو: ترتیب کامل مطابق سفارش پروژه", btns == order_expected)
+check("منو: ترتیب کامل (v0.10.0 — همراه بیمار کنار دعوت دوستان)", btns == order_expected)
 feedback_rows = [r for r in bale_bot.kb_home() if r[0]["text"] == "💬 پیشنهادات و انتقادات"]
 own_row = bool(feedback_rows) and len(feedback_rows[0]) == 1
 check("منو: دکمه پیشنهادات در ردیف کامل مستقل (رفع ایراد کوتاهی متن)", own_row)

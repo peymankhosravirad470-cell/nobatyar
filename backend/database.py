@@ -75,7 +75,7 @@ def init_db():
     from models import (  # noqa
         Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
         Referral, MedicationReminder, MedReminderTime, MedReminderLog,
-        ApptReminderLog,
+        ApptReminderLog, PatientCompanion,
     )
     from sqlalchemy import inspect as sa_inspect
 
@@ -118,7 +118,7 @@ def fix_pg_sequences():
         return
     tables = ["admins", "clinics", "working_hours", "available_slots", "appointments",
               "feedback", "labs", "referrals", "med_reminders", "med_reminder_times",
-              "med_reminder_logs", "appt_reminder_logs"]
+              "med_reminder_logs", "appt_reminder_logs", "patient_companions"]
     with engine.begin() as conn:
         for t in tables:
             conn.execute(text(

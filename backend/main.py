@@ -38,7 +38,7 @@ import referral
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version="0.8.0"
+    version="0.10.0"
 )
 
 app.add_middleware(
@@ -839,7 +839,7 @@ def update_appointment_status(
 @app.get("/api/health")
 def health():
     return {
-        "status": "ok", "service": "نوبتیار", "version": "0.8.0",
+        "status": "ok", "service": "نوبتیار", "version": "0.10.0",
         "database": "postgresql" if IS_POSTGRES else "sqlite",
         "time": datetime.utcnow().isoformat()
     }
