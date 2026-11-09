@@ -230,6 +230,7 @@ def _check_not_superseded(payload: dict, password_changed_at: Optional[datetime]
 def get_current_admin(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
+    request: Request = None,  # noqa: FAST002 — FastAPI خودش تزریق می‌کند
 ) -> Admin:
     if not credentials:
         raise HTTPException(status_code=401, detail="احراز هویت لازم است")
@@ -244,7 +245,25 @@ def get_current_admin(
     if not admin:
         raise HTTPException(status_code=401, detail="ادمین یافت نشد")
     _check_not_superseded(payload, admin.password_changed_at)
+    _check_must_change_password(admin, request)
     return admin
+
+
+def _check_must_change_password(admin: Admin, request: Optional[Request]) -> None:
+    """بازیابی امن: پس از بازنشانی اضطراری رمز، ادمین تا تغییر رمز فقط اجازهٔ
+    «تغییر رمز» دارد؛ هر اندپوینت ادمین دیگری با 403 و کد must_change_password رد می‌شود."""
+    if not getattr(admin, "must_change_password", None):
+        return
+    path = getattr(request, "url", None).path if request is not None else ""
+    if path == "/api/admin/change-password":
+        return  # تنها مسیر مجاز تا پایان اجبار
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "code": "must_change_password",
+            "message": "رمز عبور شما موقت است؛ برای امنیت حساب ابتدا رمز را تغییر دهید.",
+        },
+    )
 
 
 def get_current_clinic(

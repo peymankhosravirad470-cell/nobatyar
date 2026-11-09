@@ -94,6 +94,12 @@ def _bootstrap_admin():
             admin = db.query(Admin).filter(Admin.username == username).first()
             if admin:
                 admin.password_hash = hash_password(password)
+                # بازیابی امن: اجبار تغییر رمز در اولین ورود (تا تغییر موفق،
+                # هر اندپوینت ادمین دیگری 403 می‌دهد — auth._check_must_change_password)
+                try:
+                    admin.must_change_password = True
+                except Exception:
+                    pass  # ستون هنوز موجود نیست؛ مهاجرت 0005 آن را اضافه می‌کند
                 db.commit()
                 print("🔐 رمز ادمین با NOBATYAR_ADMIN_RESET بازنشانی شد — این متغیر را حذف کنید")
             else:
@@ -248,7 +254,12 @@ def admin_login(data: AdminLogin, request: Request, db: Session = Depends(get_db
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
     login_clear(data.username, ip)
     token = create_access_token({"sub": admin.id, "role": "admin"})
-    return {"access_token": token, "token_type": "bearer"}
+    # بازیابی امن: فرانت با این پرچم مودال اجباریِ تغییر رمز را نشان می‌دهد
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "must_change_password": bool(getattr(admin, "must_change_password", None)),
+    }
 
 
 # ---------- تغییر رمز ادمین ----------
@@ -266,6 +277,8 @@ def admin_change_password(
     admin.password_hash = hash_password(data.new_password)
     # ابطال فوری همه توکن‌های قبلی: هر توکنی با iat <= این لحظه 401 می‌گیرد
     admin.password_changed_at = datetime.utcnow()
+    # پایان اجبار تغییر رمز (بازیابی امن)
+    admin.must_change_password = False
     db.commit()
     return {"message": "رمز عبور با موفقیت تغییر کرد؛ همه نشست‌های قبلی باطل شدند"}
 

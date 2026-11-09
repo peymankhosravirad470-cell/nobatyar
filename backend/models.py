@@ -63,6 +63,9 @@ class Admin(Base):
     bale_chat_id = Column(String(50), nullable=True, index=True)
     # پس از تغییر رمز، توکن‌های صادرشده قبل از این زمان بی‌اعتبار می‌شوند
     password_changed_at = Column(DateTime, nullable=True)
+    # بازیابی امن: اگر True باشد، همهٔ اندپوینت‌های ادمین (به‌جز تغییر رمز) تا
+    # تغییر رمز با 403 رد می‌شوند — اجبار تغییر رمز در اولین ورود پس از بازیابی.
+    must_change_password = Column(Boolean, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
