@@ -59,6 +59,17 @@
   </main>
 
   <script>
+    // ---------- ضد XSS (اصلاح امنیتی v0.9.2) ----------
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    function _errHtml(json) {
+      let t = 'خطا در ثبت';
+      if (json && Array.isArray(json.detail)) t = 'مقادیر ارسالی نامعتبر است';
+      else if (json && typeof json.detail === 'string') t = json.detail;
+      return `<div class="alert alert-error">${esc(t)}</div>`;
+    }
+
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -77,7 +88,7 @@
         });
         const json = await res.json();
         if (!res.ok) {
-          msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا در ثبت'}</div>`;
+          msg.innerHTML = _errHtml(json);
           return;
         }
         msg.innerHTML = `<div class="alert alert-success">درخواست شما با موفقیت ثبت شد (کد: ${json.id}). منتظر تأیید ادمین بمانید.</div>`;

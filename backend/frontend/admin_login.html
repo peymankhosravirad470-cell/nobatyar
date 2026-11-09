@@ -40,6 +40,10 @@
     </div>
   </main>
   <script>
+    // ضد XSS: جزئیات خطا هرگز مستقیم innerHTML نمی‌شود (v0.9.2)
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -50,7 +54,9 @@
       });
       const json = await res.json();
       if (!res.ok) {
-        document.getElementById('msg').innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        const t = (json && Array.isArray(json.detail)) ? 'مقادیر ارسالی نامعتبر است'
+          : esc((json && json.detail) || 'خطا');
+        document.getElementById('msg').innerHTML = `<div class="alert alert-error">${t}</div>`;
         return;
       }
       localStorage.setItem('admin_token', json.access_token);

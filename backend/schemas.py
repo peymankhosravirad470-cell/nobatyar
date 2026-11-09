@@ -113,7 +113,8 @@ class AppointmentCreate(BaseModel):
     phone_verified: bool = False
     source: str = "web"  # web | bale
     bale_chat_id: Optional[str] = None
-    notes: Optional[str] = None
+    # یادداشت بیمار — سقف مشخص برای جلوگیری از سوءاستفادهٔ حجمی
+    notes: Optional[str] = Field(None, max_length=500)
 
     @field_validator("patient_phone")
     @classmethod
