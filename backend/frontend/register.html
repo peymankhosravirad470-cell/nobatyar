@@ -4,58 +4,79 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ثبت‌نام مراکز | نوبتیار</title>
+  <meta name="description" content="ثبت‌نام مطب، پزشک و درمانگاه در نوبتیار — دو مسیر مستقل برای مطب تک‌پزشک و مرکز چندپزشکی + استعلام وضعیت درخواست با کد پیگیری.">
+  <link rel="canonical" href="https://shirazhealthtour.ir/register">
+  <meta property="og:site_name" content="نوبتیار">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fa_IR">
+  <meta property="og:title" content="ثبت‌نام مراکز | نوبتیار">
+  <meta property="og:description" content="ثبت‌نام مطب و پزشک یا درمانگاه در نوبتیار + استعلام وضعیت درخواست با کد پیگیری.">
+  <meta property="og:url" content="https://shirazhealthtour.ir/register">
+  <meta property="og:image" content="https://shirazhealthtour.ir/static/img/og-image.jpg">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
-  <link rel="stylesheet" href="/static/css/style.css">
-  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0111" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0111">
 </head>
 <body>
   <header class="site-header">
     <div class="container">
-      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark"></picture><span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span></a>
-      <input type="checkbox" id="navtg" class="nav-check" aria-hidden="true">
-      <label for="navtg" class="nav-burger" aria-label="باز و بسته کردن منو"><span></span><span></span><span></span></label>
-      <nav class="main-nav">
+      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="" class="brand-mark" width="120" height="78"></picture><span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span></a>
+      <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav"><span></span><span></span><span></span><span class="sr-only">باز و بسته کردن منو</span></button>
+      <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
         <a href="/">خانه</a>
         <a href="/book">رزرو نوبت</a>
-        <a href="/register">ثبت‌نام مراکز</a>
-        <a href="/partners">همکاری با مراکز</a>
+        <a href="/partners">ویژه پزشکان و درمانگاه‌ها</a>
         <a href="/contact">تماس با ما</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <a href="/register" class="nav-cta" aria-current="page">ثبت‌نام مراکز</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
-    <section class="hero-new" aria-label="ثبت‌نام مراکز" style="margin-bottom:1.5rem;">
-      <h2 style="font-size:1.5rem;">ثبت‌نام در نوبتیار — مسیر خود را انتخاب کنید</h2>
-      <p class="lead">درخواست شما پس از ارسال در وضعیت «در انتظار بررسی» قرار می‌گیرد و پس از تأیید تیم نوبتیار فعال می‌شود. ثبت‌نام به‌معنی تأیید خودکار نیست.</p>
+    <section class="hero-new" aria-label="ثبت‌نام مراکز" style="margin-bottom:1.5rem; padding:2.2rem 1.8rem;">
+      <div class="hero-copy" style="max-width:760px; margin:0 auto; text-align:center;">
+        <h1 style="font-size:1.5rem;">ثبت‌نام در نوبتیار — مسیر خود را انتخاب کنید</h1>
+        <p class="lead" style="margin-bottom:0;">درخواست شما پس از ارسال در وضعیت «در انتظار بررسی» قرار می‌گیرد و پس از تأیید تیم نوبتیار فعال می‌شود. ثبت‌نام به‌معنی تأیید خودکار نیست.</p>
+      </div>
     </section>
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; max-width:900px; margin:0 auto 2rem;">
       <a class="card" href="/register/office" style="display:block; text-decoration:none; border:2px solid #e2e8f0; border-radius:16px; padding:1.4rem;">
-        <h2 style="margin-bottom:.6rem;">🩺 مطب و پزشک</h2>
-        <p style="color:#475569; line-height:1.9;">برای پزشکان و مطب‌های تک‌پزشک: ثبت مطب، تخصص، ساعات کاری، روزهای فعالیت و خدمات. پس از تأیید، پنل اختصاصی مطب و امکان تعریف نوبت آنلاین فعال می‌شود.</p>
+        <h2 style="margin-bottom:.6rem; display:flex; align-items:center; gap:.5rem;">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--blue); flex-shrink:0;"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>
+          مطب و پزشک
+        </h2>
+        <p style="color:var(--muted); line-height:1.9;">برای پزشکان و مطب‌های تک‌پزشک: ثبت مطب، تخصص، ساعات کاری، روزهای فعالیت و خدمات. پس از تأیید، پنل اختصاصی مطب و امکان تعریف نوبت آنلاین فعال می‌شود.</p>
         <span class="btn" style="display:inline-block; margin-top:.6rem;">ثبت‌نام مطب و پزشک ←</span>
       </a>
       <a class="card" href="/register/clinic" style="display:block; text-decoration:none; border:2px solid #e2e8f0; border-radius:16px; padding:1.4rem;">
-        <h2 style="margin-bottom:.6rem;">🏥 درمانگاه</h2>
-        <p style="color:#475569; line-height:1.9;">برای درمانگاه‌ها و مراکز درمانی: ثبت مرکز با چند پزشک و چند تخصص، بخش‌های فعال، ظرفیت رزرو، مجوزها و مسئول پیگیری. پنل نقش‌دار (مدیر، پذیرش، پزشک) دریافت می‌کنید.</p>
+        <h2 style="margin-bottom:.6rem; display:flex; align-items:center; gap:.5rem;">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--blue); flex-shrink:0;"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16"/><path d="M12 7v6M9 10h6"/><path d="M9 21v-4h6v4"/></svg>
+          درمانگاه
+        </h2>
+        <p style="color:var(--muted); line-height:1.9;">برای درمانگاه‌ها و مراکز درمانی: ثبت مرکز با چند پزشک و چندتخصصی، بخش‌های فعال، ظرفیت رزرو، مجوزها و مسئول پیگیری. پنل نقش‌دار (مدیر، پذیرش، پزشک) دریافت می‌کنید.</p>
         <span class="btn" style="display:inline-block; margin-top:.6rem;">ثبت‌نام درمانگاه ←</span>
       </a>
     </div>
 
     <div class="card" style="max-width:620px; margin:0 auto 2rem;">
-      <h2>🔎 استعلام وضعیت درخواست</h2>
+      <h2 style="display:flex; align-items:center; gap:.5rem;">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--blue); flex-shrink:0;"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        استعلام وضعیت درخواست
+      </h2>
       <p class="alert alert-info">کد پیگیری که هنگام ثبت درخواست دریافت کرده‌اید (مثل <b>NB-XXXXXXXX</b>) را همراه شماره درخواست وارد کنید تا وضعیت و پاسخ تیم بررسی را ببینید.</p>
       <div id="msg"></div>
       <form id="stForm">
-        <label>شمارهٔ درخواست</label>
-        <input type="number" name="rid" required placeholder="مثلاً 12">
-        <label>کد پیگیری</label>
-        <input type="text" name="code" required placeholder="NB-XXXXXXXX" dir="ltr" style="text-align:left;">
+        <label for="rid">شمارهٔ درخواست</label>
+        <input type="number" name="rid" id="rid" required placeholder="مثلاً 12" inputmode="numeric">
+        <label for="code">کد پیگیری</label>
+        <input type="text" name="code" id="code" required placeholder="NB-XXXXXXXX" dir="ltr" style="text-align:left;">
         <button type="submit" class="btn btn-outline">استعلام وضعیت</button>
       </form>
-      <div id="stResult" style="margin-top:1rem;"></div>
+      <div id="stResult" style="margin-top:1rem;" role="status" aria-live="polite"></div>
     </div>
   </main>
 
@@ -67,6 +88,16 @@
   </footer>
 
   <script>
+    // منوی موبایل — دکمهٔ واقعی با aria-expanded
+    (function () {
+      var btn = document.querySelector('.nav-burger');
+      var nav = document.getElementById('mainnav');
+      if (btn && nav) btn.addEventListener('click', function () {
+        var open = nav.classList.toggle('nav-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    })();
+
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const STATUS_FA = { pending: 'در انتظار بررسی', approved: 'تأیید شده', rejected: 'رد شده' };
     document.getElementById('stForm').addEventListener('submit', async (e) => {

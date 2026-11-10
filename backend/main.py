@@ -135,6 +135,23 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND_DIR, "static")), name="static")
 
 
+@app.middleware("http")
+async def _cache_headers_middleware(request: Request, call_next):
+    """هدرهای Cache-Control (v0.11.1 — بهینه‌سازی PageSpeed):
+
+    - /static/* → کش مرورگر ۷ روز (فایل‌ها با ?v= نسخه در HTML کش‌بوست می‌شوند)
+    - صفحات HTML و robots/sitemap → no-cache (تغییرات بلافاصله دیده می‌شود)
+    - پاسخ‌های API دست‌نخورده (فقط اگر خودشان هدر نداشته باشند چیزی ست نمی‌شود)
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "public, max-age=604800")
+    elif not path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 @app.on_event("startup")
 def on_startup():
     init_db()
