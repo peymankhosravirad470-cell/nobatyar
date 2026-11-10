@@ -39,7 +39,7 @@ import referral
 import centers
 from centers import router as centers_router
 
-APP_VERSION = "0.11.0"
+APP_VERSION = "0.11.1"
 
 app = FastAPI(
     title="نوبتیار",
@@ -79,7 +79,8 @@ _SECURITY_HEADERS = {
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "font-src 'self' data: https://cdn.jsdelivr.net; "
         "img-src 'self' data:; "
-        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com; "
+        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com "
+        "https://www.google.com/g/collect; "
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ),
     "Strict-Transport-Security": "max-age=15552000",
