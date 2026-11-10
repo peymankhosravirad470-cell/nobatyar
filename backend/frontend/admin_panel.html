@@ -46,6 +46,31 @@
     </div>
 
     <div class="card">
+      <h2>📋 درخواست‌های ثبت‌نام مراکز (مطب / درمانگاه)</h2>
+      <button class="btn-sm" onclick="loadRegistrations('pending')">در انتظار بررسی</button>
+      <button class="btn-sm" onclick="loadRegistrations('all')">همه</button>
+      <table>
+        <thead>
+          <tr>
+            <th>مرکز</th><th>نوع</th><th>مسئول</th><th>تماس</th><th>پزشکان</th><th>وضعیت</th><th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="regBody"></tbody>
+      </table>
+      <div id="regDetail" style="margin-top:1rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>🤝 همراه بیمار (نمای آمار — حریم خصوصی محفوظ)</h2>
+      <button class="btn-sm" onclick="loadCompanions()">بروزرسانی</button>
+      <p id="compTotal" style="margin:.4rem 0;"></p>
+      <table>
+        <thead><tr><th>نام همراه</th><th>شماره (ماسک‌شده)</th><th>صاحب پرونده</th><th>تاریخ ثبت</th></tr></thead>
+        <tbody id="compBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
       <h2>صندوق پیشنهادات و انتقادات</h2>
       <button class="btn-sm" onclick="loadFeedback()">بروزرسانی</button>
       <table>
@@ -494,7 +519,115 @@
       }
     };
 
+    // ==================== v0.11: درخواست‌های ثبت‌نام مراکز ====================
+    const REG_STATUS_FA = { pending: 'در انتظار بررسی', approved: 'تأییدشده', rejected: 'ردشده' };
+    let _regCache = [];
+
+    async function loadRegistrations(state = 'pending') {
+      const res = await fetch(`/api/admin/registrations?state=${state}`, { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      if (!res.ok) { document.getElementById('regBody').innerHTML = '<tr><td colspan="7">خطا در دریافت</td></tr>'; return; }
+      _regCache = await res.json();
+      const tbody = document.getElementById('regBody');
+      tbody.innerHTML = _regCache.map(r => `
+        <tr>
+          <td>${esc(r.name)}</td>
+          <td>${r.type === 'clinic' ? '🏥 درمانگاه' : '🩺 مطب'}</td>
+          <td>${esc(r.manager_name || '—')}</td>
+          <td dir="ltr">${esc(r.manager_mobile || r.phone || '—')}</td>
+          <td>${r.doctors && r.doctors.length ? esc(r.doctors.map(d => d.full_name).join('، ')) : '—'}</td>
+          <td><span class="alert ${r.status === 'pending' ? 'alert-info' : r.status === 'approved' ? 'alert-success' : 'alert-error'}" style="padding:.2rem .5rem; margin:0; display:inline-block;">${REG_STATUS_FA[r.status] || esc(r.status)}${r.revision_requested ? ' + اصلاح' : ''}</span></td>
+          <td>
+            <button class="btn-sm" onclick="showRegDetail(${r.id})">جزئیات</button>
+            ${r.status === 'pending' ? `
+              <button class="btn-sm btn-success" onclick="regApprove(${r.id})">تأیید</button>
+              <button class="btn-sm btn-danger" onclick="regReject(${r.id})">رد با دلیل</button>
+              <button class="btn-sm" onclick="regRevision(${r.id})">درخواست اصلاح</button>` : ''}
+          </td>
+        </tr>`).join('') || '<tr><td colspan="7">درخواستی در این وضعیت نیست</td></tr>';
+      document.getElementById('regDetail').innerHTML = '';
+    }
+
+    function showRegDetail(id) {
+      const r = _regCache.find(x => x.id === id);
+      if (!r) return;
+      const docs = (r.doctors || []).map(d => `<li>${esc(d.full_name)} — ${esc(d.specialty)}${d.medical_number ? ' (نظام ' + esc(d.medical_number) + ')' : ''}</li>`).join('');
+      const row = (k, v) => v ? `<p><b>${k}:</b> ${esc(v)}</p>` : '';
+      document.getElementById('regDetail').innerHTML = `
+        <div class="alert alert-info">
+          <h3>${esc(r.name)} — ${REG_STATUS_FA[r.status] || esc(r.status)}</h3>
+          ${row('نوع', r.type === 'clinic' ? 'درمانگاه' : 'مطب')}
+          ${row('تخصص', r.specialty)}
+          ${row('مدیر / مسئول', r.manager_name)}
+          ${row('همراه مسئول', r.manager_mobile)}
+          ${row('تلفن ثابت', r.landline_phone)}
+          ${row('استان / شهر', (r.province || '') + ' / ' + (r.city || ''))}
+          ${row('نشانی', r.address)}
+          ${row('ساعات کاری', r.working_hours_text)}
+          ${row('خدمات', r.services_text)}
+          ${row('شیوهٔ نوبت‌دهی', r.booking_method === 'slot' ? 'آنلاین (اسلات)' : r.booking_method === 'phone' ? 'تلفنی' : 'حضوری')}
+          ${row('ظرفیت', r.capacity_note)}
+          ${row('مدارک', r.documents_note)}
+          ${row('مسئول پیگیری', (r.followup_name || '') + ' ' + (r.followup_phone || ''))}
+          ${docs ? `<p><b>پزشکان (${r.doctors.length}):</b></p><ul>${docs}</ul>` : ''}
+          ${r.status_note ? `<p><b>یادداشت بررسی قبلی:</b> ${esc(r.status_note)}</p>` : ''}
+        </div>`;
+      document.getElementById('regDetail').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function regApprove(id) {
+      const username = prompt('نام کاربری ورود مدیر مرکز:', 'center' + id);
+      if (!username) return;
+      const password = prompt('رمز اولیه پنل مرکز (حداقل ۸ نویسه):');
+      if (!password || password.length < 8) { alert('رمز باید حداقل ۸ نویسه باشد'); return; }
+      const res = await fetch(`/api/admin/registrations/${id}/approve`, { method: 'POST', headers, body: JSON.stringify({ login_username: username.trim(), password }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? `<div class="alert alert-success">مرکز تأیید شد — حساب مدیر ساخته شد (کد پیگیری: ${esc(j.tracking_code || '')}). رمز اولیه را به مسئول مرکز اعلام کنید.</div>`
+        : _errHtml(j);
+      loadRegistrations('pending');
+    }
+
+    async function regReject(id) {
+      const reason = prompt('دلیل رد درخواست (برای متقاضی نمایش داده می‌شود):');
+      if (!reason || reason.trim().length < 5) { alert('دلیل باید حداقل ۵ نویسه باشد'); return; }
+      const res = await fetch(`/api/admin/registrations/${id}/reject`, { method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">درخواست رد شد؛ دلیل با کد پیگیری برای متقاضی قابل مشاهده است.</div>'
+        : _errHtml(j);
+      loadRegistrations('pending');
+    }
+
+    async function regRevision(id) {
+      const reason = prompt('موارد نیازمند اصلاح (برای متقاضی نمایش داده می‌شود):');
+      if (!reason || reason.trim().length < 5) { alert('توضیح باید حداقل ۵ نویسه باشد'); return; }
+      const res = await fetch(`/api/admin/registrations/${id}/revision`, { method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">درخواست اصلاح ثبت شد.</div>'
+        : _errHtml(j);
+      loadRegistrations('pending');
+    }
+
+    // ==================== v0.11: همراه بیمار (نمای آمار) ====================
+    async function loadCompanions() {
+      const res = await fetch('/api/admin/companions', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const j = await res.json();
+      document.getElementById('compTotal').textContent = `مجموع رکوردهای همراه بیمار: ${j.total} (شماره‌ها ماسک‌شده‌اند)`;
+      document.getElementById('compBody').innerHTML = (j.items || []).map(c => `
+        <tr>
+          <td>${esc(c.companion_name)}</td>
+          <td dir="ltr">${esc(c.companion_phone_masked)}</td>
+          <td dir="ltr">${esc(c.related_chat || '—')}</td>
+          <td>${esc((c.created_at || '').slice(0, 10))}</td>
+        </tr>`).join('') || '<tr><td colspan="4">رکوردی ثبت نشده</td></tr>';
+    }
+
     loadPending();
+    loadRegistrations('pending');
+    loadCompanions();
     loadFeedback();
     loadLabs();
   </script>

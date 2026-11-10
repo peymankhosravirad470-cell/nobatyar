@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ثبت‌نام درمانگاه | نوبتیار</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark"></picture><span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span></a>
+      <input type="checkbox" id="navtg" class="nav-check" aria-hidden="true">
+      <label for="navtg" class="nav-burger" aria-label="باز و بسته کردن منو"><span></span><span></span><span></span></label>
+      <nav class="main-nav">
+        <a href="/">خانه</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/register">ثبت‌نام مراکز</a>
+        <a href="/partners">همکاری با مراکز</a>
+        <a href="/contact">تماس با ما</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card" style="max-width:720px; margin:2rem auto;">
+      <h2>🏥 ثبت‌نام درمانگاه</h2>
+      <p class="alert alert-info">فرم مخصوص درمانگاه‌ها و مراکز درمانی چندپزشکی است. اگر مطب تک‌پزشک دارید، از <a href="/register/office">فرم مطب و پزشک</a> استفاده کنید. درمانگاه می‌تواند چند پزشک و چند تخصص را زیرمجموعهٔ یک مرکز ثبت کند.</p>
+      <div id="msg"></div>
+      <form id="regForm">
+        <h3 style="margin:.8rem 0 .4rem;">اطلاعات مرکز</h3>
+        <label>نام رسمی درمانگاه *</label>
+        <input type="text" name="name" required placeholder="مثلاً درمانگاه تخصصی سلامت پارس" maxlength="200">
+        <label>نوع مرکز *</label>
+        <input type="text" name="center_type" required value="درمانگاه" placeholder="درمانگاه / درمانگاه شبانه‌روزی / کلینیک تخصصی" maxlength="60">
+        <label>تخصص‌ها و بخش‌های فعال *</label>
+        <textarea name="specialty" rows="2" required placeholder="مثلاً داخلی، ارتوپدی، زنان — یا چندتخصصی" maxlength="100"></textarea>
+        <label>بخش‌های فعال (اختیاری)</label>
+        <textarea name="departments" rows="2" placeholder="مثلاً داخلی، ارتوپدی، زنان و زایمان" maxlength="1000"></textarea>
+        <label>خدمات قابل ارائه</label>
+        <textarea name="services_text" rows="2" placeholder="مثلاً ویزیت تخصصی، پانسمان، تزریقات" maxlength="1000"></textarea>
+        <label>شیوهٔ نوبت‌دهی *</label>
+        <select name="booking_method">
+          <option value="slot">نوبت آنلاین با ساعت مشخص (اسلات)</option>
+          <option value="phone">نوبت تلفنی</option>
+          <option value="walkin">حضوری</option>
+        </select>
+        <label>ظرفیت و ساعات قابل رزرو</label>
+        <textarea name="capacity_note" rows="2" placeholder="مثلاً هر پزشک روزانه ۱۲ نوبت ۳۰ دقیقه‌ای" maxlength="500"></textarea>
+
+        <h3 style="margin:1rem 0 .4rem;">مدیریت و تماس</h3>
+        <label>نام مدیر / مسئول مرکز *</label>
+        <input type="text" name="manager_name" required maxlength="100" placeholder="مثلاً آقای مهندس کاظمی">
+        <label>شماره همراه مسئول *</label>
+        <input type="tel" name="manager_mobile" required placeholder="09xxxxxxxxx" maxlength="20">
+        <label>شماره تماس ثابت مرکز *</label>
+        <input type="tel" name="landline_phone" required placeholder="0713xxxxxxx" maxlength="20">
+        <label>مسئول پیگیری (اختیاری)</label>
+        <input type="text" name="followup_name" maxlength="100" placeholder="نام مسئول پیگیری — اختیاری">
+        <input type="tel" name="followup_phone" placeholder="شماره همراه — اختیاری" style="margin-top:.4rem;">
+
+        <h3 style="margin:1rem 0 .4rem;">آدرس و موقعیت</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.8rem;">
+          <div><label>استان *</label><input type="text" name="province" value="فارس" required maxlength="50"></div>
+          <div><label>شهر *</label><input type="text" name="city" value="شیراز" required maxlength="50"></div>
+        </div>
+        <label>نشانی کامل *</label>
+        <textarea name="address" rows="2" required placeholder="خیابان، کوچه، پلاک، طبقه" maxlength="1000"></textarea>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.8rem;">
+          <div><label>عرض جغرافیایی (اختیاری)</label><input type="number" step="any" name="latitude" placeholder="29.5918"></div>
+          <div><label>طول جغرافیایی (اختیاری)</label><input type="number" step="any" name="longitude" placeholder="52.5837"></div>
+        </div>
+
+        <h3 style="margin:1rem 0 .4rem;">ساعات فعالیت</h3>
+        <label>ساعات فعالیت مرکز *</label>
+        <input type="text" name="working_hours_text" required placeholder="مثلاً شنبه تا پنجشنبه ۱۷ تا ۲۱" maxlength="500">
+
+        <h3 style="margin:1rem 0 .4rem;">فهرست پزشکان * (حداقل یک پزشک)</h3>
+        <p class="alert alert-info" style="padding:.5rem .8rem;">برای هر پزشک نام، تخصص و شمارهٔ نظام پزشکی را وارد کنید. پس از تأیید مرکز، پزشکان زیرمجموعهٔ مرکز شما نمایش داده می‌شوند و برنامهٔ هر پزشک در پنل قابل تنظیم است.</p>
+        <div id="doctorsBox"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="addDoc">＋ افزودن پزشک</button>
+
+        <h3 style="margin:1rem 0 .4rem;">مدارک و مجوزها</h3>
+        <label>مجوزهای مرکز (شماره و عنوان)</label>
+        <textarea name="documents_note" rows="2" placeholder="مثلاً پروانه بهره‌برداری شماره ... از دانشگاه علوم پزشکی شیراز" maxlength="1000"></textarea>
+
+        <button type="submit" style="margin-top:1rem;">ارسال درخواست ثبت‌نام درمانگاه</button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>نوبتیار — سامانه نوبت‌دهی آنلاین پزشکان، مطب‌ها و درمانگاه‌های شیراز</p>
+      <p><a href="/partners">همکاری با مراکز</a> · <a href="/contact">تماس با ما</a> · <a href="https://www.instagram.com/shiraznobatyar/" target="_blank" rel="noopener">اینستاگرام</a></p>
+    </div>
+  </footer>
+
+  <script>
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const box = document.getElementById('doctorsBox');
+    function addDocRow() {
+      const idx = box.children.length + 1;
+      const div = document.createElement('div');
+      div.className = 'doc-row';
+      div.style.cssText = 'border:1px dashed #cbd5e1; border-radius:12px; padding:.8rem; margin-bottom:.8rem;';
+      div.innerHTML = `
+        <b style="font-size:.9rem;">پزشک ${idx}</b>
+        <label>نام پزشک *</label>
+        <input type="text" class="d-name" required maxlength="120" placeholder="مثلاً دکتر علی محمدی">
+        <label>تخصص *</label>
+        <input type="text" class="d-spec" required maxlength="100" placeholder="مثلاً داخلی">
+        <label>شماره نظام پزشکی</label>
+        <input type="text" class="d-num" maxlength="50" placeholder="اختیاری">`;
+      box.appendChild(div);
+    }
+    addDocRow(); addDocRow();
+    document.getElementById('addDoc').addEventListener('click', addDocRow);
+
+    function _errHtml(json) {
+      let t = 'خطا در ثبت';
+      if (json && Array.isArray(json.detail)) {
+        const d = json.detail[0];
+        t = d.msg === 'Field required' ? 'همهٔ فیلدهای ستاره‌دار را کامل کنید' : 'مقادیر ارسالی نامعتبر است';
+      } else if (json && typeof json.detail === 'string') t = json.detail;
+      return `<div class="alert alert-error">${esc(t)}</div>`;
+    }
+
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target, msg = document.getElementById('msg');
+      const v = n => (f[n] && f[n].value.trim()) || null;
+      const doctors = [...box.querySelectorAll('.doc-row')].map(r => ({
+        full_name: r.querySelector('.d-name').value.trim(),
+        specialty: r.querySelector('.d-spec').value.trim(),
+        medical_number: r.querySelector('.d-num').value.trim() || null,
+      })).filter(d => d.full_name || d.specialty);
+      const data = {
+        name: f.name.value.trim(), specialty: f.specialty.value.trim(),
+        center_type: f.center_type.value.trim(),
+        address: f.address.value.trim(), province: f.province.value.trim(),
+        city: f.city.value.trim(), manager_name: f.manager_name.value.trim(),
+        manager_mobile: f.manager_mobile.value.trim(),
+        landline_phone: f.landline_phone.value.trim(),
+        followup_name: v('followup_name'), followup_phone: v('followup_phone'),
+        working_hours_text: f.working_hours_text.value.trim(),
+        services_text: v('services_text'), booking_method: f.booking_method.value,
+        capacity_note: v('capacity_note'), documents_note: v('documents_note'),
+        latitude: f.latitude.value ? parseFloat(f.latitude.value) : null,
+        longitude: f.longitude.value ? parseFloat(f.longitude.value) : null,
+        departments: v('departments') || null,
+        doctors,
+      };
+      if (!doctors.length) {
+        msg.innerHTML = '<div class="alert alert-error">حداقل یک پزشک با نام و تخصص وارد کنید.</div>';
+        window.scrollTo({top:0, behavior:'smooth'});
+        return;
+      }
+      try {
+        const res = await fetch('/api/clinics/register/center', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const j = await res.json();
+        if (!res.ok) { msg.innerHTML = _errHtml(j); window.scrollTo({top:0, behavior:'smooth'}); return; }
+        f.style.display = 'none';
+        msg.innerHTML = `<div class="alert alert-success">
+          <h3>✅ درخواست درمانگاه شما ثبت شد</h3>
+          <p>کد پیگیری: <b dir="ltr" style="font-size:1.2rem;">${esc(j.tracking_code)}</b> — شمارهٔ درخواست: <b>${j.request_id}</b></p>
+          <p>وضعیت: «در انتظار بررسی». نتیجه را از صفحهٔ <a href="/register">استعلام وضعیت</a> با کد پیگیری دنبال کنید.</p>
+          <p>پس از تأیید، حساب مدیر مرکز ساخته می‌شود و می‌توانید پزشکان، بخش‌ها، ساعات و نوبت‌ها را در پنل مدیریت کنید.</p></div>`;
+        window.scrollTo({top:0, behavior:'smooth'});
+      } catch (err) { msg.innerHTML = '<div class="alert alert-error">خطای شبکه — دوباره تلاش کنید</div>'; }
+    });
+  </script>
+</body>
+</html>

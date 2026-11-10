@@ -18,7 +18,7 @@ from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
     Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
-    FeedbackStatus
+    FeedbackStatus, Doctor
 )
 from schemas import (
     ClinicRegister, ClinicOut, ClinicLogin, AdminLogin, ClinicApprove,
@@ -36,8 +36,10 @@ from booking import book_slot_atomic, BookingError, AppointmentSource
 from admin_security import generate_connect_code
 import bale_bot
 import referral
+import centers
+from centers import router as centers_router
 
-APP_VERSION = "0.10.0"
+APP_VERSION = "0.11.0"
 
 app = FastAPI(
     title="نوبتیار",
@@ -84,6 +86,21 @@ _SECURITY_HEADERS = {
 }
 
 
+app.include_router(centers_router)
+
+
+# ---------- ریدایرکت www → دامنه اصلی (v0.11.0 — SEO یکپارچه) ----------
+@app.middleware("http")
+async def _www_redirect_middleware(request: Request, call_next):
+    host = (request.headers.get("host") or "").lower().split(":")[0]
+    if host == "www.shirazhealthtour.ir":
+        target = "https://shirazhealthtour.ir" + request.url.path
+        if request.url.query:
+            target += "?" + request.url.query
+        return RedirectResponse(target, status_code=301)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def _security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
@@ -124,6 +141,9 @@ def on_startup():
     # ربات بله — فقط اگر BALE_BOT_TOKEN ست شده باشد فعال می‌شود
     bale_bot.start_bot_task()
     _bootstrap_admin()
+    # بکاپ خودکار روزانه — فقط اگر NOBATYAR_BACKUP_KEY/DIR تنظیم شده باشد (v0.11.0)
+    import backup_svc
+    backup_svc.start_backup_task()
 
 
 def _bootstrap_admin():
@@ -187,7 +207,26 @@ def home():
 
 @app.get("/register", response_class=HTMLResponse)
 def register_page():
+    """انتخاب‌گر مسیر ثبت‌نام: مطب و پزشک / درمانگاه + استعلام وضعیت درخواست."""
     return _html("register.html")
+
+
+@app.get("/register/office", response_class=HTMLResponse)
+def register_office_page():
+    """مسیر ۱ — فرم مستقل ثبت‌نام مطب و پزشک."""
+    return _html("register_office.html")
+
+
+@app.get("/register/clinic", response_class=HTMLResponse)
+def register_center_page():
+    """مسیر ۲ — فرم مستقل ثبت‌نام درمانگاه (چندپزشکی)."""
+    return _html("register_center.html")
+
+
+@app.get("/partners", response_class=HTMLResponse)
+def partners_page():
+    """صفحهٔ معرفی همکاری با مراکز درمانی (ویژهٔ مدیران و پزشکان)."""
+    return _html("partners.html")
 
 
 @app.get("/contact", response_class=HTMLResponse)
@@ -237,7 +276,9 @@ def sitemap_xml():
     """Sitemap استاندارد XML — صفحات عمومی اصلی سایت."""
     base = (os.environ.get("NOBATYAR_SITE_URL") or "https://shirazhealthtour.ir").rstrip("/")
     today = datetime.utcnow().date().isoformat()
-    pages = [("/", "1.0"), ("/book", "0.8"), ("/register", "0.8"), ("/contact", "0.6")]
+    pages = [("/", "1.0"), ("/book", "0.8"), ("/register", "0.8"),
+             ("/register/office", "0.8"), ("/register/clinic", "0.8"),
+             ("/partners", "0.7"), ("/contact", "0.6")]
     items = "".join(
         f"<url><loc>{base}{path}</loc><lastmod>{today}</lastmod>"
         f"<changefreq>weekly</changefreq><priority>{prio}</priority></url>"
@@ -249,6 +290,21 @@ def sitemap_xml():
         f"{items}</urlset>"
     )
     return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt():
+    """robots.txt استاندارد — اجازهٔ خزش صفحات عمومی + معرفی sitemap."""
+    base = (os.environ.get("NOBATYAR_SITE_URL") or "https://shirazhealthtour.ir").rstrip("/")
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /clinic\n"
+        "Disallow: /api/\n"
+        f"Sitemap: {base}/sitemap.xml\n"
+    )
+    return Response(content=body, media_type="text/plain")
 
 
 # ==================== API: ثبت‌نام مطب ====================
@@ -419,6 +475,39 @@ _DUMP_SPECS = {
         ("notified_at", "dt"), ("notify_updated_at", "dt"), ("last_notify_error", "str"),
     ]),
 }
+
+
+@app.post("/api/admin/backup/run")
+def admin_backup_run(admin: Admin = Depends(get_current_admin)):
+    """اجرای فوری بکاپ رمزنگاری‌شده روی دیسک (v0.11.0)."""
+    import backup_svc
+    try:
+        info = backup_svc.run_backup_now()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"بکاپ ناموفق: {type(e).__name__}")
+    return {"message": "بکاپ ساخته شد", **info}
+
+
+@app.get("/api/admin/backup/status")
+def admin_backup_status(admin: Admin = Depends(get_current_admin)):
+    """وضعیت بکاپ خودکار + راستی‌آزمایی آخرین فایل (بدون افشای محتوا)."""
+    import backup_svc
+    enabled = backup_svc.backup_enabled()
+    out = {
+        "enabled": enabled,
+        "schedule": os.environ.get("NOBATYAR_BACKUP_TIME") or "03:30",
+        "keep_days": int(os.environ.get("NOBATYAR_BACKUP_KEEP_DAYS") or "30"),
+        "dir_set": bool(os.environ.get("NOBATYAR_BACKUP_DIR")),
+        "key_set": bool(os.environ.get("NOBATYAR_BACKUP_KEY")),
+        "offsite": {"active": False,
+                    "note": "نسخهٔ خارج از لیارا (S3/آبجکت‌استوریج) فعال نیست — نیازمند اطلاعات احراز سرویس ذخیره‌سازی از مالک"},
+    }
+    if enabled:
+        try:
+            out["last"] = backup_svc.verify_last_backup()
+        except Exception as e:  # noqa: BLE001
+            out["last_error"] = f"{type(e).__name__}"
+    return out
 
 
 @app.get("/api/admin/backup")
@@ -712,6 +801,16 @@ def generate_slots(
     working = db.query(WorkingHour).filter(WorkingHour.clinic_id == clinic.id).all()
     if not working:
         raise HTTPException(400, "ابتدا ساعات کاری را تعریف کنید")
+
+    # v0.11.0: تولید اسلات برای پزشک مشخص (درمانگاه چندپزشکی)
+    doctor_id = getattr(data, "doctor_id", None)
+    if doctor_id is not None:
+        from models import Doctor
+        doc = db.query(Doctor).filter(
+            Doctor.id == doctor_id, Doctor.clinic_id == clinic.id,
+            Doctor.is_active == True).first()  # noqa: E712
+        if not doc:
+            raise HTTPException(404, "پزشک یافت نشد یا غیرفعال است")
     
     # نگاشت روز هفته: در پایتون weekday() دوشنبه=0 ... یکشنبه=6
     # ما ۰=شنبه تعریف کردیم → تبدیل لازم است
@@ -746,14 +845,16 @@ def generate_slots(
                 # چک وجود قبلی
                 exists = db.query(AvailableSlot).filter(
                     AvailableSlot.clinic_id == clinic.id,
-                    AvailableSlot.start_datetime == slot_start
+                    AvailableSlot.start_datetime == slot_start,
+                    AvailableSlot.doctor_id == doctor_id  # v0.11.0: بررسی جدا برای هر پزشک
                 ).first()
                 if not exists:
                     slot = AvailableSlot(
                         clinic_id=clinic.id,
                         start_datetime=slot_start,
                         end_datetime=slot_end,
-                        is_booked=False
+                        is_booked=False,
+                        doctor_id=doctor_id,
                     )
                     db.add(slot)
                     created += 1
@@ -787,6 +888,7 @@ def list_clinic_slots(
 def public_free_slots(
     clinic_id: int,
     from_date: Optional[date] = None,
+    doctor_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """اسلات‌های خالی برای بیمار"""
@@ -803,6 +905,9 @@ def public_free_slots(
         AvailableSlot.is_booked == False,
         AvailableSlot.start_datetime >= datetime.utcnow()
     )
+    # v0.11.0: فیلتر پزشک برای درمانگاه چندپزشکی (None = اسلات‌های عمومی مرکز)
+    if doctor_id is not None:
+        q = q.filter(AvailableSlot.doctor_id == doctor_id)
     if from_date:
         q = q.filter(AvailableSlot.start_datetime >= datetime.combine(from_date, time.min))
     return q.order_by(AvailableSlot.start_datetime).limit(50).all()
@@ -850,12 +955,16 @@ def create_appointment(data: AppointmentCreate, request: Request, db: Session = 
 @app.get("/api/clinic/appointments", response_model=List[AppointmentOut])
 def list_clinic_appointments(
     status_filter: Optional[str] = None,
-    clinic: Clinic = Depends(get_current_clinic),
-    db: Session = Depends(get_db)
+    context=Depends(centers.clinic_context),
+    db: Session = Depends(get_db),
 ):
+    """نوبت‌های مرکز — با توکن مرکز یا کارکنان (پزشک فقط نوبت‌های خودش را می‌بیند)."""
+    clinic, role, staff = context
     q = db.query(Appointment).filter(Appointment.clinic_id == clinic.id)
     if status_filter:
         q = q.filter(Appointment.status == status_filter)
+    if role == "doctor" and staff and staff.doctor_id:
+        q = q.filter(Appointment.doctor_id == staff.doctor_id)
     return q.order_by(Appointment.appointment_datetime.desc()).limit(100).all()
 
 
@@ -863,9 +972,12 @@ def list_clinic_appointments(
 def update_appointment_status(
     appointment_id: int,
     data: AppointmentStatusUpdate,
-    clinic: Clinic = Depends(get_current_clinic),
+    context=Depends(centers.clinic_context),
     db: Session = Depends(get_db)
 ):
+    clinic, role, staff = context
+    if role == "doctor":
+        raise HTTPException(403, "پزشک اجازهٔ تغییر وضعیت نوبت ندارد")
     appt = db.query(Appointment).filter(
         Appointment.id == appointment_id,
         Appointment.clinic_id == clinic.id
@@ -1090,3 +1202,138 @@ def reply_feedback(
             logging.getLogger("nobatyar.feedback").warning(
                 "reply push not queued fb_id=%s reason=%s", fb.id, result.get("reason"))
     return fb
+
+
+# ==================== v0.11.0: نمای ادمین برای «همراه بیمار» (فقط آمار بی‌نام) ====================
+
+@app.get("/api/admin/companions")
+def admin_list_companions(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """فهرست همراهان بیماران برای پنل مدیریت — شماره‌ها ماسک‌شده (حریم خصوصی)."""
+    from models import PatientCompanion
+    from companion_svc import mask_phone
+    from fa_utils import fa_digits
+    rows = db.query(PatientCompanion).order_by(
+        PatientCompanion.created_at.desc()).limit(300).all()
+    return {
+        "total": db.query(PatientCompanion).count(),
+        "items": [
+            {
+                "id": r.id,
+                "companion_name": r.companion_name,
+                "companion_phone_masked": fa_digits(mask_phone(r.companion_phone)),
+                "related_chat": ("…" + str(r.chat_id)[-4:]) if r.chat_id else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            } for r in rows
+        ],
+    }
+
+
+# ==================== v0.11.0: دادهٔ نمایشی (نسخه Demo — صریحاً آزمایشی) ====================
+
+_DEMO_MARKER = "نمونه — نسخه نمایشی"
+
+
+def _demo_slot(db: Session, clinic, doctor_id, day_offset, hour, minute, duration_min=30):
+    from datetime import timedelta as _td
+    start = datetime.utcnow().replace(minute=0, second=0, microsecond=0) + _td(days=day_offset)
+    start = start.replace(hour=hour, minute=minute)
+    slot = AvailableSlot(clinic_id=clinic.id, doctor_id=doctor_id,
+                         start_datetime=start, end_datetime=start + _td(minutes=duration_min),
+                         is_booked=False)
+    db.add(slot)
+    return slot
+
+
+@app.post("/api/admin/demo/seed")
+def admin_seed_demo_data(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """ایجاد دادهٔ نمایشی برای ارائهٔ حضوری — صریحاً برچسب «نمونه — نسخه نمایشی».
+
+    - یک درمانگاه نمونهٔ چندپزشکی + یک مطب نمونه
+    - نوبت آزمایشی ثبت نمی‌شود (فقط اسلات آزاد) تا آمار واقعی آلوده نشود
+    - اجرای تکراری: قبلی‌ها را پاک و از نو می‌سازد (idempotent برای دمو)
+    """
+    created = {"clinics": 0, "doctors": 0, "slots": 0}
+    old_ids = [c.id for c in db.query(Clinic).filter(
+        Clinic.name.like(f"%{_DEMO_MARKER}%")).all()]
+    if old_ids:
+        db.query(AvailableSlot).filter(AvailableSlot.clinic_id.in_(old_ids)).delete()
+        db.query(WorkingHour).filter(WorkingHour.clinic_id.in_(old_ids)).delete()
+        for c in db.query(Clinic).filter(Clinic.id.in_(old_ids)).all():
+            db.delete(c)
+        db.flush()
+
+    def make_center(name, spec, ctype, addr, doctors, wh_days):
+        c = Clinic(
+            name=name, specialty=spec, type=ctype, address=addr,
+            phone="07130000000", status=ClinicStatus.approved,
+            subscription_status=SubscriptionStatus.active,
+            subscription_expires_at=datetime.utcnow() + timedelta(days=30),
+            province="فارس", city="شیراز",
+            manager_name="مدیر نمونه", manager_mobile="09120000000",
+            working_hours_text="شنبه تا چهارشنبه ۱۷ تا ۲۱ (نمونه)",
+            services_text="ویزیت و مشاوره (نمونه)",
+            booking_method="slot",
+            capacity_note="اسلات‌های ۳۰ دقیقه‌ای نمونه",
+            documents_note="مجوز نمونه برای نمایش",
+        )
+        db.add(c)
+        db.flush()
+        docs = []
+        for fname, fspec in doctors:
+            d = Doctor(clinic_id=c.id, full_name=fname, specialty=fspec)
+            db.add(d)
+            db.flush()
+            docs.append(d)
+            created["doctors"] += 1
+        for day, s_h, e_h in wh_days:
+            db.add(WorkingHour(clinic_id=c.id, day_of_week=day,
+                               start_time=time(s_h, 0), end_time=time(e_h, 0),
+                               slot_duration_minutes=30))
+        for off in (1, 2, 3):
+            for d in docs:
+                for h, mn in ((17, 0), (17, 30), (18, 0), (18, 30)):
+                    _demo_slot(db, c, d.id, off, h, mn)
+                    created["slots"] += 1
+        created["clinics"] += 1
+        return c
+
+    make_center(
+        "درمانگاه سلامت پارس " + _DEMO_MARKER, "چندتخصصی", "clinic",
+        "شیراز، بلوار نمونهٔ نمایشی، پلاک ۱ (داده آزمایشی)",
+        [("دکتر زهرا کریمی (نمونه)", "داخلی"),
+         ("دکتر علی محمدی (نمونه)", "ارتوپدی"),
+         ("دکتر سارا احمدی (نمونه)", "زنان و زایمان")],
+        [(0, 17, 21), (1, 17, 21), (2, 17, 21), (3, 17, 21)],
+    )
+    make_center(
+        "مطب دکتر رضا نوری " + _DEMO_MARKER, "قلب و عروق", "office",
+        "شیراز، خیابان نمونهٔ نمایشی، پلاک ۲ (داده آزمایشی)",
+        [("دکتر رضا نوری (نمونه)", "قلب و عروق")],
+        [(0, 17, 20), (2, 17, 20), (4, 17, 20)],
+    )
+    db.commit()
+    return {"message": "دادهٔ نمایشی ساخته شد (برچسب: " + _DEMO_MARKER + ")",
+            **created}
+
+
+@app.delete("/api/admin/demo/seed")
+def admin_clear_demo_data(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """پاک‌کردن کامل دادهٔ نمایشی — فقط رکوردهای برچسب‌دار."""
+    old_ids = [c.id for c in db.query(Clinic).filter(
+        Clinic.name.like(f"%{_DEMO_MARKER}%")).all()]
+    if old_ids:
+        db.query(AvailableSlot).filter(AvailableSlot.clinic_id.in_(old_ids)).delete()
+        db.query(WorkingHour).filter(WorkingHour.clinic_id.in_(old_ids)).delete()
+        for c in db.query(Clinic).filter(Clinic.id.in_(old_ids)).all():
+            db.delete(c)
+        db.commit()
+    return {"message": f"{len(old_ids)} مرکز نمونه پاک شد."}

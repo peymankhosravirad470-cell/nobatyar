@@ -5,7 +5,7 @@
 """
 from alembic import op
 from sqlalchemy import (
-    Column, Integer, String, Date, DateTime, ForeignKey, Index,
+    Column, Integer, String, Date, DateTime, ForeignKey, Index, text as text2,
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base
@@ -65,11 +65,8 @@ def upgrade() -> None:
         Base.metadata.create_all(conn, checkfirst=True)
         return
     Base.metadata.create_all(conn)
-    # ایندکس‌های ترکیبی (سازگار با هر دو موتور)
-    try:
-        op.create_index("ix_medlog_chat_status", "patient_medications", ["chat_id", "status"])
-    except Exception:
-        pass
+    # ایندکس ترکیبی — IF NOT EXISTS (سازگار SQLite و PG، بدون شکستن تراکنش)
+    conn.execute(text2("CREATE INDEX IF NOT EXISTS ix_medlog_chat_status ON patient_medications (chat_id, status)"))
 
 
 def downgrade() -> None:
