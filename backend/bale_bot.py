@@ -699,8 +699,6 @@ TXT_START = (
     "💊 داروخانه‌های مطرح شیراز\n"
     "⏰ یادآوری دارو — هر روز سر ساعت مصرف\n"
     "🤝 همراه بیمار — قرار دادن نزدیکانتان در جریان درمان (با رضایت شما)\n"
-    "🤝 همراه بیمار — قرار دادن نزدیکانتان در جریان درمان (با رضایت شما)\n"
-    "🤝 همراه بیمار — قرار دادن نزدیکانتان در جریان درمان (با رضایت شما)\n"
     "🗂 سوابق نوبت‌های شما\n"
     "💬 پیشنهادات و انتقادات مستقیم به مدیریت\n"
     "🎁 دعوت دوستان و دریافت تخفیف\n"
@@ -721,7 +719,6 @@ TXT_HELP = (
     "🗂 نوبت‌های من: سوابق و لغو نوبت\n"
     "🚕 تاکسی اینترنتی و 🗺 مسیریابی: مقصد خودکار روی مرکز انتخابی شما تنظیم می‌شود\n"
     "💊 داروخانه‌ها، 🧪 آزمایشگاه‌ها و 🎁 دعوت دوستان: مستقیماً از منوی اصلی\n"
-    "🤝 همراه بیمار: ثبت، مشاهده و حذف همراه با رضایت خودتان\n"
     "🤝 همراه بیمار: ثبت، مشاهده و حذف همراه با رضایت خودتان\n\n"
     f"☎️ وب‌سایت: {SITE_URL}"
 )
@@ -758,6 +755,27 @@ TXT_INTRO = (
     "• بیمار از همین ربات یا وب‌سایت، نوبت دلخواهش را رزرو می‌کند\n"
     "• مرکز نوبت‌ها را در پنل خود تأیید یا لغو می‌کند\n\n"
     f"☎️ وب‌سایت: {SITE_URL}"
+)
+
+# ---------- v0.11.2: راه‌های ارتباطی رسمی نوبتیار ----------
+# تک منبع حقیقت — همان مقادیر فوتر سایت. لینکدین تا تأیید صفحهٔ رسمی نمایش داده نمی‌شود.
+CONTACT_EMAIL = "shiraznobatyar@gmail.com"
+CONTACT_CHANNELS = [
+    ("🌐 وب‌سایت نوبتیار", SITE_URL),
+    ("✈️ تلگرام", "https://t.me/shiraznobatyar"),
+    ("🟢 ایتا", "https://eitaa.com/shiraznobatyar"),
+    ("🟣 روبیکا", "https://rubika.ir/shiraznobatyar"),
+    ("▶️ یوتیوب", "https://youtube.com/@nobatyar"),
+    ("🎬 آپارات", "https://www.aparat.com/ShirazNobatyar/short-videos"),
+]
+
+TXT_CHANNELS = (
+    "📣 ارتباط با نوبتیار\n\n"
+    "راه‌های رسمی ارتباط و دنبال‌کردن ما:\n"
+    f"✉️ ایمیل: {CONTACT_EMAIL}\n"
+    "(برای درخواست همکاری، پشتیبانی مراکز و مسائل مهم)\n\n"
+    "👇 با دکمه‌های زیر مستقیم به هر کانال بروید:\n"
+    "لینکدین پس از راه‌اندازی و تأیید صفحهٔ رسمی، به همین فهرست اضافه می‌شود."
 )
 
 
@@ -808,6 +826,7 @@ def kb_home() -> list:
         ],
         [
             {"text": "❓ راهنما و پشتیبانی", "callback_data": "help"},
+            {"text": "📣 ارتباط با نوبتیار", "callback_data": "channels"},
         ],
     ]
 
@@ -1723,6 +1742,14 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
 
     if data == "intro":
         await edit(chat_id, message_id, TXT_INTRO, kb_back_home())
+        return
+
+    # ---------- v0.11.2: راه‌های ارتباطی رسمی ----------
+    if data == "channels":
+        _pop(chat_id)
+        rows = [[{"text": label, "url": url}] for label, url in CONTACT_CHANNELS]
+        rows.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
+        await edit(chat_id, message_id, TXT_CHANNELS, rows)
         return
 
     if data == "invite":
@@ -3359,6 +3386,46 @@ async def handle_text(chat_id, text: str) -> None:
     await send(chat_id, "برای شروع /start را بزنید 👋", kb_home())
 
 
+# ---------- v0.11.2: محدودسازی نرخ هر کاربر (ضد سوءاستفادهٔ دکمه‌ها/پیام‌ها) ----------
+# یک کاربر حداکثر ۱۲ رویداد در ۱۰ ثانیه؛ فراتر از آن رویداد نادیده گرفته می‌شود
+# (درخواست واقعی کاربر انسانی هرگز به این حد نمی‌رسد؛ صف polling برای بقیه آزاد می‌ماند).
+_CHAT_MAX_EVENTS = 12
+_CHAT_WINDOW_SECONDS = 10.0
+_SPAM_NOTE_COOLDOWN = 30.0     # حداکثر یک پیام راهنما در هر ۳۰ ثانیه
+_chat_events: dict = {}        # chat_id -> deque[monotonic_ts]
+_spam_noted_at: dict = {}      # chat_id -> monotonic_ts آخرین پیام راهنما
+
+
+def _chat_allow(chat_id) -> bool:
+    """اجازهٔ پردازش رویداد کاربر — پنجرهٔ لغزان سبک درون‌حافظه‌ای."""
+    import collections
+    now = time.monotonic()
+    dq = _chat_events.setdefault(chat_id, collections.deque())
+    while dq and dq[0] < now - _CHAT_WINDOW_SECONDS:
+        dq.popleft()
+    if len(dq) >= _CHAT_MAX_EVENTS:
+        return False
+    dq.append(now)
+    # جلوگیری از رشد بی‌حد حافظه
+    if len(_chat_events) > 20_000:
+        for k in [k for k, v in _chat_events.items() if not v]:
+            _chat_events.pop(k, None)
+    return True
+
+
+async def _spam_note(chat_id) -> None:
+    """پیام مهربان «کمی آهسته‌تر» — حداکثر هر ۳۰ ثانیه یک‌بار."""
+    now = time.monotonic()
+    last = _spam_noted_at.get(chat_id, 0)
+    if now - last < _SPAM_NOTE_COOLDOWN:
+        return
+    _spam_noted_at[chat_id] = now
+    await send(chat_id,
+               "⏳ کمی آهسته‌تر 🙂 — درخواست‌های شما سری‌پشت به هم می‌رسد. "
+               "چند لحظه صبر کنید و دوباره از منوی زیر ادامه دهید:",
+               kb_back_home())
+
+
 async def process_update(update: dict) -> None:
     cb = update.get("callback_query")
     if cb:
@@ -3368,6 +3435,9 @@ async def process_update(update: dict) -> None:
         if chat_id is None:
             return
         await answer_cb(cb.get("id"))
+        if not _chat_allow(chat_id):
+            await _spam_note(chat_id)
+            return
         await handle_callback(chat_id, msg.get("message_id"), cb.get("data") or "")
         return
 
@@ -3379,10 +3449,16 @@ async def process_update(update: dict) -> None:
         return
     contact = msg.get("contact")
     if contact and contact.get("phone_number"):
+        if not _chat_allow(chat_id):
+            await _spam_note(chat_id)
+            return
         await handle_contact(chat_id, contact)
         return
     text = (msg.get("text") or "").strip()
     if not text:
+        return
+    if not _chat_allow(chat_id):
+        await _spam_note(chat_id)
         return
     await handle_text(chat_id, text)
 

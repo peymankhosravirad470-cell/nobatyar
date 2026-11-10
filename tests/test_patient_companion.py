@@ -84,7 +84,8 @@ home_kb = bale_bot.kb_home()
 home_items = [b["text"] for row in home_kb for b in row]
 home_cbs = [b["callback_data"] for row in home_kb for b in row
             if "callback_data" in b]  # دکمهٔ URL وب‌سایت callback ندارد
-check("منو: ۱۴ دکمه (۱۳ گزینهٔ اصلی + وب‌سایت — v0.10.1 پرونده دارویی)", len(home_items) == 14)
+# v0.11.2: دکمهٔ «📣 ارتباط با نوبتیار» اضافه شد (مأموریت ارتباطات)
+check("منو: ۱۵ دکمه (۱۴ گزینهٔ قبلی + وب‌سایت + ارتباط با نوبتیار)", len(home_items) == 15)
 check("منو: دکمهٔ «🤝 همراه بیمار» با callback عین ShirazMedical (start_companion)",
       "🤝 همراه بیمار" in home_items and home_cbs.count("start_companion") == 1)
 check("منو: هر ۱۱ گزینهٔ قبلی حفظ شده‌اند",

@@ -142,7 +142,7 @@ def test_appointment_notes_max_length():
 
 def test_health_version_bumped():
     r = client.get("/api/health")
-    assert r.json()["version"] == "0.11.0"  # v0.11.0: سامانه ثبت‌نام مراکز
+    assert r.json()["version"] == "0.11.2"  # v0.11.2: ممیزی امنیت/طراحی + ارتباطات
 
 
 # ---------- ۷. تلهٔ رگرسیون XSS ----------

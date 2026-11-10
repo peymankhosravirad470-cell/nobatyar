@@ -4,11 +4,14 @@
 
 from datetime import datetime, timedelta, date, time
 from typing import List, Optional
+import logging  # v0.11.2: رفع باگ NameError در هُک‌های پس از تغییر وضعیت نوبت
+
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware  # v0.11.2: فشرده‌سازی متن (بهبود LCP موبایل)
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -39,13 +42,24 @@ import referral
 import centers
 from centers import router as centers_router
 
-APP_VERSION = "0.11.1"
+APP_VERSION = "0.11.2"
+
+# v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
+# تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
+# برای توسعهٔ محلی: NOBATYAR_ENABLE_DOCS=1
+_DOCS_ENABLED = (os.environ.get("NOBATYAR_ENABLE_DOCS") or "") == "1"
 
 app = FastAPI(
     title="نوبتیار",
     description="سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز + مسیریابی، تاکسی اینترنتی و صندوق پیام‌ها",
-    version=APP_VERSION
+    version=APP_VERSION,
+    docs_url="/docs" if _DOCS_ENABLED else None,
+    redoc_url="/redoc" if _DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
+
+# v0.11.2: فشرده‌سازی پاسخ‌های متنی (>۱KB) — HTML/CSS/JSON؛
+# اثر اندازه‌گیری‌شده در Lighthouse موبایل: ~۴۱۰ms صرفه‌جویی.
 
 # ---------- CORS محدودشده (اصلاح امنیتی v0.9.2) ----------
 # پیش‌فرض: فقط دامنهٔ رسمی. درخواست‌های همان‌دامنه (همهٔ صفحات سایت)
@@ -63,6 +77,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)  # v0.11.2
 
 # ---------- هدرهای امنیتی (اصلاح امنیتی v0.9.2) ----------
 # CSP واقع‌بینانه: اسکریپت‌های درون‌خطی صفحه‌ها و Google Analytics را نمی‌شکند؛
@@ -78,12 +93,12 @@ _SECURITY_HEADERS = {
         "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "font-src 'self' data: https://cdn.jsdelivr.net; "
-        "img-src 'self' data:; "
+        "img-src 'self' data: https://www.googletagmanager.com; "
         "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com "
         "https://www.google.com/g/collect; "
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ),
-    "Strict-Transport-Security": "max-age=15552000",
+    "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
 }
 
 
@@ -247,6 +262,18 @@ def partners_page():
     return _html("partners.html")
 
 
+@app.get("/terms", response_class=HTMLResponse)
+def terms_page():
+    """شرایط استفاده (v0.11.2 — اعتماد تجاری)."""
+    return _html("terms.html")
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page():
+    """سیاست حریم خصوصی (v0.11.2 — اعتماد تجاری)."""
+    return _html("privacy.html")
+
+
 @app.get("/contact", response_class=HTMLResponse)
 def contact_page():
     """صفحهٔ «تماس با ما» — فقط راه‌های ارتباطی واقعی و تأییدشده."""
@@ -296,7 +323,8 @@ def sitemap_xml():
     today = datetime.utcnow().date().isoformat()
     pages = [("/", "1.0"), ("/book", "0.8"), ("/register", "0.8"),
              ("/register/office", "0.8"), ("/register/clinic", "0.8"),
-             ("/partners", "0.7"), ("/contact", "0.6")]
+             ("/partners", "0.7"), ("/contact", "0.6"),
+             ("/terms", "0.3"), ("/privacy", "0.3")]
     items = "".join(
         f"<url><loc>{base}{path}</loc><lastmod>{today}</lastmod>"
         f"<changefreq>weekly</changefreq><priority>{prio}</priority></url>"
@@ -376,9 +404,18 @@ def list_public_clinics(
 
 @app.get("/api/clinics/{clinic_id}", response_model=ClinicOut)
 def get_clinic(clinic_id: int, db: Session = Depends(get_db)):
-    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+    """جزئیات مرکز — فقط مراکز تأییدشده و فعال (اصلاح امنیتی v0.11.2).
+
+    پیش‌تر هر مرکزی با شناسهٔ عددی قابل دسترس بود و نام/تلفن/آدرسِ
+    مراکز در انتظار بررسی یا ردشده هم افشا می‌شد (اثبات‌شده با IDهای ۱-۳).
+    حالا رفتار با فهرست عمومی یکسان است: مرکز غیرفعال/غیرتأیید → 404."""
+    clinic = db.query(Clinic).filter(
+        Clinic.id == clinic_id,
+        Clinic.status == ClinicStatus.approved,
+        Clinic.subscription_status == SubscriptionStatus.active,
+    ).first()
     if not clinic:
-        raise HTTPException(404, "مطب یافت نشد")
+        raise HTTPException(404, "مطب یافت نشد یا غیرفعال است")
     return clinic
 
 

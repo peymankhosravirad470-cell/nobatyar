@@ -77,8 +77,10 @@ check("همهٔ ۱۱ گزینهٔ اصلی با callback درست حفظ شده�
 check("متن دکمه‌های اصلی تغییری نکرده است",
       "🗓 دریافت نوبت" in texts and "💬 پیشنهادات و انتقادات" in texts
       and "❓ راهنما و پشتیبانی" in texts)
-check("دکمهٔ وب‌سایت هیچ callbackی از گزینه‌های اصلی را حذف نکرده (۱۱ اصلی + همراه بیمار + پرونده دارویی)",
-      len(cbs) == 13)
+# v0.11.2: دکمهٔ «📣 ارتباط با نوبتیار» طبق مأموریت به منو اضافه شد —
+# همهٔ ۱۳ دکمهٔ قبلی دست‌نخورده + ۱ دکمهٔ جدید (channels)
+check("دکمهٔ وب‌سایت هیچ callbackی از گزینه‌های اصلی را حذف نکرده (۱۳ دکمهٔ قبلی + ارتباط با نوبتیار)",
+      len(cbs) == 14 and "channels" in cbs)
 
 # ==================== ۳) پیام شروع ====================
 start_txt = last_text("sendMessage")
@@ -100,6 +102,25 @@ try:
           "ble.ir/nobatyarshirazbot" in home)
 except FileNotFoundError:
     check("صفحهٔ اصلی سایت موجود است", False)
+
+# ==================== ۶) v0.11.2: دکمهٔ «ارتباط با نوبتیار» ====================
+SENT.clear()
+asyncio.run(bale_bot.handle_callback(CHAT, 1, "channels"))
+ch_txt = last_text("editMessageText") or last_text("sendMessage")
+ch_kb = last_kb("editMessageText") or last_kb("sendMessage")
+ch_urls = [b.get("url") for row in ch_kb for b in row if "url" in b]
+check("بخش «ارتباط با نوبتیار» پاسخ می‌دهد", "ارتباط با نوبتیار" in ch_txt)
+check("ایمیل رسمی در پیام هست", "shiraznobatyar@gmail.com" in ch_txt)
+check("همهٔ کانال‌ها دکمهٔ URL دارند (سایت/تلگرام/ایتا/روبیکا/یوتیوب/آپارات)",
+      set(ch_urls) == {
+          SITE, "https://t.me/shiraznobatyar", "https://eitaa.com/shiraznobatyar",
+          "https://rubika.ir/shiraznobatyar", "https://youtube.com/@nobatyar",
+          "https://www.aparat.com/ShirazNobatyar/short-videos"})
+check("لینکدین تا تأیید رسمی نمایش داده نمی‌شود (هیچ لینک جعلی)",
+      "linkedin.com" not in ch_txt and all("linkedin" not in (u or "") for u in ch_urls))
+check("دکمهٔ بازگشت به منوی اصلی هست",
+      any(b.get("callback_data") == "home" for row in ch_kb for b in row))
+
 
 # ==================== نتیجه ====================
 failed = [n for n, ok in PASS if not ok]

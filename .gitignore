@@ -4,3 +4,12 @@ __pycache__/
 .venv/
 .venv-test/
 
+# v0.11.2: جلوگیری از کامیت تصادفی دادهٔ حساس
+.env
+.env.*
+*.log
+backups/
+*.session
+*.pem
+*.key
+secrets*

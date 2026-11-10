@@ -1,15 +1,17 @@
-fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
-sqlalchemy>=2.0.0
-aiosqlite>=0.19.0
-psycopg[binary]>=3.2.0
-pydantic>=2.0.0
-jinja2>=3.1.0
-passlib[bcrypt]>=1.7.4
-# python-jose >= 3.4.0: رفع CVE-2024-33663 (سردرگمی الگوریتم) و CVE-2024-33664 (DoS در JWE)
-python-jose[cryptography]>=3.4.0
-httpx>=0.24.0
+# v0.11.2: قفل نسخه‌ها به نسخه‌های آزموده‌شده در تولید (بازتولیدپذیری + کاهش ریسک زنجیرهٔ تأمین)
+# ارتقای آگاهانه با اجرای رگرسیون کامل پس از هر تغییر نسخه.
+fastapi==0.162.2
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.8
+aiosqlite==0.22.1
+psycopg[binary]==3.3.8
+pydantic==2.14.3
+jinja2==3.1.6
+passlib[bcrypt]==1.7.4
+# python-jose 3.5.0: رفع CVE-2024-33663 (سردرگمی الگوریتم) و CVE-2024-33664 (DoS در JWE)
+python-jose[cryptography]==3.5.0
+httpx==0.28.1
 bcrypt==4.0.1
-alembic>=1.13.0
-# python-multipart >= 0.0.18: رفع CVE-2024-53981 (DoS با multipart بدشکل) و CVE-2024-24762 (ReDoS)
-python-multipart>=0.0.18
+alembic==1.20.1
+# python-multipart 0.0.33: رفع CVE-2024-53981 (DoS با multipart بدشکل) و CVE-2024-24762 (ReDoS)
+python-multipart==0.0.33

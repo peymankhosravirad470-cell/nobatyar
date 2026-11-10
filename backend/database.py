@@ -41,7 +41,10 @@ if IS_POSTGRES:
         connect_args={
             "connect_timeout": 10,
             "application_name": "nobatyar",
-            "sslmode": os.environ.get("PG_SSLMODE", "disable"),
+            # v0.11.2: پیش‌فرض «prefer» — اگر سرور PostgreSQL از TLS پشتیبانی کند
+            # ارتباط رمزنگاری می‌شود؛ اگر نکند با همان رفتار قبلی ادامه می‌دهد
+            # (بدون شکستن سرویس). برای اجبار کامل: PG_SSLMODE=require در لیارا.
+            "sslmode": os.environ.get("PG_SSLMODE", "prefer"),
         },
     )
 else:

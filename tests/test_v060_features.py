@@ -121,7 +121,8 @@ asyncio.run(bale_bot.handle_text(1, "/start"))
 btns = [b["text"] for row in bale_bot.kb_home() for b in row]
 cbs = [b["callback_data"] for row in bale_bot.kb_home() for b in row
        if "callback_data" in b]  # دکمه‌های URL callback ندارند
-check("منو: ۱۳ دکمهٔ اصلی + دکمهٔ وب‌سایت (v0.10.1: پرونده دارویی هم اضافه شد)", len(btns) == 14)
+# v0.11.2: دکمهٔ «📣 ارتباط با نوبتیار» اضافه شد (مأموریت ارتباطات)
+check("منو: ۱۴ گزینهٔ قبلی + وب‌سایت + ارتباط با نوبتیار", len(btns) == 15)
 check("منو: دکمهٔ وب‌سایت در ردیف اول با URL رسمی",
       bale_bot.kb_home()[0] == [{"text": "🌐 وب‌سایت نوبتیار",
                                  "url": "https://shirazhealthtour.ir"}])
@@ -133,7 +134,7 @@ order_expected = [
     "🤝 همراه بیمار", "🎁 دعوت دوستان",
     "💬 پیشنهادات و انتقادات",
     "🗺 مسیریابی", "🚕 تاکسی اینترنتی",
-    "❓ راهنما و پشتیبانی",
+    "❓ راهنما و پشتیبانی", "📣 ارتباط با نوبتیار",
 ]
 check("منو: ترتیب کامل (وب‌سایت + همراه بیمار کنار دعوت دوستان)",
       btns[1:] == order_expected)
