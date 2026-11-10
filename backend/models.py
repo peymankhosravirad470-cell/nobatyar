@@ -418,6 +418,52 @@ class MedReminderLog(Base):
     )
 
 
+class PatientCompanion(Base):
+    """همراه بیمار (Port from ShirazMedical app/handlers/companion.py — نسخه 0.10.0).
+
+    اصل انتقال — مطابق الگوی مأموریت v0.6.0:
+    - منطق گفتگو، متن‌های فارسی و ترتیب دکمه‌های «همراه بیمار» عیناً از
+      ShirazMedical (app/handlers/companion.py) حفظ شده است.
+    - تفاوت مستند و الزامی: در ShirazMedical «هیچ داده‌ای ذخیره نمی‌شد» و پیامک
+      فقط شبیه‌سازی می‌شد (logger.info). نوبتیار طبق الزام «پایگاه داده تنها
+      منبع حقیقت»، رکورد همراه را با رضایت صریح کاربر (دکمه «بله، مایل هستم»)
+      در PostgreSQL ثبت می‌کند تا عملیات مشاهده/حذف ممکن باشد.
+    - ارتباط با نوبت: در لحظهٔ ثبت، اگر بیمار از همین گفتگوی بله نوبت فعالی داشته
+      باشد، شناسهٔ آخرین نوبت فعال روی رکورد همراه ثبت می‌شود (SET NULL با حذف نوبت).
+    - حریم خصوصی:
+      * رکورد فقط با chat_id ثبت‌کننده قابل مشاهده/حذف است (فیلتر اجباری chat_id).
+      * شماره تلفن همراه در هیچ لاگی نوشته نمی‌شود؛ فقط نسخهٔ ماسک‌شده نمایش داده می‌شود.
+      * حذف = حذف فیزیکی رکورد (حق فراموشی؛ نه soft-delete).
+    - اطلاع‌رسانی به همراه: در ShirazMedical پیامک فقط شبیه‌سازی می‌شد؛ نوبتیار
+      درگاه پیامک ندارد و هیچ ادعای ارسالی نمی‌سازد — notify_status="none" یعنی
+      «کانال ارسال در این نسخه فعال نیست». فعال‌سازی پیامک نیازمند سرویس‌دهنده و
+      تأیید مالک است (P2).
+    """
+
+    __tablename__ = "patient_companions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # گفتگوی بله ثبت‌کننده — کلید مالکیت و سطوح دسترسی (فقط همین chat_id دسترسی دارد)
+    chat_id = Column(String(50), nullable=False, index=True)
+    # پیوند اختیاری به نوبت فعال بیمار (بیمار/نوبت/همراهان خانواده)
+    appointment_id = Column(Integer, ForeignKey("appointments.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
+    companion_name = Column(String(100), nullable=False)
+    companion_phone = Column(String(20), nullable=False)
+    # رضایت صریح: رکورد فقط پس از «بله، مایل هستم» ساخته می‌شود (الگوی ShirazMedical)
+    consent = Column(Boolean, nullable=False, default=True, server_default="1")
+    # وضعیت اطلاع‌رسانی — صادقانه: "none" = کانال ارسال در این نسخه فعال نیست
+    notify_status = Column(String(12), nullable=False, default="none", server_default="none")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        # یک شماره برای هر بیمار فقط یک‌بار (ثبت دوباره = به‌روزرسانی نام)
+        UniqueConstraint("chat_id", "companion_phone", name="uq_companion_chat_phone"),
+        Index("ix_companions_chat_created", "chat_id", "created_at"),
+    )
+
+
 class ApptReminderLog(Base):
     """لاگ یادآور نوبت (۲۴ ساعت و ۲ ساعت قبل) — هر (نوبت، نوع) فقط یک‌بار (idempotent)."""
     __tablename__ = "appt_reminder_logs"

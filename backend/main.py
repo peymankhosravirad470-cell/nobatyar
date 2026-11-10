@@ -37,7 +37,7 @@ from admin_security import generate_connect_code
 import bale_bot
 import referral
 
-APP_VERSION = "0.9.2"
+APP_VERSION = "0.10.0"
 
 app = FastAPI(
     title="نوبتیار",

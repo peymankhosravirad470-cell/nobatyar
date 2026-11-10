@@ -121,7 +121,7 @@ asyncio.run(bale_bot.handle_text(1, "/start"))
 btns = [b["text"] for row in bale_bot.kb_home() for b in row]
 cbs = [b["callback_data"] for row in bale_bot.kb_home() for b in row
        if "callback_data" in b]  # دکمه‌های URL callback ندارند
-check("منو: ۱۱ دکمهٔ اصلی + دکمهٔ وب‌سایت", len(btns) == 12)
+check("منو: ۱۲ دکمهٔ اصلی + دکمهٔ وب‌سایت (v0.10.0: همراه بیمار اضافه شد)", len(btns) == 13)
 check("منو: دکمهٔ وب‌سایت در ردیف اول با URL رسمی",
       bale_bot.kb_home()[0] == [{"text": "🌐 وب‌سایت نوبتیار",
                                  "url": "https://shirazhealthtour.ir"}])
@@ -129,11 +129,12 @@ order_expected = [
     "🗓 دریافت نوبت", "🔎 جست‌وجوی پزشک و درمانگاه",
     "🧪 آزمایشگاه‌ها", "💊 داروخانه‌ها",
     "🗂 نوبت‌های من", "⏰ یادآوری دارو",
+    "🤝 همراه بیمار", "🎁 دعوت دوستان",
     "💬 پیشنهادات و انتقادات",
-    "🎁 دعوت دوستان", "🗺 مسیریابی",
-    "🚕 تاکسی اینترنتی", "❓ راهنما و پشتیبانی",
+    "🗺 مسیریابی", "🚕 تاکسی اینترنتی",
+    "❓ راهنما و پشتیبانی",
 ]
-check("منو: ترتیب کامل مطابق سفارش پروژه (پس از دکمهٔ وب‌سایت)",
+check("منو: ترتیب کامل (وب‌سایت + همراه بیمار کنار دعوت دوستان)",
       btns[1:] == order_expected)
 feedback_rows = [r for r in bale_bot.kb_home() if r[0]["text"] == "💬 پیشنهادات و انتقادات"]
 own_row = bool(feedback_rows) and len(feedback_rows[0]) == 1

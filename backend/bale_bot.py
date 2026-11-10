@@ -46,6 +46,9 @@ from models import (
 import referral as referral_svc
 import meds as meds_svc
 import survey as survey_svc
+import companion_svc as companion_svc
+import companion_svc as companion_svc
+import companion_svc as companion_svc
 import reminders as remind_svc
 from fa_utils import (
     normalize_fa, fa_digits, valid_national_code, normalize_mobile,
@@ -666,6 +669,9 @@ TXT_START = (
     "🧪 آزمایشگاه‌های ثبت‌شده\n"
     "💊 داروخانه‌های مطرح شیراز\n"
     "⏰ یادآوری دارو — هر روز سر ساعت مصرف\n"
+    "🤝 همراه بیمار — قرار دادن نزدیکانتان در جریان درمان (با رضایت شما)\n"
+    "🤝 همراه بیمار — قرار دادن نزدیکانتان در جریان درمان (با رضایت شما)\n"
+    "🤝 همراه بیمار — قرار دادن نزدیکانتان در جریان درمان (با رضایت شما)\n"
     "🗂 سوابق نوبت‌های شما\n"
     "💬 پیشنهادات و انتقادات مستقیم به مدیریت\n"
     "🎁 دعوت دوستان و دریافت تخفیف\n"
@@ -685,7 +691,9 @@ TXT_HELP = (
     "🔒 حریم خصوصی: اطلاعات شما فقط برای ثبت نوبت استفاده می‌شود و در هیچ لاگی ذخیره نمی‌شود.\n\n"
     "🗂 نوبت‌های من: سوابق و لغو نوبت\n"
     "🚕 تاکسی اینترنتی و 🗺 مسیریابی: مقصد خودکار روی مرکز انتخابی شما تنظیم می‌شود\n"
-    "💊 داروخانه‌ها، 🧪 آزمایشگاه‌ها و 🎁 دعوت دوستان: مستقیماً از منوی اصلی\n\n"
+    "💊 داروخانه‌ها، 🧪 آزمایشگاه‌ها و 🎁 دعوت دوستان: مستقیماً از منوی اصلی\n"
+    "🤝 همراه بیمار: ثبت، مشاهده و حذف همراه با رضایت خودتان\n"
+    "🤝 همراه بیمار: ثبت، مشاهده و حذف همراه با رضایت خودتان\n\n"
     f"☎️ وب‌سایت: {SITE_URL}"
 )
 
@@ -727,7 +735,7 @@ TXT_INTRO = (
 # ==================== کیبوردها و صفحات ====================
 
 def kb_home() -> list:
-    """منوی اصلی — دکمهٔ وب‌سایت + ۱۱ گزینهٔ اصلی (نسخه 0.9.3).
+    """منوی اصلی — دکمهٔ وب‌سایت + ۱۲ گزینهٔ اصلی (v0.10.0: «🤝 همراه بیمار» از Shiraz Medical اضافه شد).
 
     ردیف اول: دکمهٔ «🌐 وب‌سایت نوبتیار» (دکمهٔ URL مستقل بله) — برجسته، تمام‌عرض،
     مستقل از سایر امکانات: کاربر با انتخاب آن مستقیماً وارد سایت می‌شود.
@@ -736,6 +744,8 @@ def kb_home() -> list:
     یادآوری دارو، پیشنهادات و انتقادات، دعوت دوستان، مسیریابی، تاکسی، راهنما.
     «پیشنهادات و انتقادات» در ردیف کامل مستقل است تا متن دکمه در موبایل
     کوتاه/تکه‌تکه نشود (رفع ایراد اعلام‌شده).
+    v0.10.0: «🤝 همراه بیمار» کنار «🎁 دعوت دوستان» نشست و «🗺 مسیریابی» با
+    «🚕 تاکسی اینترنتی» هم‌ردیف شد — ترتیب بقیهٔ گزینه‌ها دست‌نخورده است.
     همه گزینه‌ها مستقل از دیتابیس هستند؛ خالی بودن دیتابیس فقط
     در همان بخش پیام مناسب نشان می‌دهد.
     """
@@ -755,13 +765,16 @@ def kb_home() -> list:
             {"text": "🗂 نوبت‌های من", "callback_data": "myappts"},
             {"text": "⏰ یادآوری دارو", "callback_data": "meds"},
         ],
+        [
+            {"text": "🤝 همراه بیمار", "callback_data": "start_companion"},
+            {"text": "🎁 دعوت دوستان", "callback_data": "invite"},
+        ],
         [{"text": "💬 پیشنهادات و انتقادات", "callback_data": "feedback"}],
         [
-            {"text": "🎁 دعوت دوستان", "callback_data": "invite"},
             {"text": "🗺 مسیریابی", "callback_data": "nav"},
+            {"text": "🚕 تاکسی اینترنتی", "callback_data": "taxi"},
         ],
         [
-            {"text": "🚕 تاکسی اینترنتی", "callback_data": "taxi"},
             {"text": "❓ راهنما و پشتیبانی", "callback_data": "help"},
         ],
     ]
@@ -1603,6 +1616,47 @@ def notify_survey_for_appointment(appt_id: int) -> dict:
 
 # ==================== پردازش آپدیت‌ها ====================
 
+# ==================== همراه بیمار (انتقال از Shiraz Medical — v0.10.0) ====================
+
+COMP_END_KB = [
+    [
+        {"text": companion_svc.t("btn_back_menu"), "callback_data": "home"},
+        {"text": companion_svc.t("btn_feedback"), "callback_data": "feedback"},
+    ],
+]
+
+
+def _comp_label(c) -> str:
+    """نمایش همراه با شمارهٔ ماسک‌شده — شمارهٔ کامل هرگز در چت/لاگ نمایش داده نمی‌شود."""
+    return "• " + c.companion_name + " — " + fa_digits(companion_svc.mask_phone(c.companion_phone))
+
+
+async def companion_list_screen(chat_id, message_id=None) -> None:
+    """فهرست همراهان ثبت‌شدهٔ همین گفتگو (فیلتر اجباری chat_id — حریم خصوصی)."""
+    db = SessionLocal()
+    try:
+        rows = companion_svc.list_for_chat(db, chat_id)
+    finally:
+        db.close()
+    if not rows:
+        text = companion_svc.t("list_empty")
+        kb = [
+            [{"text": companion_svc.t("btn_add_new"), "callback_data": "start_companion"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ]
+    else:
+        text = companion_svc.t("list_title") + "\n".join(_comp_label(c) for c in rows)
+        kb = [[{"text": f"{companion_svc.t('btn_del')} — {c.companion_name}",
+                "callback_data": f"comp_delask:{c.id}"}] for c in rows]
+        kb.append([{"text": companion_svc.t("btn_add_new"),
+                    "callback_data": "start_companion"}])
+        kb.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
+    if message_id is not None:
+        await edit(chat_id, message_id, text, kb)
+    else:
+        await send(chat_id, text, kb)
+
+
 async def handle_callback(chat_id, message_id, data: str) -> None:
     st = _sess(chat_id)
 
@@ -1689,6 +1743,82 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             st["step"] = "med_home"
         await edit(chat_id, message_id, meds_svc.t("cancelled"), None)
         await meds_menu(chat_id, message_id)
+        return
+
+    # ---------- همراه بیمار (انتقال از Shiraz Medical — v0.10.0) ----------
+    if data == "start_companion":
+        # صفحهٔ ورود عیناً Shiraz Medical: رضایت (بله/خیر) + لغو —
+        # دکمهٔ «📋 همراهان ثبت‌شده» افزودنی مستند نوبتیار است (مشاهده/حذف).
+        await _neutralize_stale(chat_id, keep_msg_id=message_id)
+        _pop(chat_id)
+        kb = [
+            [{"text": companion_svc.t("btn_yes"), "callback_data": "comp_yes"}],
+            [{"text": companion_svc.t("btn_no"), "callback_data": "comp_no"}],
+            [{"text": companion_svc.t("btn_cancel"), "callback_data": "comp_cancel"}],
+            [{"text": companion_svc.t("btn_list"), "callback_data": "comp_list"}],
+        ]
+        await edit(chat_id, message_id, companion_svc.t("intro"), kb)
+        return
+
+    if data == "comp_yes":
+        # الگوی عیناً Shiraz Medical: پس از «بله» ← نام همراه
+        _set(chat_id, step="comp_name", fsm_msg=message_id)
+        await edit(chat_id, message_id, companion_svc.t("ask_name"), _kb_cancel())
+        return
+
+    if data == "comp_no":
+        _pop(chat_id)
+        await edit(chat_id, message_id, companion_svc.t("no_needed"), COMP_END_KB)
+        return
+
+    if data == "comp_cancel":
+        _pop(chat_id)
+        await edit(chat_id, message_id, companion_svc.t("cancelled"), COMP_END_KB)
+        return
+
+    if data == "comp_list":
+        _pop(chat_id)
+        await companion_list_screen(chat_id, message_id)
+        return
+
+    if data.startswith("comp_delask:"):
+        try:
+            comp_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            row = companion_svc.get_for_chat(db, chat_id, comp_id)
+        finally:
+            db.close()
+        if not row:
+            await edit(chat_id, message_id, companion_svc.t("list_empty"),
+                       [[{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
+            return
+        await edit(chat_id, message_id,
+                   companion_svc.t("del_title").format(
+                       name=row.companion_name,
+                       phone=fa_digits(companion_svc.mask_phone(row.companion_phone))),
+                   [
+                       [{"text": companion_svc.t("btn_del_yes"),
+                         "callback_data": f"comp_delyes:{row.id}"}],
+                       [{"text": "🔙 بازگشت به فهرست", "callback_data": "comp_list"}],
+                   ])
+        return
+
+    if data.startswith("comp_delyes:"):
+        try:
+            comp_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            row = companion_svc.delete_companion(db, chat_id, comp_id)
+        finally:
+            db.close()
+        if not row:
+            return  # رکورد متعلق به این گفتگو نیست یا قبلاً حذف شده — هیچ افشایی نیست
+        await edit(chat_id, message_id, companion_svc.t("deleted"), COMP_END_KB)
         return
 
     # ---------- یادآوری: دکمه‌های پیام یادآور (مصرف شد/یادآوری مجدد/ویرایش/حذف) ----------
@@ -2581,6 +2711,64 @@ async def handle_text(chat_id, text: str) -> None:
         await _prompt(chat_id, meds_svc.t("saved").format(
             name=name, times="، ".join(fa_digits(x) for x in times)), None)
         await meds_menu(chat_id)
+        return
+
+    # ---------- FSM: همراه بیمار (انتقال از Shiraz Medical — v0.10.0) ----------
+    if st and st.get("step") == "comp_name":
+        if text.strip() == "/cancel":
+            # fallback عیناً Shiraz Medical: فرمان /cancel در هر مرحله گفتگو را می‌بندد
+            _pop(chat_id)
+            await send(chat_id, companion_svc.t("cancelled"), COMP_END_KB)
+            return
+        name = companion_svc.normalize_name(text)
+        if not name:
+            await _prompt(chat_id, companion_svc.t("name_too_short"), _kb_cancel())
+            return
+        _set(chat_id, step="comp_phone", comp_name=name)
+        await _prompt(chat_id, companion_svc.t("ask_phone"), _kb_cancel())
+        return
+
+    if st and st.get("step") == "comp_phone":
+        if text.strip() == "/cancel":
+            _pop(chat_id)
+            await send(chat_id, companion_svc.t("cancelled"), COMP_END_KB)
+            return
+        phone = companion_svc.normalize_phone(text)
+        if not phone:
+            await _prompt(chat_id, companion_svc.t("invalid_phone"), _kb_cancel())
+            return
+        name = st.get("comp_name")
+        if not name:
+            # جلسهٔ گفتگو منقضی شده بود (TTL ۳۰ دقیقه) — مسیر پاک و شفاف
+            _pop(chat_id)
+            await send(chat_id, companion_svc.t("flow_expired"), kb_home())
+            return
+        db = SessionLocal()
+        try:
+            existing = companion_svc.find_by_phone(db, chat_id, phone)
+            if existing is None and companion_svc.count_for_chat(db, chat_id) \
+                    >= companion_svc.MAX_COMPANIONS_PER_CHAT:
+                _pop(chat_id)
+                await _prompt(chat_id, companion_svc.t("limit"), COMP_END_KB)
+                return
+            appt = companion_svc.latest_active_appointment(db, chat_id)
+            companion_svc.upsert_companion(db, chat_id, name, phone,
+                                           appointment_id=appt.id if appt else None)
+        except Exception:
+            LOG.exception("companion save failed chat=%s", mask_chat(chat_id))
+            await _prompt(chat_id, companion_svc.t("save_failed"), None)
+            return
+        finally:
+            db.close()
+        fsm_msg = st.get("fsm_msg")
+        _pop(chat_id)
+        # نمایش شماره به‌صورت ماسک‌شده — شمارهٔ کامل هرگز بازنمایی نمی‌شود
+        receipt = companion_svc.t("success").format(
+            name=name, phone=fa_digits(companion_svc.mask_phone(phone)))
+        if fsm_msg:
+            await edit(chat_id, fsm_msg, receipt, COMP_END_KB)
+        else:
+            await send(chat_id, receipt, COMP_END_KB)
         return
 
     # ---------- FSM: نظرسنجی — علت نارضایتی (متن عیناً Shiraz Medical) ----------
