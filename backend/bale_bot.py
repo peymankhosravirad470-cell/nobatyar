@@ -1850,6 +1850,8 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             db.close()
         if not row:
             return  # رکورد متعلق به این گفتگو نیست یا قبلاً حذف شده — هیچ افشایی نیست
+        await edit(chat_id, message_id, companion_svc.t("deleted"), COMP_END_KB)
+        return
 
     # ==================== پرونده دارویی من (v0.10.1 — طبق سند طراحی medication-log) ====================
     if data == "medlog":
