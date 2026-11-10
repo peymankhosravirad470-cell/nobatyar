@@ -289,13 +289,23 @@ def get_current_clinic(
     if not credentials:
         raise HTTPException(status_code=401, detail="احراز هویت لازم است")
     payload = decode_token(credentials.credentials)
-    if payload.get("role") != "clinic":
+    role = payload.get("role")
+    if role not in ("clinic", "clinic_staff"):
         raise HTTPException(status_code=403, detail="دسترسی مطب لازم است")
     try:
-        clinic_id = int(payload.get("sub"))
+        sub = int(payload.get("sub"))
     except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="توکن نامعتبر")
-    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+    if role == "clinic_staff":
+        # v0.11.0: کارکنان مرکز (manager/reception/doctor) — به مرکز نگاشت می‌شوند
+        from models import ClinicStaff
+        staff = db.query(ClinicStaff).filter(
+            ClinicStaff.id == sub, ClinicStaff.is_active == True).first()  # noqa: E712
+        if not staff:
+            raise HTTPException(status_code=401, detail="حساب کارمند فعال نیست")
+        clinic = db.query(Clinic).filter(Clinic.id == staff.clinic_id).first()
+    else:
+        clinic = db.query(Clinic).filter(Clinic.id == sub).first()
     if not clinic:
         raise HTTPException(status_code=401, detail="مطب یافت نشد")
     if clinic.status != "approved":

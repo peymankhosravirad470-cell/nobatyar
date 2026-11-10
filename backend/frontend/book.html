@@ -45,6 +45,10 @@
       </select>
 
       <div id="slotsSection" class="hidden">
+      <div id="doctorBox" style="display:none; margin-bottom:1rem;">
+        <label>پزشک</label>
+        <select id="doctorSelect"><option value="">همهٔ پزشکان مرکز</option></select>
+      </div>
         <label>اسلات‌های خالی</label>
         <div id="slotGrid" class="slot-grid"></div>
       </div>
@@ -104,8 +108,30 @@
         document.getElementById('slotsSection').classList.add('hidden');
         return;
       }
-      const res = await fetch(`/api/public/clinics/${selectedClinicId}/slots`);
+      // v0.11: پر کردن انتخاب پزشک از پروفایل عمومی مرکز
+      let docSel = document.getElementById('doctorSelect');
+      const docBox = document.getElementById('doctorBox');
+      try {
+        const fr = await fetch(`/api/public/clinics/${selectedClinicId}/full`);
+        if (fr.ok) {
+          const full = await fr.json();
+          const docs = full.doctors || [];
+          docBox.style.display = docs.length ? '' : 'none';
+          docSel.innerHTML = '<option value="">همهٔ پزشکان مرکز</option>' +
+            docs.map(d => `<option value="${d.id}">${esc(d.full_name)} — ${esc(d.specialty)}</option>`).join('');
+        } else { docBox.style.display = 'none'; }
+      } catch (e) { docBox.style.display = 'none'; }
+      await loadSlots();
+    });
+
+    async function loadSlots() {
+      const selectedClinicId = document.getElementById('clinicSelect').value;
+      const docId = document.getElementById('doctorSelect').value;
+      const qp = docId ? `?doctor_id=${encodeURIComponent(docId)}` : '';
+      const res = await fetch(`/api/public/clinics/${selectedClinicId}/slots${qp}`);
       const slots = await res.json();
+      const grid = document.getElementById('slotGrid');
+      grid.innerHTML = '';
       document.getElementById('slotsSection').classList.remove('hidden');
       if (slots.length === 0) {
         grid.innerHTML = '<p>اسلات خالی وجود ندارد.</p>';
@@ -125,6 +151,12 @@
         };
         grid.appendChild(div);
       });
+    }
+
+    document.getElementById('doctorSelect').addEventListener('change', () => {
+      selectedSlotId = null;
+      document.getElementById('patientForm').classList.add('hidden');
+      loadSlots();
     });
 
     document.getElementById('bookBtn').addEventListener('click', async () => {

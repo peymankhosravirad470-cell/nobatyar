@@ -32,6 +32,45 @@
   <main class="container">
     <div id="msg"></div>
 
+    <div class="card" id="statusCard" style="display:none;">
+      <h2>📌 وضعیت ثبت‌نام مرکز</h2>
+      <div id="statusBody"></div>
+    </div>
+
+    <div class="card">
+      <h2>🩺 پزشکان مرکز</h2>
+      <table>
+        <thead><tr><th>نام</th><th>تخصص</th><th>نظام پزشکی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+        <tbody id="docBody"></tbody>
+      </table>
+      <div style="display:grid; grid-template-columns:2fr 2fr 2fr auto; gap:.5rem; margin-top:.8rem;">
+        <input type="text" id="docName" placeholder="نام پزشک جدید">
+        <input type="text" id="docSpec" placeholder="تخصص">
+        <input type="text" id="docNum" placeholder="شماره نظام پزشکی (اختیاری)">
+        <button class="btn-sm btn-success" id="addDocBtn">افزودن</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>👥 کارکنان و نقش‌ها (مدیر مرکز)</h2>
+      <table>
+        <thead><tr><th>نام کاربری</th><th>نقش</th><th>پزشک متصل</th><th>عملیات</th></tr></thead>
+        <tbody id="staffBody"></tbody>
+      </table>
+      <div style="display:grid; grid-template-columns:2fr 2fr 2fr auto; gap:.5rem; margin-top:.8rem;">
+        <input type="text" id="stUser" placeholder="نام کاربری" dir="ltr" style="text-align:left;">
+        <input type="password" id="stPass" placeholder="رمز (حداقل ۸ نویسه)" dir="ltr" style="text-align:left;">
+        <select id="stRole">
+          <option value="reception">مسئول پذیرش — فقط نوبت‌ها</option>
+          <option value="doctor">پزشک — نوبت‌های خودش</option>
+          <option value="manager">مدیر — دسترسی کامل</option>
+        </select>
+        <button class="btn-sm btn-success" id="addStaffBtn">افزودن</button>
+        <select id="staffDocSel" style="display:none; margin-top:.5rem;"><option value="">— پزشک متصل به حساب —</option></select>
+      </div>
+      <p class="alert alert-info" style="margin-top:.6rem;">حساب پذیرش فقط نوبت‌ها را می‌بیند و مدیریت می‌کند؛ حساب پزشک فقط نوبت‌های خودش را می‌بیند و اجازهٔ تغییر تنظیمات ندارد.</p>
+    </div>
+
     <div class="card">
       <h2>ساعات کاری هفتگی</h2>
       <div class="grid-2">
@@ -65,6 +104,8 @@
       <h2>تولید اسلات</h2>
       <div class="grid-2">
         <div>
+          <label>پزشک (درمانگاه‌های چندپزشکی)</label>
+          <select id="slotDoctor"><option value="">عمومی مرکز</option></select>
           <label>از تاریخ</label>
           <input type="date" id="fromDate">
           <label>تا تاریخ</label>
@@ -206,6 +247,146 @@
     const nextWeek = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
     document.getElementById('toDate').value = nextWeek;
 
+    // ==================== v0.11: وضعیت مرکز + پزشکان + کارکنان ====================
+    const ROLE_FA = { manager: 'مدیر', reception: 'مسئول پذیرش', doctor: 'پزشک' };
+    let _myDoctors = [];
+
+    async function loadMe() {
+      const res = await fetch('/api/clinic/me', { headers });
+      if (res.status === 401) { window.location.href = '/clinic/login'; return null; }
+      const me = await res.json();
+      _myDoctors = me.doctors || [];
+      const sel = document.getElementById('slotDoctor');
+      sel.innerHTML = '<option value="">عمومی مرکز</option>' +
+        _myDoctors.map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.specialty)})</option>`).join('');
+      if (me.status !== 'approved' || me.revision_requested || me.status_note) {
+        document.getElementById('statusCard').style.display = '';
+        const fa = { pending: 'در انتظار بررسی', approved: 'تأییدشده', rejected: 'ردشده' };
+        document.getElementById('statusBody').innerHTML = `
+          <p><b>وضعیت:</b> ${fa[me.status] || esc(me.status)}${me.revision_requested ? ' — <b>نیاز به اصلاح</b>' : ''}</p>
+          ${me.status_note ? `<p><b>پاسخ تیم بررسی:</b> ${esc(me.status_note)}</p>` : ''}
+          ${me.revision_requested ? '<p>پس از اصلاح، از صفحهٔ <a href="/register">استعلام وضعیت</a> درخواست را دوباره ارسال کنید یا با پشتیبانی تماس بگیرید.</p>' : ''}`;
+      }
+      return me;
+    }
+
+    async function loadDoctors() {
+      const res = await fetch('/api/clinic/doctors', { headers });
+      if (!res.ok) return;
+      const rows = await res.json();
+      document.getElementById('docBody').innerHTML = rows.map(d => `
+        <tr>
+          <td>${esc(d.full_name)}</td>
+          <td>${esc(d.specialty)}</td>
+          <td dir="ltr">${esc(d.medical_number || '—')}</td>
+          <td>${d.is_active ? 'فعال' : 'غیرفعال'}</td>
+          <td>
+            <button class="btn-sm" onclick="toggleDoc(${d.id}, ${!d.is_active})">${d.is_active ? 'غیرفعال' : 'فعال'}</button>
+            <button class="btn-sm btn-danger" onclick="delDoc(${d.id})">حذف</button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="5">پزشکی ثبت نشده</td></tr>';
+    }
+
+    document.getElementById('addDocBtn').onclick = async () => {
+      const name = document.getElementById('docName').value.trim();
+      const spec = document.getElementById('docSpec').value.trim();
+      const num = document.getElementById('docNum').value.trim();
+      if (!name || !spec) { alert('نام و تخصص پزشک را وارد کنید'); return; }
+      const res = await fetch('/api/clinic/doctors', { method: 'POST', headers,
+        body: JSON.stringify({ full_name: name, specialty: spec, medical_number: num || null }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">پزشک اضافه شد.</div>' : _errHtml(j);
+      if (res.ok) {
+        document.getElementById('docName').value = '';
+        document.getElementById('docSpec').value = '';
+        document.getElementById('docNum').value = '';
+        loadDoctors(); loadMe();
+      }
+    };
+
+    async function toggleDoc(id, active) {
+      await fetch(`/api/clinic/doctors/${id}`, { method: 'PATCH', headers,
+        body: JSON.stringify({ is_active: active }) });
+      loadDoctors();
+    }
+
+    async function delDoc(id) {
+      if (!confirm('حذف/غیرفعال‌سازی پزشک؟ (اگر نوبت ثبت‌شده داشته باشد، فقط غیرفعال می‌شود)')) return;
+      const res = await fetch(`/api/clinic/doctors/${id}`, { method: 'DELETE', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? `<div class="alert alert-success">${esc(j.message || 'انجام شد')}</div>` : _errHtml(j);
+      loadDoctors(); loadMe();
+    }
+
+    async function loadStaff() {
+      const res = await fetch('/api/clinic/staff', { headers });
+      if (!res.ok) return;  // نقش‌های غیرمدیر این بخش را نمی‌بینند
+      const rows = await res.json();
+      document.getElementById('staffBody').innerHTML = rows.map(s => `
+        <tr>
+          <td dir="ltr">${esc(s.username)}</td>
+          <td>${ROLE_FA[s.role] || esc(s.role)}</td>
+          <td>${s.doctor_id ? esc((_myDoctors.find(d => d.id === s.doctor_id) || {}).full_name || s.doctor_id) : '—'}</td>
+          <td><button class="btn-sm btn-danger" onclick="delStaff(${s.id})">حذف</button></td>
+        </tr>`).join('') || '<tr><td colspan="4">حسابی ثبت نشده</td></tr>';
+    }
+
+    document.getElementById('stRole').addEventListener('change', () => {
+      const role = document.getElementById('stRole').value;
+      const sel = document.getElementById('staffDocSel');
+      sel.style.display = role === 'doctor' ? '' : 'none';
+      if (role === 'doctor') {
+        sel.innerHTML = '<option value="">— پزشک متصل به حساب —</option>' +
+          _myDoctors.filter(d => d.is_active).map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.specialty)})</option>`).join('');
+      }
+    });
+
+    document.getElementById('addStaffBtn').onclick = async () => {
+      const username = document.getElementById('stUser').value.trim();
+      const password = document.getElementById('stPass').value;
+      const role = document.getElementById('stRole').value;
+      if (!username || password.length < 8) { alert('نام کاربری و رمز حداقل ۸ نویسه لازم است'); return; }
+      let doctor_id = null;
+      if (role === 'doctor') {
+        doctor_id = parseInt(document.getElementById('staffDocSel').value) || null;
+        if (!doctor_id) { alert('برای حساب پزشک، انتخاب پزشک الزامی است'); return; }
+      }
+      const res = await fetch('/api/clinic/staff', { method: 'POST', headers,
+        body: JSON.stringify({ username, password, role, doctor_id }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">حساب کارمند ساخته شد.</div>' : _errHtml(j);
+      if (res.ok) { loadStaff(); }
+    };
+
+    async function delStaff(id) {
+      if (!confirm('حذف حساب کارمند؟')) return;
+      const res = await fetch(`/api/clinic/staff/${id}`, { method: 'DELETE', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">حساب حذف شد.</div>' : _errHtml(j);
+      loadStaff();
+    }
+
+    // اسلات با انتخاب پزشک
+    const _origGen = document.getElementById('genSlots').onclick;
+    document.getElementById('genSlots').onclick = async () => {
+      const docSel = document.getElementById('slotDoctor').value;
+      const body = { from_date: document.getElementById('fromDate').value,
+                     to_date: document.getElementById('toDate').value };
+      if (docSel) body.doctor_id = parseInt(docSel);
+      const res = await fetch('/api/clinic/slots/generate', { method: 'POST', headers, body: JSON.stringify(body) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? `<div class="alert alert-success">${esc(j.message || 'اسلات‌ها ساخته شد')}</div>` : _errHtml(j);
+      loadAppointments();
+    };
+
+    loadMe();
+    loadDoctors();
+    loadStaff();
     loadWorkingHours();
     loadAppointments();
   </script>

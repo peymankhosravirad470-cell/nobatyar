@@ -5,6 +5,7 @@ Designed for hundreds of clinics in Shiraz.
 
 from datetime import datetime, date, time
 from sqlalchemy import (
+    text,
     Column, Integer, String, Text, Boolean, DateTime, Date, Time, Float,
     ForeignKey, Enum as SAEnum, Index, UniqueConstraint, text
 )
@@ -145,7 +146,24 @@ class Clinic(Base):
         index=True
     )
     subscription_expires_at = Column(DateTime, nullable=True)
-    
+
+    # ---------- v0.11.0: سامانه ثبت‌نام مراکز ----------
+    manager_name = Column(String(100), nullable=True)          # نام مدیر/مسئول مرکز
+    manager_mobile = Column(String(20), nullable=True)          # شماره همراه مسئول
+    landline_phone = Column(String(20), nullable=True)          # تلفن ثابت
+    province = Column(String(50), nullable=True)                # استان
+    city = Column(String(50), nullable=True)                    # شهر
+    working_hours_text = Column(String(500), nullable=True)     # ساعات کاری (متن نمایشی)
+    services_text = Column(String(1000), nullable=True)         # خدمات قابل ارائه
+    booking_method = Column(String(30), nullable=True)          # شیوه نوبت‌دهی: slot | phone | walkin
+    capacity_note = Column(String(500), nullable=True)          # ظرفیت و ساعات قابل رزرو
+    documents_note = Column(String(1000), nullable=True)        # مدارک/مجوزهای اعلام‌شده
+    followup_name = Column(String(100), nullable=True)          # مسئول پیگیری
+    followup_phone = Column(String(20), nullable=True)
+    status_note = Column(String(1000), nullable=True)           # دلیل رد / درخواست اصلاح (ادمین)
+    revision_requested = Column(Boolean, nullable=False, default=False, server_default="0")
+    tracking_code = Column(String(12), unique=True, nullable=True, index=True)  # کد پیگیری متقاضی
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -186,13 +204,22 @@ class AvailableSlot(Base):
     start_datetime = Column(DateTime, nullable=False, index=True)
     end_datetime = Column(DateTime, nullable=False)
     is_booked = Column(Boolean, default=False, nullable=False, index=True)
+    # v0.11.0: اسلات می‌تواند متعلق به یک پزشک مشخص باشد (درمانگاه چندپزشکی)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=True, index=True)
 
     clinic = relationship("Clinic", back_populates="available_slots")
     appointment = relationship("Appointment", back_populates="slot", uselist=False)
 
     __table_args__ = (
         Index("ix_slots_clinic_free", "clinic_id", "is_booked", "start_datetime"),
-        UniqueConstraint("clinic_id", "start_datetime", name="uq_clinic_slot_start"),
+        # v0.11.0: یکتایی جزئی — اسلات عمومی مرکز و اسلات پزشک جداگانه کنترل می‌شوند
+        # تا دو پزشک بتوانند هم‌زمان (یک ساعت) اسلات داشته باشند.
+        Index("uq_slot_generic", "clinic_id", "start_datetime", unique=True,
+              sqlite_where=text("doctor_id IS NULL"),
+              postgresql_where=text("doctor_id IS NULL")),
+        Index("uq_slot_doctor", "clinic_id", "doctor_id", "start_datetime", unique=True,
+              sqlite_where=text("doctor_id IS NOT NULL"),
+              postgresql_where=text("doctor_id IS NOT NULL")),
     )
 
 
@@ -202,6 +229,8 @@ class Appointment(Base):
     id = Column(Integer, primary_key=True, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
     slot_id = Column(Integer, ForeignKey("available_slots.id", ondelete="SET NULL"), nullable=True, index=True)
+    # v0.11.0: پزشک مرتبط با نوبت (از اسلات استخراج می‌شود)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="SET NULL"), nullable=True, index=True)
 
     patient_name = Column(String(100), nullable=False)
     patient_phone = Column(String(20), nullable=False, index=True)
@@ -527,3 +556,50 @@ class MedicationChangeLog(Base):
     old_value = Column(String(255), nullable=True)
     new_value = Column(String(255), nullable=True)
     changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Doctor(Base):
+    """پزشک زیرمجموعهٔ یک مرکز (v0.11.0 — سامانه ثبت‌نام مراکز).
+
+    درمانگاه می‌تواند چند پزشک و چند تخصص داشته باشد؛ مطب تک‌پزشک است
+    (برای مطب هم رکورد پزشک ساخته می‌شود تا جریان‌ها یکسان بماند).
+    """
+    __tablename__ = "doctors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    full_name = Column(String(120), nullable=False)
+    specialty = Column(String(100), nullable=False)
+    medical_number = Column(String(50), nullable=True)   # شماره نظام پزشکی
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_doctors_clinic_active", "clinic_id", "is_active"),
+    )
+
+
+class ClinicStaff(Base):
+    """کارکنان مرکز با نقش تفکیک‌شده (v0.11.0): manager | reception | doctor.
+
+    - manager: کامل (تنظیمات، پزشکان، ساعات، اسلات، نوبت‌ها، گزارش، کارکنان)
+    - reception: مشاهده/مدیریت نوبت‌ها
+    - doctor: مشاهده نوبت‌ها و اسلات‌های خودش
+    ورود ادمینِ مرکز (سازگاری نسخه‌های قبل) همان حساب manager در جدول clinics است.
+    """
+    __tablename__ = "clinic_staff"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(12), nullable=False, default="reception", server_default="reception")
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="SET NULL"), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_staff_clinic_role", "clinic_id", "role"),
+    )

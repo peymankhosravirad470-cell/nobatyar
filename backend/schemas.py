@@ -89,6 +89,7 @@ class GenerateSlotsRequest(BaseModel):
     """تولید اسلات از روی ساعات کاری برای یک بازه تاریخ"""
     from_date: date
     to_date: date
+    doctor_id: Optional[int] = None  # v0.11.0: پزشک مشخص (درمانگاه چندپزشکی)
 
 
 class AvailableSlotOut(BaseModel):
@@ -96,6 +97,7 @@ class AvailableSlotOut(BaseModel):
     start_datetime: datetime
     end_datetime: datetime
     is_booked: bool
+    doctor_id: Optional[int] = None  # v0.11.0
 
     class Config:
         from_attributes = True
@@ -140,6 +142,7 @@ class AppointmentCreate(BaseModel):
 class AppointmentOut(BaseModel):
     id: int
     clinic_id: int
+    doctor_id: Optional[int] = None  # v0.11.0
     patient_name: str
     patient_phone: str
     patient_national_code: Optional[str] = None
@@ -272,3 +275,180 @@ class LabOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------- v0.11.0: سامانه ثبت‌نام مراکز ----------
+
+def _norm_ir_phone(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    cleaned = re.sub(r"[\s\-\(\)]", "", str(v).translate(
+        str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")))
+    if not cleaned:
+        return None
+    if not re.match(r"^(0\d{10}|\+98\d{10}|0\d{10,11})$", cleaned):
+        raise ValueError("شماره تماس معتبر نیست")
+    return cleaned
+
+
+class DoctorIn(BaseModel):
+    """پزشک زیرمجموعهٔ مرکز — در فرم درمانگاه ۱ تا ۲۰ پزشک."""
+    full_name: str = Field(..., min_length=3, max_length=120)
+    specialty: str = Field(..., min_length=2, max_length=100)
+    medical_number: Optional[str] = Field(None, max_length=50)
+
+
+class _BaseCenterRegister(BaseModel):
+    """فیلدهای مشترک دو فرم ثبت‌نام (مطب/درمانگاه)."""
+    name: str = Field(..., min_length=2, max_length=200)
+    specialty: str = Field(..., min_length=2, max_length=100)
+    address: str = Field(..., min_length=10, max_length=1000)
+    province: str = Field("فارس", min_length=2, max_length=50)
+    city: str = Field("شیراز", min_length=2, max_length=50)
+    manager_name: str = Field(..., min_length=3, max_length=100)
+    manager_mobile: str
+    landline_phone: Optional[str] = None
+    followup_name: Optional[str] = Field(None, max_length=100)
+    followup_phone: Optional[str] = None
+    working_hours_text: Optional[str] = Field(None, max_length=500)
+    services_text: Optional[str] = Field(None, max_length=1000)
+    booking_method: str = Field("slot", pattern="^(slot|phone|walkin)$")
+    capacity_note: Optional[str] = Field(None, max_length=500)
+    documents_note: Optional[str] = Field(None, max_length=1000)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+
+    @field_validator("manager_mobile", "landline_phone", "followup_phone")
+    @classmethod
+    def _norm_phones(cls, v):
+        return _norm_ir_phone(v)
+
+
+class OfficeRegister(_BaseCenterRegister):
+    """ثبت‌نام مطب و پزشک (فرم مستقل ۳.۲)."""
+    doctor_name: str = Field(..., min_length=3, max_length=120)      # نام پزشک
+    medical_number: Optional[str] = Field(None, max_length=50)        # شماره نظام پزشکی
+    working_days: Optional[str] = Field(None, max_length=200)         # روزهای فعالیت
+    registration_contact_name: Optional[str] = Field(None, max_length=100)
+    registration_contact_phone: Optional[str] = None
+
+
+class CenterRegister(_BaseCenterRegister):
+    """ثبت‌نام درمانگاه (فرم مستقل ۳.۳) — چند پزشک و چند تخصص زیرمجموعه."""
+    center_type: str = Field("درمانگاه", min_length=2, max_length=60)  # نوع مرکز (متن آزاد کنترل‌شده)
+    departments: Optional[str] = Field(None, max_length=1000)          # بخش‌های فعال
+    doctors: List[DoctorIn] = Field(..., min_length=1, max_length=20)  # فهرست پزشکان
+
+
+class RegistrationCreated(BaseModel):
+    """رسید ثبت درخواست — کد پیگیری برای استعلام وضعیت."""
+    request_id: int
+    tracking_code: str
+    status: str = "pending"
+    message: str = (
+        "درخواست شما ثبت شد و در وضعیت «در انتظار بررسی» است. "
+        "نتیجه بررسی با کد پیگیری قابل استعلام است."
+    )
+
+
+class RegistrationStatusOut(BaseModel):
+    request_id: int
+    status: str
+    revision_requested: bool = False
+    status_note: Optional[str] = None
+    name: str
+    submitted_at: datetime
+
+
+class ApproveIn(BaseModel):
+    login_username: str = Field(..., min_length=4, max_length=50)
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class RejectIn(BaseModel):
+    reason: str = Field(..., min_length=5, max_length=1000)
+
+
+class RevisionIn(BaseModel):
+    reason: str = Field(..., min_length=5, max_length=1000)
+
+
+class DoctorOut(BaseModel):
+    id: int
+    full_name: str
+    specialty: str
+    medical_number: Optional[str] = None
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+class DoctorUpdate(BaseModel):
+    full_name: Optional[str] = Field(None, min_length=3, max_length=120)
+    specialty: Optional[str] = Field(None, min_length=2, max_length=100)
+    medical_number: Optional[str] = Field(None, max_length=50)
+    is_active: Optional[bool] = None
+
+
+class StaffCreate(BaseModel):
+    username: str = Field(..., min_length=4, max_length=50)
+    password: str = Field(..., min_length=8, max_length=128)
+    role: str = Field(..., pattern="^(manager|reception|doctor)$")
+    doctor_id: Optional[int] = None
+
+
+class StaffOut(BaseModel):
+    id: int
+    username: str
+    role: str
+    doctor_id: Optional[int] = None
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+class StaffLogin(BaseModel):
+    username: str
+    password: str
+
+
+class RegistrationAdminOut(BaseModel):
+    """نمایش کامل درخواست برای پنل مدیریت (بدون داده حساس بیمار)."""
+    id: int
+    name: str
+    specialty: str
+    type: str
+    address: str
+    phone: str
+    status: str
+    revision_requested: bool = False
+    status_note: Optional[str] = None
+    doctor_name: Optional[str] = None
+    manager_name: Optional[str] = None
+    manager_mobile: Optional[str] = None
+    landline_phone: Optional[str] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
+    working_hours_text: Optional[str] = None
+    services_text: Optional[str] = None
+    booking_method: Optional[str] = None
+    capacity_note: Optional[str] = None
+    documents_note: Optional[str] = None
+    followup_name: Optional[str] = None
+    followup_phone: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    doctors: List[DoctorOut] = []
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ClinicMeOut(RegistrationAdminOut):
+    """پنل مرکز: اطلاعات کامل خود مرکز + وضعیت اشتراک."""
+    login_username: Optional[str] = None
+    subscription_status: str = "inactive"
+    subscription_expires_at: Optional[datetime] = None

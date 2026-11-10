@@ -3,21 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ثبت‌نام مطب | نوبتیار</title>
+  <title>ثبت‌نام مراکز | نوبتیار</title>
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
-  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="stylesheet" href="/static/css/style.css">
   <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
-
-  <!-- Google tag (gtag.js) — Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-NVWBWMF1E4');
-  </script>
 </head>
 <body>
   <header class="site-header">
@@ -28,75 +18,71 @@
       <nav class="main-nav">
         <a href="/">خانه</a>
         <a href="/book">رزرو نوبت</a>
-        <a href="/register">ثبت‌نام مطب</a>
+        <a href="/register">ثبت‌نام مراکز</a>
+        <a href="/partners">همکاری با مراکز</a>
         <a href="/contact">تماس با ما</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
-    <div class="card" style="max-width: 520px; margin: 2rem auto;">
-      <h2>ثبت‌نام مطب / درمانگاه</h2>
-      <p class="alert alert-info">
-        پس از ثبت‌نام، ادمین درخواست شما را بررسی و تأیید می‌کند. سپس اطلاعات ورود به پنل برایتان ارسال می‌شود.
-      </p>
+    <section class="hero-new" aria-label="ثبت‌نام مراکز" style="margin-bottom:1.5rem;">
+      <h2 style="font-size:1.5rem;">ثبت‌نام در نوبتیار — مسیر خود را انتخاب کنید</h2>
+      <p class="lead">درخواست شما پس از ارسال در وضعیت «در انتظار بررسی» قرار می‌گیرد و پس از تأیید تیم نوبتیار فعال می‌شود. ثبت‌نام به‌معنی تأیید خودکار نیست.</p>
+    </section>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; max-width:900px; margin:0 auto 2rem;">
+      <a class="card" href="/register/office" style="display:block; text-decoration:none; border:2px solid #e2e8f0; border-radius:16px; padding:1.4rem;">
+        <h2 style="margin-bottom:.6rem;">🩺 مطب و پزشک</h2>
+        <p style="color:#475569; line-height:1.9;">برای پزشکان و مطب‌های تک‌پزشک: ثبت مطب، تخصص، ساعات کاری، روزهای فعالیت و خدمات. پس از تأیید، پنل اختصاصی مطب و امکان تعریف نوبت آنلاین فعال می‌شود.</p>
+        <span class="btn" style="display:inline-block; margin-top:.6rem;">ثبت‌نام مطب و پزشک ←</span>
+      </a>
+      <a class="card" href="/register/clinic" style="display:block; text-decoration:none; border:2px solid #e2e8f0; border-radius:16px; padding:1.4rem;">
+        <h2 style="margin-bottom:.6rem;">🏥 درمانگاه</h2>
+        <p style="color:#475569; line-height:1.9;">برای درمانگاه‌ها و مراکز درمانی: ثبت مرکز با چند پزشک و چند تخصص، بخش‌های فعال، ظرفیت رزرو، مجوزها و مسئول پیگیری. پنل نقش‌دار (مدیر، پذیرش، پزشک) دریافت می‌کنید.</p>
+        <span class="btn" style="display:inline-block; margin-top:.6rem;">ثبت‌نام درمانگاه ←</span>
+      </a>
+    </div>
+
+    <div class="card" style="max-width:620px; margin:0 auto 2rem;">
+      <h2>🔎 استعلام وضعیت درخواست</h2>
+      <p class="alert alert-info">کد پیگیری که هنگام ثبت درخواست دریافت کرده‌اید (مثل <b>NB-XXXXXXXX</b>) را همراه شماره درخواست وارد کنید تا وضعیت و پاسخ تیم بررسی را ببینید.</p>
       <div id="msg"></div>
-      <form id="regForm">
-        <label>نام مطب / درمانگاه</label>
-        <input type="text" name="name" required placeholder="مثلاً مطب دکتر احمدی">
-
-        <label>تخصص</label>
-        <input type="text" name="specialty" required placeholder="مثلاً پوست و مو، دندانپزشکی، عمومی">
-
-        <label>آدرس</label>
-        <textarea name="address" rows="2" required placeholder="آدرس کامل در شیراز"></textarea>
-
-        <label>شماره تماس</label>
-        <input type="tel" name="phone" required placeholder="۰۷۱xxxxxxx یا ۰۹۱xxxxxxxx">
-
-        <button type="submit">ارسال درخواست ثبت‌نام</button>
+      <form id="stForm">
+        <label>شمارهٔ درخواست</label>
+        <input type="number" name="rid" required placeholder="مثلاً 12">
+        <label>کد پیگیری</label>
+        <input type="text" name="code" required placeholder="NB-XXXXXXXX" dir="ltr" style="text-align:left;">
+        <button type="submit" class="btn btn-outline">استعلام وضعیت</button>
       </form>
+      <div id="stResult" style="margin-top:1rem;"></div>
     </div>
   </main>
 
-  <script>
-    // ---------- ضد XSS (اصلاح امنیتی v0.9.2) ----------
-    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-    function _errHtml(json) {
-      let t = 'خطا در ثبت';
-      if (json && Array.isArray(json.detail)) t = 'مقادیر ارسالی نامعتبر است';
-      else if (json && typeof json.detail === 'string') t = json.detail;
-      return `<div class="alert alert-error">${esc(t)}</div>`;
-    }
+  <footer class="site-footer">
+    <div class="container">
+      <p>نوبتیار — سامانه نوبت‌دهی آنلاین پزشکان، مطب‌ها و درمانگاه‌های شیراز</p>
+      <p><a href="/partners">همکاری با مراکز</a> · <a href="/contact">تماس با ما</a> · <a href="https://www.instagram.com/shiraznobatyar/" target="_blank" rel="noopener">اینستاگرام</a></p>
+    </div>
+  </footer>
 
-    document.getElementById('regForm').addEventListener('submit', async (e) => {
+  <script>
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const STATUS_FA = { pending: 'در انتظار بررسی', approved: 'تأیید شده', rejected: 'رد شده' };
+    document.getElementById('stForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const form = e.target;
-      const data = {
-        name: form.name.value.trim(),
-        specialty: form.specialty.value.trim(),
-        address: form.address.value.trim(),
-        phone: form.phone.value.trim()
-      };
-      const msg = document.getElementById('msg');
+      const f = e.target, out = document.getElementById('stResult'), msg = document.getElementById('msg');
+      msg.innerHTML = ''; out.innerHTML = '<div class="alert alert-info">در حال بررسی…</div>';
       try {
-        const res = await fetch('/api/clinics/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          msg.innerHTML = _errHtml(json);
-          return;
-        }
-        msg.innerHTML = `<div class="alert alert-success">درخواست شما با موفقیت ثبت شد (کد: ${json.id}). منتظر تأیید ادمین بمانید.</div>`;
-        form.reset();
-      } catch (err) {
-        msg.innerHTML = `<div class="alert alert-error">خطای شبکه</div>`;
-      }
+        const res = await fetch(`/api/clinics/requests/${encodeURIComponent(f.rid.value)}/status?code=${encodeURIComponent(f.code.value.trim())}`);
+        const j = await res.json();
+        if (!res.ok) { out.innerHTML = `<div class="alert alert-error">${esc(typeof j.detail === 'string' ? j.detail : 'یافت نشد')}</div>`; return; }
+        const note = j.status_note ? `<p><b>پاسخ تیم بررسی:</b> ${esc(j.status_note)}</p>` : '';
+        const hint = (j.status === 'rejected') ? '<p>برای ثبت‌نام مجدد می‌توانید از فرم مربوطه استفاده کنید.</p>'
+          : (j.revision_requested ? '<p>لطفاً موارد اعلام‌شده را اصلاح و از طریق فرم همان مسیر، درخواست را دوباره ارسال کنید.</p>' : '');
+        out.innerHTML = `<div class="alert ${j.status === 'approved' ? 'alert-success' : 'alert-info'}">
+          <p><b>${esc(j.name)}</b> — وضعیت: <b>${STATUS_FA[j.status] || esc(j.status)}</b></p>${note}${hint}</div>`;
+      } catch (err) { out.innerHTML = '<div class="alert alert-error">خطای شبکه</div>'; }
     });
   </script>
 </body>

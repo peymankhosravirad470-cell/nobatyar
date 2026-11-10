@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ثبت‌نام مطب و پزشک | نوبتیار</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark"></picture><span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span></a>
+      <input type="checkbox" id="navtg" class="nav-check" aria-hidden="true">
+      <label for="navtg" class="nav-burger" aria-label="باز و بسته کردن منو"><span></span><span></span><span></span></label>
+      <nav class="main-nav">
+        <a href="/">خانه</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/register">ثبت‌نام مراکز</a>
+        <a href="/partners">همکاری با مراکز</a>
+        <a href="/contact">تماس با ما</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card" style="max-width:680px; margin:2rem auto;">
+      <h2>🩺 ثبت‌نام مطب و پزشک</h2>
+      <p class="alert alert-info">فرم مخصوص پزشکان و مطب‌های تک‌پزشک است. اگر درمانگاه یا مرکز چندپزشکی دارید، از <a href="/register/clinic">فرم ثبت‌نام درمانگاه</a> استفاده کنید. پس از ارسال، کد پیگیری دریافت می‌کنید و درخواست شما «در انتظار بررسی» خواهد بود.</p>
+      <div id="msg"></div>
+      <form id="regForm">
+        <h3 style="margin:.8rem 0 .4rem;">اطلاعات پزشک و مطب</h3>
+        <label>نام پزشک *</label>
+        <input type="text" name="doctor_name" required placeholder="مثلاً دکتر زهرا رضایی" maxlength="120">
+        <label>تخصص *</label>
+        <input type="text" name="specialty" required placeholder="مثلاً قلب و عروق" maxlength="100">
+        <label>شماره نظام پزشکی (در صورت تمایل به اعتبارسنجی سریع‌تر)</label>
+        <input type="text" name="medical_number" placeholder="مثلاً ۸۲۳۴۵" maxlength="50">
+        <label>نام مطب *</label>
+        <input type="text" name="name" required placeholder="مثلاً مطب دکتر رضایی" maxlength="200">
+
+        <h3 style="margin:1rem 0 .4rem;">تماس و مسئول ثبت‌نام</h3>
+        <label>شماره تماس مطب (ثابت) *</label>
+        <input type="tel" name="landline_phone" placeholder="0713xxxxxxx">
+        <label>شماره همراه مسئول *</label>
+        <input type="tel" name="manager_mobile" required placeholder="09xxxxxxxxx" maxlength="20">
+        <label>نام و نام خانوادگی مسئول ثبت‌نام *</label>
+        <input type="text" name="manager_name" required maxlength="100" placeholder="مثلاً دکتر زهرا رضایی">
+        <label>اطلاعات مسئول پیگیری (اختیاری)</label>
+        <input type="text" name="followup_name" maxlength="100" placeholder="نام مسئول پیگیری — اختیاری">
+        <input type="tel" name="followup_phone" placeholder="شماره همراه مسئول پیگیری — اختیاری" style="margin-top:.4rem;">
+
+        <h3 style="margin:1rem 0 .4rem;">آدرس و موقعیت</h3>
+        <label>استان *</label>
+        <input type="text" name="province" value="فارس" required maxlength="50">
+        <label>شهر *</label>
+        <input type="text" name="city" value="شیراز" required maxlength="50">
+        <label>نشانی کامل *</label>
+        <textarea name="address" rows="2" required placeholder="خیابان، کوچه، پلاک، طبقه" maxlength="1000"></textarea>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.8rem;">
+          <div><label>عرض جغرافیایی (اختیاری)</label><input type="number" step="any" name="latitude" placeholder="29.5918"></div>
+          <div><label>طول جغرافیایی (اختیاری)</label><input type="number" step="any" name="longitude" placeholder="52.5837"></div>
+        </div>
+
+        <h3 style="margin:1rem 0 .4rem;">برنامهٔ کاری و خدمات</h3>
+        <label>روزهای فعالیت *</label>
+        <input type="text" name="working_days" required placeholder="مثلاً شنبه، دوشنبه، چهارشنبه" maxlength="200">
+        <label>ساعات کاری *</label>
+        <input type="text" name="working_hours_text" required placeholder="مثلاً ۱۷ تا ۲۰" maxlength="500">
+        <label>خدمات و نوع نوبت‌دهی</label>
+        <textarea name="services_text" rows="2" placeholder="مثلاً ویزیت، مشاوره، پیگیری درمان" maxlength="1000"></textarea>
+        <label>شیوهٔ نوبت‌دهی *</label>
+        <select name="booking_method">
+          <option value="slot">نوبت آنلاین با ساعت مشخص (اسلات)</option>
+          <option value="phone">نوبت تلفنی (نمایش شماره تماس)</option>
+          <option value="walkin">حضوری</option>
+        </select>
+        <label>ظرفیت و نکات رزرو (اختیاری)</label>
+        <textarea name="capacity_note" rows="2" placeholder="مثلاً روزانه ۱۲ نوبت ۳۰ دقیقه‌ای" maxlength="500"></textarea>
+
+        <h3 style="margin:1rem 0 .4rem;">مدارک برای بررسی</h3>
+        <label>مدارک و مجوزها (شماره و عنوان)</label>
+        <textarea name="documents_note" rows="2" placeholder="مثلاً پروانه مطب شماره ...، کارت نظام پزشکی شماره ..." maxlength="1000"></textarea>
+
+        <button type="submit" style="margin-top:1rem;">ارسال درخواست ثبت‌نام مطب</button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>نوبتیار — سامانه نوبت‌دهی آنلاین پزشکان، مطب‌ها و درمانگاه‌های شیراز</p>
+      <p><a href="/partners">همکاری با مراکز</a> · <a href="/contact">تماس با ما</a> · <a href="https://www.instagram.com/shiraznobatyar/" target="_blank" rel="noopener">اینستاگرام</a></p>
+    </div>
+  </footer>
+
+  <script>
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    function _errHtml(json) {
+      let t = 'خطا در ثبت';
+      if (json && Array.isArray(json.detail)) {
+        const d = json.detail[0];
+        t = d.msg === 'Field required' ? 'همهٔ فیلدهای ستاره‌دار را کامل کنید' : 'مقادیر ارسالی نامعتبر است';
+      } else if (json && typeof json.detail === 'string') t = json.detail;
+      return `<div class="alert alert-error">${esc(t)}</div>`;
+    }
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target, msg = document.getElementById('msg');
+      const v = n => (f[n] && f[n].value.trim()) || null;
+      const data = {
+        name: f.name.value.trim(), specialty: f.specialty.value.trim(),
+        address: f.address.value.trim(), province: f.province.value.trim(),
+        city: f.city.value.trim(), manager_name: f.manager_name.value.trim(),
+        manager_mobile: f.manager_mobile.value.trim(),
+        landline_phone: v('landline_phone'), followup_name: v('followup_name'),
+        followup_phone: v('followup_phone'),
+        working_hours_text: f.working_hours_text.value.trim(),
+        services_text: v('services_text'), booking_method: f.booking_method.value,
+        capacity_note: v('capacity_note'), documents_note: v('documents_note'),
+        latitude: f.latitude.value ? parseFloat(f.latitude.value) : null,
+        longitude: f.longitude.value ? parseFloat(f.longitude.value) : null,
+        doctor_name: f.doctor_name.value.trim(), medical_number: v('medical_number'),
+        working_days: f.working_days.value.trim(),
+      };
+      try {
+        const res = await fetch('/api/clinics/register/office', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const j = await res.json();
+        if (!res.ok) { msg.innerHTML = _errHtml(j); window.scrollTo({top:0, behavior:'smooth'}); return; }
+        f.style.display = 'none';
+        msg.innerHTML = `<div class="alert alert-success">
+          <h3>✅ درخواست شما ثبت شد</h3>
+          <p>کد پیگیری: <b dir="ltr" style="font-size:1.2rem;">${esc(j.tracking_code)}</b> — شمارهٔ درخواست: <b>${j.request_id}</b></p>
+          <p>وضعیت فعلی: «در انتظار بررسی». نتیجهٔ بررسی (تأیید، رد یا درخواست اصلاح) را می‌توانید با کد پیگیری از صفحهٔ <a href="/register">استعلام وضعیت</a> ببینید.</p>
+          <p>پس از تأیید، اطلاعات ورود به پنل مطب برای شما تنظیم و اعلام می‌شود.</p></div>`;
+        window.scrollTo({top:0, behavior:'smooth'});
+      } catch (err) { msg.innerHTML = '<div class="alert alert-error">خطای شبکه — دوباره تلاش کنید</div>'; }
+    });
+  </script>
+</body>
+</html>

@@ -99,6 +99,7 @@ def book_slot_atomic(
         appt = Appointment(
             clinic_id=clinic_id,
             slot_id=slot.id,
+            doctor_id=slot.doctor_id,  # v0.11.0: پزشک نوبت از اسلات (درمانگاه چندپزشکی)
             patient_name=patient_name,
             patient_phone=patient_phone,
             patient_national_code=patient_national_code,
