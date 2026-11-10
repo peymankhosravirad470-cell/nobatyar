@@ -61,6 +61,14 @@
     </div>
 
     <div class="card">
+      <h2>🎬 دادهٔ نمایشی (نسخهٔ ارائه به مراکز)</h2>
+      <p class="alert alert-info" style="margin-bottom:.6rem;">ساخت درمانگاه و مطب «نمونه — نسخه نمایشی» با پزشکان و اسلات‌های آزاد برای ارائهٔ حضوری؛ نوبت آزمایشی ثبت نمی‌شود و مراکز واقعی دست‌نخورده می‌مانند.</p>
+      <button class="btn-sm btn-success" onclick="seedDemo()">ساخت دادهٔ نمایشی</button>
+      <button class="btn-sm btn-danger" onclick="clearDemo()">پاک‌کردن دادهٔ نمایشی</button>
+      <span id="demoMsg" style="margin-right:.6rem;"></span>
+    </div>
+
+    <div class="card">
       <h2>🤝 همراه بیمار (نمای آمار — حریم خصوصی محفوظ)</h2>
       <button class="btn-sm" onclick="loadCompanions()">بروزرسانی</button>
       <p id="compTotal" style="margin:.4rem 0;"></p>
@@ -608,6 +616,23 @@
         ? '<div class="alert alert-success">درخواست اصلاح ثبت شد.</div>'
         : _errHtml(j);
       loadRegistrations('pending');
+    }
+
+    // ==================== v0.11: دادهٔ نمایشی ====================
+    async function seedDemo() {
+      const res = await fetch('/api/admin/demo/seed', { method: 'POST', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('demoMsg').innerHTML = res.ok
+        ? `<span class="alert alert-success" style="padding:.2rem .6rem; display:inline-block;">${esc(j.message || 'انجام شد')} — مراکز: ${j.clinics || 0}، پزشکان: ${j.doctors || 0}، اسلات‌ها: ${j.slots || 0}</span>`
+        : _errHtml(j);
+    }
+    async function clearDemo() {
+      if (!confirm('پاک‌کردن همهٔ مراکز «نمونه — نسخه نمایشی»؟')) return;
+      const res = await fetch('/api/admin/demo/seed', { method: 'DELETE', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('demoMsg').innerHTML = res.ok
+        ? `<span class="alert alert-success" style="padding:.2rem .6rem; display:inline-block;">${esc(j.message)}</span>`
+        : _errHtml(j);
     }
 
     // ==================== v0.11: همراه بیمار (نمای آمار) ====================

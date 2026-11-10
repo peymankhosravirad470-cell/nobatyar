@@ -3,5 +3,11 @@
   "port": 8000,
   "args": [
     "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+  ],
+  "disks": [
+    {
+      "name": "nobatyar-data",
+      "mount": "/app/backups"
+    }
   ]
 }
