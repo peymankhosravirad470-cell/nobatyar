@@ -660,6 +660,36 @@ def gregorian_to_jalali(gy: int, gm: int, gd: int) -> tuple:
     return jy, jm, jd
 
 
+def jalali_to_gregorian(jy: int, jm: int, jd: int) -> tuple:
+    """تبدیل شمسی به میلادی — وارونِ الگوریتم استاندارد gregorian_to_jalali."""
+    jy += 1595
+    days = (-355668 + (365 * jy) + ((jy // 33) * 8) + (((jy % 33) + 3) // 4)
+            + jd + ((jm - 1) * 31 if jm < 7 else ((jm - 7) * 30) + 186))
+    gy = 400 * (days // 146097)
+    days %= 146097
+    if days > 36524:
+        days -= 1
+        gy += 100 * (days // 36524)
+        days %= 36524
+        if days >= 365:
+            days += 1
+    gy += 4 * (days // 1461)
+    days %= 1461
+    if days > 365:
+        gy += (days - 1) // 365
+        days = (days - 1) % 365
+    gd = days + 1
+    g_md = (0, 31, ((gy % 4 == 0 and gy % 100 != 0) or (gy % 400 == 0)) and 29 or 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    gm = 0
+    for i in range(1, 13):
+        if gd <= g_md[i]:
+            gm = i
+            break
+        gd -= g_md[i]
+    return gy, gm, gd
+
+
 TXT_START = (
     "سلام! به نوبتیار خوش آمدید 🩺\n\n"
     "سامانه نوبت‌دهی درمانگاه‌ها و مطب‌های شیراز:\n"
