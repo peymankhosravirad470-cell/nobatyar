@@ -82,8 +82,9 @@ init_db()
 # ---------- ۱) منوی اصلی: ۱۲ گزینه با دکمهٔ همراه بیمار ----------
 home_kb = bale_bot.kb_home()
 home_items = [b["text"] for row in home_kb for b in row]
-home_cbs = [b["callback_data"] for row in home_kb for b in row]
-check("منو: ۱۲ گزینه (۱۱ قبلی + همراه بیمار)", len(home_items) == 12)
+home_cbs = [b["callback_data"] for row in home_kb for b in row
+            if "callback_data" in b]  # دکمهٔ URL وب‌سایت callback ندارد
+check("منو: ۱۳ دکمه (۱۲ گزینهٔ اصلی + دکمهٔ وب‌سایت)", len(home_items) == 13)
 check("منو: دکمهٔ «🤝 همراه بیمار» با callback عین ShirazMedical (start_companion)",
       "🤝 همراه بیمار" in home_items and home_cbs.count("start_companion") == 1)
 check("منو: هر ۱۱ گزینهٔ قبلی حفظ شده‌اند",

@@ -7,7 +7,7 @@
  ۳. تشخیص IP واقعی پشت Load Balancer (آخرین عضو X-Forwarded-For)
  ۴. محدودسازی نرخ مسیرهای عمومی نوشتاری (صندوق پیام) + جداسازی کلید بر پایهٔ IP واقعی
  ۵. سقف فیلد notes نوبت (ضد سوءاستفادهٔ حجمی)
- ۶. نسخهٔ اعلامی /api/health = 0.9.2
+ ۶. نسخهٔ اعلامی /api/health = 0.10.0
  ۷. تلهٔ رگرسیون XSS: قالب‌های پنل باید دادهٔ کاربر را esc() کنند
 
 بدون هیچ تماس شبکه‌ای واقعی و بدون دست‌زدن به دیتابیس تولیدی.
@@ -142,7 +142,7 @@ def test_appointment_notes_max_length():
 
 def test_health_version_bumped():
     r = client.get("/api/health")
-    assert r.json()["version"] == "0.9.2"
+    assert r.json()["version"] == "0.10.0"  # v0.10.0: همراه بیمار
 
 
 # ---------- ۷. تلهٔ رگرسیون XSS ----------
