@@ -47,8 +47,7 @@ import referral as referral_svc
 import meds as meds_svc
 import survey as survey_svc
 import companion_svc as companion_svc
-import companion_svc as companion_svc
-import companion_svc as companion_svc
+import med_log_svc as med_log_svc
 import reminders as remind_svc
 from fa_utils import (
     normalize_fa, fa_digits, valid_national_code, normalize_mobile,
@@ -794,6 +793,9 @@ def kb_home() -> list:
         [
             {"text": "🗂 نوبت‌های من", "callback_data": "myappts"},
             {"text": "⏰ یادآوری دارو", "callback_data": "meds"},
+        ],
+        [
+            {"text": "💊 پرونده دارویی من", "callback_data": "medlog"},
         ],
         [
             {"text": "🤝 همراه بیمار", "callback_data": "start_companion"},
@@ -1848,8 +1850,295 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             db.close()
         if not row:
             return  # رکورد متعلق به این گفتگو نیست یا قبلاً حذف شده — هیچ افشایی نیست
-        await edit(chat_id, message_id, companion_svc.t("deleted"), COMP_END_KB)
+
+    # ==================== پرونده دارویی من (v0.10.1 — طبق سند طراحی medication-log) ====================
+    if data == "medlog":
+        st = _set(chat_id, step="medlog_home", fsm_msg=message_id)
+        cnt = 0
+        db = SessionLocal()
+        try:
+            cnt = med_log_svc.count_for_chat(db, chat_id)
+        finally:
+            db.close()
+        await edit(chat_id, message_id,
+                   "💊 پرونده دارویی من\n\n"
+                   "دفترچهٔ شخصی داروهای شما: ثبت، پیگیری و مرور روند مصرف.\n"
+                   + med_log_svc.DISCLAIMER
+                   + f"\n\nتعداد رکوردها: {fa_digits(cnt)} از {fa_digits(med_log_svc.MED_CAP)}",
+                   [
+                       [{"text": "➕ ثبت داروی جدید", "callback_data": "medlog_add"}],
+                    [{"text": "💊 داروهای فعال", "callback_data": "medlog_active"},
+                     {"text": "📜 سوابق", "callback_data": "medlog_hist"}],
+                    [{"text": "🗑 حذف کامل پرونده", "callback_data": "medlog_delall"}],
+                    [{"text": "🔙 منوی اصلی", "callback_data": "home"}],
+                   ])
         return
+
+    if data == "medlog_add":
+        _set(chat_id, step="medlog_name", fsm_msg=message_id)
+        await edit(chat_id, message_id,
+                   "۱️⃣ نام دارو را بنویسید (۲ تا ۱۲۰ حرف):\n\n" + med_log_svc.DISCLAIMER,
+                   _kb_cancel())
+        return
+
+    if data == "medlog_active":
+        db = SessionLocal()
+        try:
+            rows = med_log_svc.list_active(db, chat_id)
+        finally:
+            db.close()
+        if not rows:
+            await edit(chat_id, message_id,
+                       "💊 داروی فعالی ثبت نشده است.\n\n" + med_log_svc.DISCLAIMER,
+                       [[{"text": "➕ ثبت داروی جدید", "callback_data": "medlog_add"}],
+                        [{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        await edit(chat_id, message_id,
+                   "💊 داروهای فعال شما:\n\n" + med_log_svc.DISCLAIMER,
+                   [[{"text": med.name, "callback_data": f"medlog_card:{r.id}"}] for r in rows]
+                   + [[{"text": "➕ ثبت داروی جدید", "callback_data": "medlog_add"}],
+                      [{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+        return
+
+    if data == "medlog_hist":
+        db = SessionLocal()
+        try:
+            rows = med_log_svc.list_history(db, chat_id)
+        finally:
+            db.close()
+        if not rows:
+            await edit(chat_id, message_id,
+                       "📜 سوابقی (تکمیل‌شده یا متوقف‌شده) وجود ندارد.",
+                       [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        await edit(chat_id, message_id,
+                   "📜 سوابق پرونده دارویی:\n\n" + med_log_svc.DISCLAIMER,
+                   [[{"text": f"{med_log_svc._STATUS_FA.get(r.status, r.status)} — {r.name}",
+                      "callback_data": f"medlog_card:{r.id}"}] for r in rows]
+                   + [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+        return
+
+    if data.startswith("medlog_card:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            row = med_log_svc.get_for_chat(db, chat_id, med_id)
+            body = med_log_svc.card(row) if row else None
+        finally:
+            db.close()
+        if not row:
+            await edit(chat_id, message_id, "⚠️ این رکورد یافت نشد.",
+                       [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        if row.status != "active":
+            await edit(chat_id, message_id, body,
+                       [[{"text": "🕘 تاریخچه تغییرات", "callback_data": f"medlog_histone:{row.id}"}],
+                        [{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        await edit(chat_id, message_id, body,
+                   [[{"text": "✏️ ویرایش", "callback_data": f"medlog_edit:{row.id}"},
+                     {"text": "🕘 تاریخچه", "callback_data": f"medlog_histone:{row.id}"}],
+                    [{"text": "✅ پایان دوره", "callback_data": f"medlog_finish:{row.id}"},
+                     {"text": "⏹ توقف", "callback_data": f"medlog_stop:{row.id}"}],
+                    [{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+        return
+
+    if data.startswith("medlog_edit:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            row = med_log_svc.get_for_chat(db, chat_id, med_id)
+        finally:
+            db.close()
+        if not row or row.status != "active":
+            await edit(chat_id, message_id, "⚠️ این رکورد فعال نیست.",
+                       [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        await edit(chat_id, message_id,
+                   f"✏️ ویرایش «{row.name}» — کدام فیلد؟",
+                   [[{"text": "نام", "callback_data": f"medlog_editf:{row.id}:name"},
+                     {"text": "دوز", "callback_data": f"medlog_editf:{row.id}:dose_amount"}],
+                    [{"text": "تکرار", "callback_data": f"medlog_editf:{row.id}:frequency_value"},
+                     {"text": "تاریخ پایان", "callback_data": f"medlog_editf:{row.id}:end_date"}],
+                    [{"text": "علت", "callback_data": f"medlog_editf:{row.id}:reason"},
+                     {"text": "پزشک", "callback_data": f"medlog_editf:{row.id}:prescriber"}],
+                    [{"text": "توضیحات", "callback_data": f"medlog_editf:{row.id}:notes"}],
+                    [{"text": "🔙 بازگشت", "callback_data": f"medlog_card:{row.id}"}]])
+        return
+
+    if data.startswith("medlog_editf:"):
+        try:
+            med_id, field = data.split(":", 2)[1], data.split(":", 2)[2]
+        except ValueError:
+            return
+        labels = {"name": "نام دارو", "dose_amount": "دوز (مثلاً 2.5)",
+                  "frequency_value": "تکرار (مثلاً صبح و شب)",
+                  "end_date": "تاریخ پایان شمسی (مثلاً 1405/10/01) — برای حذف: -",
+                  "reason": "علت مصرف", "prescriber": "نام پزشک", "notes": "توضیحات"}
+        if field not in labels:
+            return
+        _set(chat_id, step="medlog_editval", med_id=med_id, med_field=field, fsm_msg=message_id)
+        await edit(chat_id, message_id, f"مقدار جدید برای «{labels[field]}» را بنویسید:", _kb_cancel())
+        return
+
+    if data.startswith("medlog_unit:"):
+        _UNIT_CODES = {"u1": "قرص", "u2": "کپسول", "u3": "شربت", "u4": "قطره",
+                       "u5": "آمپول", "u6": "اسپری", "u7": "بیمارستانی", "u0": None}
+        st0 = states.get(chat_id) or {}
+        code = data.split(":", 1)[1]
+        if code not in _UNIT_CODES or st0.get("step") != "medlog_unit":
+            return
+        st = _set(chat_id, step="medlog_freq", med_unit=_UNIT_CODES[code])
+        await edit(chat_id, message_id,
+                   "۳️⃣ زمان/تعداد دفعات مصرف را بنویسید (مثلاً «صبح و شب» یا «هر ۸ ساعت»):",
+                   _kb_cancel())
+        return
+
+    if data.startswith("medlog_finish:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        await edit(chat_id, message_id,
+                   "✅ دورهٔ مصرف این دارو تمام شده؟ رکورد به «تکمیل‌شده» می‌رود (حذف نمی‌شود).",
+                   [[{"text": "✅ بله، پایان دوره", "callback_data": f"medlog_finishok:{med_id}"}],
+                    [{"text": "🔙 بازگشت", "callback_data": f"medlog_card:{med_id}"}]])
+        return
+
+    if data.startswith("medlog_finishok:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            row, res = med_log_svc.set_status(db, chat_id, med_id, "completed")
+        finally:
+            db.close()
+        if not row:
+            return
+        await edit(chat_id, message_id,
+                   ("✅ دارو به «تکمیل‌شده» منتقل شد؛ در سوابق باقی می‌ماند.\n\n" + med_log_svc.DISCLAIMER)
+                   if res == "ok" else "⚠️ این رکورد قبلاً پایان یافته است.",
+                   [[{"text": "💊 داروهای فعال", "callback_data": "medlog_active"}],
+                    [{"text": "🔙 منوی پرونده", "callback_data": "medlog"}]])
+        return
+
+    if data.startswith("medlog_stop:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        await edit(chat_id, message_id,
+                   "⏹ مصرف این دارو را پیش از پایان دوره متوقف می‌کنید؟ (بدون حذف رکورد)",
+                   [[{"text": "⏹ بله، توقف", "callback_data": f"medlog_stopok:{med_id}"}],
+                    [{"text": "🔙 بازگشت", "callback_data": f"medlog_card:{med_id}"}]])
+        return
+
+    if data.startswith("medlog_stopok:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            row, res = med_log_svc.set_status(db, chat_id, med_id, "stopped")
+        finally:
+            db.close()
+        if not row:
+            return
+        await edit(chat_id, message_id,
+                   ("⏹ دارو «متوقف‌شده» شد؛ در سوابق باقی می‌ماند.\n\n" + med_log_svc.DISCLAIMER)
+                   if res == "ok" else "⚠️ این رکورد قبلاً پایان یافته است.",
+                   [[{"text": "💊 داروهای فعال", "callback_data": "medlog_active"}],
+                    [{"text": "🔙 منوی پرونده", "callback_data": "medlog"}]])
+        return
+
+    if data.startswith("medlog_histone:"):
+        try:
+            med_id = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        db = SessionLocal()
+        try:
+            rows = med_log_svc.history_of(db, chat_id, med_id)
+        finally:
+            db.close()
+        if not rows:
+            await edit(chat_id, message_id, "🕘 تغییری ثبت نشده است.",
+                       [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        lines = []
+        for h in rows[:20]:
+            when = h.changed_at.strftime("%Y-%m-%d %H:%M") if h.changed_at else "—"
+            lines.append(f"• {h.field}: {h.old_value or '—'} → {h.new_value or '—'} ({when})")
+        await edit(chat_id, message_id,
+                   "🕘 تاریخچه تغییرات:\n" + "\n".join(lines),
+                   [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+        return
+
+    if data == "medlog_delall":
+        await edit(chat_id, message_id,
+                   "🗑 حذف کامل پرونده دارویی شما؟ این کار همهٔ رکوردها و تاریخچه را "
+                   "برای همیشه پاک می‌کند و بازگشت‌پذیر نیست (حق فراموشی شما).",
+                   [[{"text": "🗑 بله، همه را حذف کن", "callback_data": "medlog_delyes"}],
+                    [{"text": "❌ انصراف", "callback_data": "medlog"}]])
+        return
+
+    if data == "medlog_delyes":
+        db = SessionLocal()
+        try:
+            n = med_log_svc.delete_all_for_chat(db, chat_id)
+        finally:
+            db.close()
+        LOG.info("medlog deleted all for chat=%s count=%d", mask_chat(chat_id), n)
+        await edit(chat_id, message_id,
+                   f"🗑 پرونده دارویی شما کامل حذف شد ({fa_digits(n)} رکورد).",
+                   [[{"text": "🔙 منوی اصلی", "callback_data": "home"}]])
+        return
+
+    if data == "medlog_save":
+        st = states.get(chat_id) or {}
+        if not st.get("medlog_ready"):
+            return
+        db = SessionLocal()
+        try:
+            row, res = med_log_svc.create_medication(
+                db, chat_id,
+                name=st.get("med_name") or "",
+                dose_amount=st.get("med_dose"),
+                dose_unit=st.get("med_unit"),
+                frequency_kind="daily", frequency_value=st.get("med_freq"),
+                start_date=st.get("med_start"),
+                times_of_day=st.get("med_times"),
+                end_date=st.get("med_end"),
+                duration_days=st.get("med_days"),
+                reason=st.get("med_reason"),
+                prescriber=st.get("med_doctor"),
+            )
+        finally:
+            db.close()
+        if not row:
+            msg = {"cap": f"⚠️ سقف {med_log_svc.MED_CAP} دارو پر شده است.",
+                   "bad_name": "⚠️ نام دارو معتبر نیست."}.get(res, "⚠️ ثبت ناموفق بود.")
+            await edit(chat_id, message_id, msg, [[{"text": "🔙 بازگشت", "callback_data": "medlog"}]])
+            return
+        fsm_msg = st.get("fsm_msg")
+        _pop(chat_id)
+        done = "✅ دارو در پروندهٔ شخصی شما ثبت شد.\n\n" + med_log_svc.card(row)
+        if fsm_msg:
+            await edit(chat_id, fsm_msg, done, [[{"text": "💊 پرونده دارویی من", "callback_data": "medlog"}]])
+        else:
+            await send(chat_id, done, [[{"text": "💊 پرونده دارویی من", "callback_data": "medlog"}]])
+        return
+
+    # ---------- یادآوری: دکمه‌های پیام یادآور (مصرف شد/یادآوری مجدد/ویرایش/حذف) ----------
 
     # ---------- یادآوری: دکمه‌های پیام یادآور (مصرف شد/یادآوری مجدد/ویرایش/حذف) ----------
     if data.startswith("medtaken:"):
@@ -2801,6 +3090,121 @@ async def handle_text(chat_id, text: str) -> None:
             await send(chat_id, receipt, COMP_END_KB)
         return
 
+    # ---------- FSM: پرونده دارویی (v0.10.1) ----------
+    if st and st.get("step") == "medlog_name":
+        name = med_log_svc.clean_name(text)
+        if not name:
+            await _prompt(chat_id, "⚠️ نام دارو باید ۲ تا ۱۲۰ حرف باشد. دوباره بنویسید:", _kb_cancel())
+            return
+        _set(chat_id, step="medlog_dose", med_name=name)
+        await _prompt(chat_id, "۲️⃣ دوز مصرف را بنویسید (مثلاً 1 یا 2.5 — برای رد کردن: -):", _kb_cancel())
+        return
+
+    if st and st.get("step") == "medlog_dose":
+        raw = text.strip()
+        dose = med_log_svc.clean_dose(raw) if raw != "-" else None
+        if raw != "-" and not dose:
+            await _prompt(chat_id, "⚠️ دوز فقط عدد است (مثلاً 2.5). دوباره بنویسید یا -: ", _kb_cancel())
+            return
+        _set(chat_id, step="medlog_unit", med_dose=dose)
+        await _prompt(chat_id, "شکل دارویی را انتخاب کنید:",
+                      [[{"text": "قرص", "callback_data": "medlog_unit:u1"},
+                        {"text": "کپسول", "callback_data": "medlog_unit:u2"}],
+                       [{"text": "شربت", "callback_data": "medlog_unit:u3"},
+                        {"text": "قطره", "callback_data": "medlog_unit:u4"}],
+                       [{"text": "آمپول", "callback_data": "medlog_unit:u5"},
+                        {"text": "اسپری", "callback_data": "medlog_unit:u6"}],
+                       [{"text": "بیمارستانی", "callback_data": "medlog_unit:u7"},
+                        {"text": "بدون واحد", "callback_data": "medlog_unit:u0"}],
+                       [{"text": "❌ انصراف", "callback_data": "cancel"}]])
+        return
+
+    if st and st.get("step") == "medlog_freq":
+        freq = med_log_svc.clean_short(text, 120)
+        if not freq or len(freq) < 2:
+            await _prompt(chat_id, "⚠️ زمان مصرف را بنویسید (مثلاً «صبح و شب» یا «هر ۸ ساعت»):", _kb_cancel())
+            return
+        times = []
+        try:
+            import meds as _meds
+            times = _meds.parse_times(text)[:4]
+        except Exception:
+            times = []
+        st = _set(chat_id, step="medlog_start", med_freq=freq,
+                  med_times=",".join(times) if times else None)
+        await _prompt(chat_id, "۴️⃣ تاریخ شروع مصرف (شمسی، مثلاً 1405/08/16):", _kb_cancel())
+        return
+
+    if st and st.get("step") == "medlog_start":
+        d = med_log_svc.parse_jalali_date(text)
+        if not d:
+            await _prompt(chat_id, "⚠️ تاریخ شمسی معتبر نیست (مثلاً 1405/08/16):", _kb_cancel())
+            return
+        _set(chat_id, step="medlog_days", med_start=d)
+        await _prompt(chat_id, "۵️⃣ مدت مصرف چند روز است؟ (عدد — یا - برای بدون پایان مشخص):", _kb_cancel())
+        return
+
+    if st and st.get("step") == "medlog_days":
+        raw = text.strip().translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
+        end_date, days = None, None
+        if raw != "-":
+            if not raw.isdigit() or not (1 <= int(raw) <= 3650):
+                await _prompt(chat_id, "⚠️ یک عدد بین ۱ تا ۳۶۵۰ بنویسید یا - برای بدون پایان:", _kb_cancel())
+                return
+            days = int(raw)
+            end_date = st.get("med_start") + timedelta(days=days)
+        _set(chat_id, step="medlog_reason", med_days=days, med_end=end_date)
+        await _prompt(chat_id, "۶️⃣ علت مصرف (اختیاری — برای رد کردن: -):", _kb_cancel())
+        return
+
+    if st and st.get("step") == "medlog_reason":
+        reason = None if text.strip() in ("-", "") else med_log_svc.clean_short(text, 200)
+        _set(chat_id, step="medlog_doctor", med_reason=reason)
+        await _prompt(chat_id, "۷️⃣ نام پزشک تجویزکننده (اختیاری — برای رد کردن: -):", _kb_cancel())
+        return
+
+    if st and st.get("step") == "medlog_doctor":
+        doctor = None if text.strip() in ("-", "") else med_log_svc.clean_short(text, 120)
+        dose = f"{st.get('med_dose') or ''} {st.get('med_unit') or ''}".strip() or "—"
+        end_j = med_log_svc.fmt_jalali(st.get("med_end")) if st.get("med_end") else "بدون پایان مشخص"
+        _set(chat_id, step="medlog_confirm", med_doctor=doctor, medlog_ready=True)
+        summary = ("📋 خلاصهٔ داروی جدید:\n\n"
+                   f"💊 نام: {st.get('med_name')}\n"
+                   f"دوز: {dose}\n"
+                   f"تکرار: {st.get('med_freq')}\n"
+                   f"شروع: {med_log_svc.fmt_jalali(st.get('med_start'))}\n"
+                   f"پایان: {end_j}\n"
+                   f"علت: {st.get('med_reason') or '—'}\n"
+                   f"پزشک: {doctor or '—'}\n\n"
+                   + med_log_svc.DISCLAIMER)
+        await _prompt(chat_id, summary,
+                      [[{"text": "✅ ثبت دارو", "callback_data": "medlog_save"}],
+                       [{"text": "❌ انصراف", "callback_data": "cancel"}]])
+        return
+
+    if st and st.get("step") == "medlog_editval":
+        med_id, field = st.get("med_id"), st.get("med_field")
+        raw = text.strip()
+        if field == "end_date" and raw == "-":
+            raw = ""
+        db = SessionLocal()
+        try:
+            row, res = med_log_svc.update_field(db, chat_id, med_id, field, raw)
+        finally:
+            db.close()
+        if not row:
+            await _prompt(chat_id, "⚠️ رکورد یافت نشد یا فعال نیست.", None)
+            _pop(chat_id)
+            return
+        if res != "ok":
+            await _prompt(chat_id, "⚠️ مقدار واردشده معتبر نیست. دوباره تلاش کنید:", _kb_cancel())
+            return
+        _pop(chat_id)
+        await send(chat_id, "✅ ویرایش شد و در تاریخچه ثبت شد.\n\n" + med_log_svc.card(row),
+                   [[{"text": "🔙 بازگشت به کارت", "callback_data": f"medlog_card:{med_id}"}]])
+        return
+
+    # ---------- FSM: نظرسنجی — علت نارضایتی (متن عیناً Shiraz Medical) ----------
     # ---------- FSM: نظرسنجی — علت نارضایتی (متن عیناً Shiraz Medical) ----------
     if st and st.get("step") == "survey_reason":
         if len(text.strip()) < 2:

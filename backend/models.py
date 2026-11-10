@@ -480,3 +480,50 @@ class ApptReminderLog(Base):
         UniqueConstraint("appointment_id", "kind", name="uq_appt_rem_once"),
         Index("ix_appt_rem_sent_at", "sent_at"),
     )
+
+
+class PatientMedication(Base):
+    """پرونده دارویی بیمار (v0.10.1 — طبق سند طراحی medication-log؛ مهاجرت 0007).
+
+    دفترچهٔ شخصی دارو: نام، دوز، تکرار، بازهٔ مصرف، علت، پزشک، وضعیت.
+    - دادهٔ سلامتی محرمانه: فقط مالک (chat_id) به دادهٔ خودش می‌رسد (ضد IDOR).
+    - حذف فیزیکی فقط با درخواست صریح بیمار (حق فراموشی)؛ پایان دوره = وضعیت.
+    - هیچ فیلدی از این جدول در لاگ نوشته نمی‌شود.
+    """
+    __tablename__ = "patient_medications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String(50), nullable=False, index=True)  # هویت بیمار در بله
+    name = Column(String(120), nullable=False)
+    dose_amount = Column(String(20), nullable=True)     # «۱»، «2.5»
+    dose_unit = Column(String(20), nullable=True)       # قرص/کپسول/شربت/قطره/آمپول/اسپری/آبکی
+    frequency_kind = Column(String(20), nullable=False, default="daily", server_default="daily")  # daily | interval | weekly
+    frequency_value = Column(String(120), nullable=True)  # «صبح و شب» / «هر ۸ ساعت»
+    times_of_day = Column(String(200), nullable=True)   # «08:00,20:00» (پیش‌پرکنندهٔ یادآور — فاز ۲)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)              # NULL = بدون پایان مشخص
+    duration_days = Column(Integer, nullable=True)
+    reason = Column(String(200), nullable=True)
+    prescriber = Column(String(120), nullable=True)
+    notes = Column(String(500), nullable=True)
+    status = Column(String(12), nullable=False, default="active", server_default="active")  # active | completed | stopped
+    status_changed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_medlog_chat_status", "chat_id", "status"),
+    )
+
+
+class MedicationChangeLog(Base):
+    """تاریخچهٔ تغییرات پرونده دارویی — فقط «چه فیلدی، از چه به چه، کِی»."""
+    __tablename__ = "medication_change_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    medication_id = Column(Integer, ForeignKey("patient_medications.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    field = Column(String(30), nullable=False)
+    old_value = Column(String(255), nullable=True)
+    new_value = Column(String(255), nullable=True)
+    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
