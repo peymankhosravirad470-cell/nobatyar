@@ -68,8 +68,8 @@ TEMP_PHONE = "09123456789"
 # ---------- ۰) مهاجرت: دیتابیس تازه → head = 0006 و جدول موجود ----------
 init_db()
 ver = [r[0] for r in engine.connect().execute(sa_text("SELECT version_num FROM alembic_version")).all()]
-check("مهاجرت: head دیتابیس تازه = 0006_patient_companion",
-      ver == ["0006_patient_companion"])
+check("مهاجرت: head دیتابیس تازه = 0007_medication_log",
+      ver == ["0007_medication_log"])
 check("مهاجرت: جدول patient_companions ساخته شد",
       "patient_companions" in set(sa_inspect(engine).get_table_names()))
 init_db()  # idempotent — نباید خطا دهد
