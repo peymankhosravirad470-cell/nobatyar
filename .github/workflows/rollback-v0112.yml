@@ -1,0 +1,78 @@
+name: rollback-v0112
+# ============================================================
+# بازگشت کنترل‌شدهٔ نوبتیار به v0.11.1 (b1a5d39) — فقط در صورت شکست انتشار.
+#  - فقط release جدید لیارا از سورس b1a5d39 ساخته می‌شود (کد تولید برمی‌گردد)؛
+#  - مخزن و main روی GitHub دست‌نخورده می‌مانند؛
+#  - پایگاه داده دست‌نخورده می‌ماند (در v0.11.2 مهاجرتِ ویرانگر وجود ندارد)؛
+#  - در پایان راستی‌آزمایی با EXPECTED_VERSION=0.11.1 (exit 1 در شکست).
+# اجرا: Actions → rollback-v0112 → Run workflow → مقدار ROLLBACK
+# پیش‌نیاز: Secret ریپو LIARA_API_KEY
+# ============================================================
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "برای تأیید بازگشت، عیناً ROLLBACK را وارد کنید"
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nobatyar-release
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      ROLLBACK_SHA: b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd
+      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY }}
+    steps:
+      - name: گارد تأیید
+        env:
+          CONFIRM: ${{ inputs.confirm }}   # ارجاع با env — بدون تزریق متن ورودی به شل
+        run: |
+          [ "$CONFIRM" = "ROLLBACK" ] || { echo "❌ برای تأیید باید عیناً ROLLBACK وارد شود"; exit 1; }
+
+      # اکشن شخص ثالث: فقط actions/checkout رسمی گیت‌هاب، پین‌شده به SHA مشخص (نسخهٔ v4)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: ذخیرهٔ ابزار ci و رفتن به کامیت v0.11.1
+        run: |
+          cp -r ci /tmp/ci-toolkit
+          git remote set-url origin "https://github.com/${{ github.repository }}.git"
+          git checkout --detach "$ROLLBACK_SHA"
+          git rev-parse HEAD
+
+      - name: بستهٔ سورس v0.11.1
+        run: |
+          cd backend
+          tar --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv*' \
+              -czf /tmp/liara_source.tar.gz .
+
+      - name: دیپلوی بازگشت روی لیارا
+        run: |
+          RELEASE_MESSAGE="Rollback نوبتیار به v0.11.1 (${ROLLBACK_SHA}) — بازگشت کنترل‌شده پس از انتشار ناموفق v0.11.2؛ پایگاه داده دست‌نخورده" \
+          DEPLOY_REPO="$GITHUB_WORKSPACE" \
+          python3 /tmp/ci-toolkit/deploy_liara.py
+
+      - name: راستی‌آزمایی بازگشت به 0.11.1
+        run: |
+          sleep 20
+          VERIFY_EXPECTED_VERSION=0.11.1 bash /tmp/ci-toolkit/postdeploy_verify.sh
+
+      - name: خلاصهٔ بازگشت
+        if: always()
+        run: |
+          {
+            echo "## خلاصهٔ Rollback نوبتیار"
+            echo ""
+            echo "- نسخهٔ تولید پس از بازگشت: **0.11.1** (در صورت سبز بودن راستی‌آزمایی)"
+            echo "- main روی GitHub در v0.11.2 باقی مانده است (مطابق طرح بازگشت ممیزی‌شده)."
+            echo "- پایگاه داده و بکاپ‌های رمزنگاری‌شده دست‌نخورده ماندند."
+          } >> "$GITHUB_STEP_SUMMARY"

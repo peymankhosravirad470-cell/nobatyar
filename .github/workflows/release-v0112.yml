@@ -1,0 +1,141 @@
+name: release-v0112
+# ============================================================
+# انتشار رسمی نوبتیار v0.11.2 — اجرا با workflow_dispatch روی شاخهٔ
+# feat/security-design-v0.11.2 توسط مالک.
+#
+# ترتیب هشت‌گامیِ ممیزی‌شده:
+#   ۱) گارد تأیید پایه (EXPECTED_BASE)
+#   ۳) پیش‌فلایت بکاپ تولید + اثبات بازیابی (پیش از هر تغییر)
+#   ۴) تعویض امن SECRET_KEY با API رسمی لیارا (اختیاری؛ مقدار هرگز نمایش داده نمی‌شود)
+#   ۵ و ۶) گارد origin/main + merge سریع (fast-forward) + push main
+#   ۷) بستهٔ سورس + انتشار لیارا (گاردهای F2: جلوگیری از انتشار تکراری/موازی)
+#   ۸) راستی‌آزمایی پس از انتشار (exit 1 در شکست — اصلاح F1) + خلاصهٔ Release ID
+#
+# پیش‌نیازها (یک‌بار، توسط مالک):
+#   - Settings → Actions → General → Workflow permissions → Read and write
+#   - Secret ریپو: LIARA_API_KEY  (از منوی API پنل لیارا)
+#   - اختیاری برای بکاپ کامل با اثبات بازیابی: ADMIN_USERNAME و ADMIN_PASSWORD
+# ============================================================
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_base:
+        description: "کل SHA پایهٔ v0.11.1 را عیناً وارد کنید"
+        required: true
+        default: ""
+      rotate_secret_key:
+        description: "تعویض SECRET_KEY با API رسمی لیارا (توصیه‌شده؛ مقدار تصادفی و پنهان)"
+        type: boolean
+        default: true
+      skip_backup_preflight:
+        description: "پرش از پیش‌فلایت بکاپ (فقط با اعلام صریح مالک)"
+        type: boolean
+        default: false
+      retry_after_push_failure:
+        description: "تلاش مجدد انتشارِ همان commit پس از push موفق و شکست دیپلوی (بدون merge/push مجدد)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nobatyar-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      EXPECTED_BASE: b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd
+      BRANCH: feat/security-design-v0.11.2
+      LEAKED_KEY_FP: 1aa0b435a5ce
+      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY }}
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+    steps:
+      - name: گارد تأیید پایه
+        env:
+          CONFIRM_BASE: ${{ inputs.confirm_base }}   # ارجاع با env — بدون تزریق متن ورودی به شل
+        run: |
+          [ "$CONFIRM_BASE" = "$EXPECTED_BASE" ] || [ "$CONFIRM_BASE" = "b1a5d39" ] || { echo "❌ مقدار تأیید پایه منطبق نیست — انتشار متوقف شد"; exit 1; }
+
+      # اکشن شخص ثالث: فقط actions/checkout رسمی گیت‌هاب، پین‌شده به SHA مشخص (نسخهٔ v4)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: پاک‌سازی ریموت و هویت گیت
+        run: |
+          git remote set-url origin "https://github.com/${{ github.repository }}.git"
+          git config user.name "nobatyar-release-bot"
+          git config user.email "bot@users.noreply.github.com"
+
+      - name: گام ۳ — پیش‌فلایت بکاپ تولید + اثبات بازیابی
+        if: ${{ inputs.skip_backup_preflight != true }}
+        run: python3 ci/backup_preflight.py
+
+      - name: گام ۴ — تعویض امن SECRET_KEY (API رسمی لیارا؛ مقدار پنهان)
+        if: ${{ inputs.rotate_secret_key == true }}
+        run: python3 ci/rotate_secret_key.py
+
+      - name: گام ۵ و ۶ — گارد origin/main + fast-forward + push main
+        if: ${{ inputs.retry_after_push_failure != true }}
+        run: |
+          ORIGIN_MAIN=$(git rev-parse origin/main)
+          echo "origin/main=$ORIGIN_MAIN"
+          [ "$ORIGIN_MAIN" = "$EXPECTED_BASE" ] || { echo "❌ origin/main روی نقطهٔ مورد انتظار نیست — انتشار متوقف شد"; exit 1; }
+          git merge-base --is-ancestor "$ORIGIN_MAIN" "$BRANCH" || { echo "❌ شاخه مبدأ را دربر نمی‌گیرد"; exit 1; }
+          BASE_SHA=$(git rev-parse "$BRANCH")
+          echo "release branch head = $BASE_SHA"
+          git checkout -B main origin/main
+          git merge --ff-only "$BRANCH" || { echo "❌ fast-forward ممکن نشد — متوقف شد"; exit 1; }
+          [ "$(git rev-parse main)" = "$BASE_SHA" ] || { echo "❌ SHA بعد از merge نامنتظره است"; exit 1; }
+          git push origin main
+          echo "RELEASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: گارد تلاش مجدد پس از push موفق و شکست دیپلوی
+        if: ${{ inputs.retry_after_push_failure == true }}
+        run: |
+          # فقط وقتی مجاز است که origin/main دقیقاً روی سرِ شاخهٔ تأییدشده باشد
+          # (یعنی push قبلی انجام شده ولی دیپلوی شکست خورده)؛ وگرنه متوقف می‌شود.
+          [ "$(git rev-parse origin/main)" = "$(git rev-parse "$BRANCH")" ] || { echo "❌ این حالت فقط برای تلاش مجددِ همان commit تأییدشده است — متوقف شد"; exit 1; }
+          git checkout -B main origin/main
+          echo "RELEASE_SHA=$(git rev-parse "$BRANCH")" >> "$GITHUB_ENV"
+
+      - name: گام ۷ — بستهٔ سورس و انتشار لیارا (گاردهای F2)
+        run: |
+          cd backend
+          tar --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv*' \
+              -czf /tmp/liara_source.tar.gz .
+          cd "$GITHUB_WORKSPACE"
+          RELEASE_MESSAGE="انتشار v0.11.2 نوبتیار — ممیزی امنیت (رفع نشت مراکز pending، بستن docs/openapi، قفل وابستگی‌ها، throttle ربات) + راه‌های ارتباطی رسمی سایت و ربات + صفحات شرایط/حریم خصوصی + تعویض SECRET_KEY (کامیت ${RELEASE_SHA})" \
+          DEPLOY_REPO="$GITHUB_WORKSPACE" \
+          python3 ci/deploy_liara.py
+          RID=$(grep -o 'RELEASE CREATED: .*' /tmp/liara_deploy.log | tail -1 | awk '{print $3}')
+          [ -n "$RID" ] || { echo "⚠️ شناسهٔ release از لاگ استخراج نشد"; RID="unknown"; }
+          echo "RELEASE_ID=$RID" >> "$GITHUB_ENV"
+
+      - name: گام ۸ — راستی‌آزمایی پس از انتشار (exit 1 در شکست)
+        run: |
+          sleep 20
+          bash ci/postdeploy_verify.sh
+
+      - name: خلاصهٔ انتشار
+        if: always()
+        run: |
+          {
+            echo "## خلاصهٔ انتشار نوبتیار v0.11.2"
+            echo ""
+            echo "| مورد | مقدار |"
+            echo "| --- | --- |"
+            echo "| RELEASE_SHA | \`${RELEASE_SHA:-—}\` |"
+            echo "| Release ID | \`${RELEASE_ID:-—}\` |"
+            echo "| نسخهٔ فعال | 0.11.2 (در صورت سبز بودن گام ۸) |"
+            echo "| تعویض SECRET_KEY | ${{ inputs.rotate_secret_key }} |"
+            echo "| حالت تلاش مجدد | ${{ inputs.retry_after_push_failure }} |"
+            echo "| نقطهٔ بازگشت | main@${EXPECTED_BASE} (v0.11.1) |"
+            echo ""
+            echo "در صورت شکست: workflow ‹rollback-v0112› را با مقدار ROLLBACK اجرا کنید."
+          } >> "$GITHUB_STEP_SUMMARY"
