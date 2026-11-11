@@ -1,0 +1,42 @@
+# آزمون واقعی Restore در محیط ایزوله — dump واقعی تولید (فقط-خواندنی) در SQLite دورریز runner
+# بدون هیچ تغییری روی Production؛ هیچ PHI در لاگ‌ها نیست (فقط تعداد رکوردها)؛
+# اعتبار ادمین فقط از Secretهای رسمی ریپو تزریق می‌شود و هرگز چاپ نمی‌شود (فقط اثرانگشت sha256[:12]).
+# اجرا: Actions → restore-verify → Run workflow
+name: restore-verify
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nobatyar-restore-verify
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NOBATYAR_SITE: https://shirazhealthtour.ir
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout (SHA پین‌شده — بدون ذخیرهٔ اعتبار)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/security-design-v0.11.2
+          persist-credentials: false
+
+      - name: Python 3.12 (SHA پین‌شده)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: نصب وابستگی‌های قفل‌شده
+        run: pip install -q -r backend/requirements.txt
+
+      - name: آزمون Restore ایزوله با dump واقعی (بدون هیچ تغییری روی تولید)
+        run: python3 ci/restore_test_isolated.py
