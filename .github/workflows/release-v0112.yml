@@ -31,13 +31,13 @@ name: release-v0112
 #   - اختیاری برای بکاپ کامل با اثبات بازیابی: ADMIN_USERNAME و ADMIN_PASSWORD
 #   - اجرا: Actions → release-v0112 → Run workflow (شاخهٔ feat/security-design-v0.11.2)
 #     یا:  gh workflow run release-v0112.yml --ref feat/security-design-v0.11.2 \
-#            -f confirm_base=7acd526360b81d943a3b746a79de82598b0831e2
+#            -f confirm_base=4baa89dba75b3472ab6b86e3ac8f830b1d782f94
 # ============================================================
 on:
   workflow_dispatch:
     inputs:
       confirm_base:
-        description: "SHA کامل ۴۰ کاراکتری پایهٔ پیش از انتشار (7acd526…) — عیناً و بدون کوتاه‌سازی"
+        description: "SHA کامل ۴۰ کاراکتری پایهٔ پیش از انتشار (4baa89d…) — عیناً و بدون کوتاه‌سازی"
         required: true
         default: ""
       rotate_secret_key:
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 100
     env:
-      EXPECTED_BASE: 7acd526360b81d943a3b746a79de82598b0831e2   # وضعیت واقعی main پیش از انتشار (v0.11.1 + toolkit CI) — فقط SHA کامل
+      EXPECTED_BASE: 4baa89dba75b3472ab6b86e3ac8f830b1d782f94   # وضعیت واقعی main پیش از انتشار (v0.11.1 + toolkit CI + دیسک-F3 + backup-verify) — فقط SHA کامل
       BRANCH: feat/security-design-v0.11.2
       NOBATYAR_SITE: https://shirazhealthtour.ir
       LIARA_TOKEN: ${{ secrets.LIARA_API_KEY || secrets.LIARA_API_TOKEN }}
