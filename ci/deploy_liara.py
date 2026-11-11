@@ -320,7 +320,7 @@ def main():
                 last_state = state
             if str(state).upper() in terminal:
                 log(f"TERMINAL STATE: {state}")
-                return 0 if str(state).upper() in {"DEPLOYED", "PUSHED"} else 2
+                return 0 if str(state).upper() in TERMINAL_OK else 2
         else:
             if rc != 401:
                 log(f"poll rc={rc} raw={raw[:150]}")
