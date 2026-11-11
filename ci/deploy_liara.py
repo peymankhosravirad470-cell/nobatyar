@@ -16,10 +16,12 @@ Optional env overrides:
   DEPLOY_REPO          repo used for git_info (default /home/z/my-project/nobatyar;
                        rollback uses a detached worktree path instead)
   DEPLOY_LOCK_FILE     lock file path (default /tmp/nobatyar_deploy.lock)
+
+Self-test without any network:  python3 deploy_liara.py --selftest
 """
 import fcntl, json, os, subprocess, sys, time, datetime
 
-TOKEN = os.environ["LIARA_TOKEN"]
+TOKEN = os.environ.get("LIARA_TOKEN", "")
 APP = "nobatyar"
 ARCHIVE = "/tmp/liara_source.tar.gz"
 API = "https://api.liara.ir"
@@ -87,13 +89,18 @@ def duplicate_guard(last_release, current_commit):
             return f"release همین commit هنوز در وضعیت {state} در جریان است — انتشار موازی ممنوع"
     return None
 
+def sanitize_remote(remote):
+    """هر اعتباری (user:pass / token) داخل URL ریموت باید پیش از ارسال gitInfo به لیارا حذف شود."""
+    if "@" in remote and "://" in remote:
+        return "https://" + remote.split("@", 1)[1]
+    return remote
+
+
 def git_info(repo):
     def git(cmd):
         r = subprocess.run(["git", "-C", repo] + cmd, capture_output=True, text=True)
         return r.stdout.strip() if r.returncode == 0 else None
-    remote = git(["ls-remote", "--get-url"]) or ""
-    if "@" in remote and "://" in remote:
-        remote = "https://" + remote.split("@", 1)[1]
+    remote = sanitize_remote(git(["ls-remote", "--get-url"]) or "")
     return {
         "branch": git(["rev-parse", "--abbrev-ref", "HEAD"]),
         "message": git(["log", "--format=%B", "-n", "1", "HEAD"]),
@@ -105,7 +112,34 @@ def git_info(repo):
                     "name": git(["log", "--format=%aN", "-n", "1", "HEAD"])},
     }
 
+def selftest():
+    """تست توابع خالص بدون هیچ شبکه‌ای: گارد تکراری-F2 و پاک‌سازی URL ریموت."""
+    # duplicate_guard — انتشار تکراری و موازی باید بلاک شود
+    b = duplicate_guard({"_id": "r1", "gitInfo": {"commit": "abc"}, "state": "DEPLOYED"}, "abc")
+    assert b and "تکراری" in b, "انتشار تکراری بلاک نشد"
+    b2 = duplicate_guard({"_id": "r2", "gitInfo": {"commit": "abc"}, "state": "BUILDING"}, "abc")
+    assert b2 and "موازی" in b2, "انتشار موازی بلاک نشد"
+    # release قبلی شکست خورده → انتشار جدید مجاز است
+    assert duplicate_guard({"_id": "r3", "gitInfo": {"commit": "abc"}, "state": "FAILED"}, "abc") is None
+    # commit متفاوت یا اطلاعات ناقص → مجاز
+    assert duplicate_guard({"_id": "r4", "gitInfo": {"commit": "abc"}, "state": "DEPLOYED"}, "xyz") is None
+    assert duplicate_guard({}, "abc") is None
+    assert duplicate_guard(None, "abc") is None
+    # sanitize_remote — هیچ توکنی در URL نباید به gitInfo/لیارا برسد
+    assert sanitize_remote("https://user:secret@github.com/o/r.git") == "https://github.com/o/r.git"
+    assert sanitize_remote("https://x-access-token:ghs_abcdef1234567890@github.com/o/r.git") == "https://github.com/o/r.git"
+    assert sanitize_remote("https://github.com/o/r.git") == "https://github.com/o/r.git"
+    assert sanitize_remote("git@github.com:o/r.git") == "git@github.com:o/r.git"  # SSH بدون :// دست‌نخورده (و در workflow با set-url تمیز می‌شود)
+    print("selftest: ✅ گارد F2 و پاک‌سازی URL ریموت سبز است")
+    return 0
+
+
 def main():
+    if "--selftest" in sys.argv:
+        return selftest()
+    if not TOKEN:
+        log("FAILED: LIARA_TOKEN تنظیم نشده است")
+        return 1
     log("=== deploy script started ===")
 
     # ---- F2 گارد هم‌زمانی: قفل انحصاری ----

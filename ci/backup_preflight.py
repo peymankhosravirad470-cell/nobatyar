@@ -4,9 +4,10 @@
 چه می‌کند:
   A) با توکن لیارا فقط «نامِ» متغیرهای محیطی بکاپ را چک می‌کند
      (NOBATYAR_BACKUP_KEY / NOBATYAR_BACKUP_DIR / NOBATYAR_BACKUP_TIME) — بدون چاپ مقدار؛
-  B) اگر ADMIN_USERNAME و ADMIN_PASSWORD در محیطِ همین فرآیند باشد (از فایل رمز امن
-     استخراج می‌شود، هرگز چاپ نمی‌شود): یک تلاش ورود به /api/admin/login (بدون تکرار —
-     محدودیت نرخ پایدار)، سپس POST /api/admin/backup/run (بکاپ تازهٔ رمزنگاری‌شده روی
+  B) اگر ADMIN_USERNAME و ADMIN_PASSWORD در محیطِ همین فرآیند باشد (از Secret ریپو
+     گیت‌هاب تزریق می‌شود، هرگز چاپ نمی‌شود): یک تلاش ورود به /api/admin/login (بدون تکرار —
+     محدودیت نرخ پایدار)؛ بدنهٔ JSON درخواست از stdin به curl داده می‌شود تا در argv
+     فرآیندها ظاهر نشود؛ سپس POST /api/admin/backup/run (بکاپ تازهٔ رمزنگاری‌شده روی
      دیسک) و GET /api/admin/backup/status که آخرین فایل را رمزگشایی و ساختارش را چک
      می‌کند = اثبات واقعی قابلیت بازیابی با دادهٔ تولید.
 
@@ -40,13 +41,17 @@ def log(msg):
 
 
 def http(method, url, token=None, data=None):
+    # بدنهٔ JSON از stdin به curl داده می‌شود (--data @-) تا رمز/توکن در argv
+    # فرآیند ظاهر نشود؛ خروجی -w همان کد HTTP واقعی است (نه کد خروج curl).
     cmd = ["curl", "-sS", "-m", "90", "-w", "\n%{http_code}", "-X", method]
     if token:
         cmd += ["-H", f"Authorization: Bearer {token}"]
+    stdin_payload = None
     if data is not None:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
+        cmd += ["-H", "Content-Type: application/json", "--data", "@-"]
+        stdin_payload = json.dumps(data)
     cmd.append(url)
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    r = subprocess.run(cmd, input=stdin_payload, capture_output=True, text=True, timeout=120)
     body = r.stdout.strip()
     code = 0
     if body.isdigit():

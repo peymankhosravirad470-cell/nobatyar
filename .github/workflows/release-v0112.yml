@@ -3,28 +3,45 @@ name: release-v0112
 # انتشار رسمی نوبتیار v0.11.2 — اجرا با workflow_dispatch روی شاخهٔ
 # feat/security-design-v0.11.2 توسط مالک.
 #
-# ترتیب هشت‌گامیِ ممیزی‌شده:
-#   ۱) گارد تأیید پایه (EXPECTED_BASE)
-#   ۳) پیش‌فلایت بکاپ تولید + اثبات بازیابی (پیش از هر تغییر)
-#   ۴) تعویض امن SECRET_KEY با API رسمی لیارا (اختیاری؛ مقدار هرگز نمایش داده نمی‌شود)
-#   ۵ و ۶) گارد origin/main + merge سریع (fast-forward) + push main
-#   ۷) بستهٔ سورس + انتشار لیارا (گاردهای F2: جلوگیری از انتشار تکراری/موازی)
-#   ۸) راستی‌آزمایی پس از انتشار (exit 1 در شکست — اصلاح F1) + خلاصهٔ Release ID
+# ترتیب فازها (نسخهٔ ۲ — اصلاح‌شده بر اساس بازبینی مالک):
+#   فاز ۰) گاردهای ورودی: confirm_base فقط-SHA-کامل + حضور LIARA_API_KEY + انحصار حالت‌ها
+#   فاز ۱) checkout رسمی گیت‌هاب (پین‌شده به SHA) + بهداشت گیت
+#   فاز ۲) پیش‌فلایت بکاپ + اثبات بازیابی               ← پیش از هر تغییر
+#   فاز ۳) گارد origin/main + fast-forward + push main
+#          + راستی‌آزمایی push سمت سرور (ls-remote) + حذف توکن از .git/config
+#   فاز ۴) بستهٔ سورس + گارد نشت بسته + انتشار لیارا (گاردهای F2)
+#   فاز ۵) راستی‌آزمایی پس از انتشار v0.11.2 (exit 1 در شکست — اصلاح F1)
+#   فاز ۶) تعویض SECRET_KEY — فقط پس از انتشارِ تأییدشده + راستی‌آزمایی نهایی
+#   فاز ۷) خلاصهٔ انتشار + جدول وضعیت/مسیر بازیابی (همیشه اجرا می‌شود)
+#
+# هر فاز با نشانگر قابل‌تشخیص «PHASE_*: OK|FAILED» در لاگ گزارش می‌شود.
+# شکست هر فاز → توقف فوری workflow؛ فازهای بعدی اجرا نمی‌شوند؛ یعنی شکست
+# push هرگز به تعویض زودهنگام SECRET_KEY نمی‌انجامد (فاز ۶ بعد از فاز ۵ است).
+#
+# حالت‌های ازسرگیری:
+#   retry_after_push_failure=true : push موفق شده ولی دیپلوی/راستی‌آزمایی شکست خورده
+#                                   → بکاپ و push تکرار نمی‌شود؛ دیپلوی + راستی‌آزمایی + تعویض
+#   rotation_only=true            : v0.11.2 منتشر و تأیید شده ولی تعویض کلید شکست خورده
+#                                   → فقط تعویض کلید + راستی‌آزمایی
+#                                     (گارد: نسخهٔ فعال سایت باید همین حالا 0.11.2 باشد)
 #
 # پیش‌نیازها (یک‌بار، توسط مالک):
 #   - Settings → Actions → General → Workflow permissions → Read and write
 #   - Secret ریپو: LIARA_API_KEY  (از منوی API پنل لیارا)
 #   - اختیاری برای بکاپ کامل با اثبات بازیابی: ADMIN_USERNAME و ADMIN_PASSWORD
+#   - اجرا: Actions → release-v0112 → Run workflow (شاخهٔ feat/security-design-v0.11.2)
+#     یا:  gh workflow run release-v0112.yml --ref feat/security-design-v0.11.2 \
+#            -f confirm_base=b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd
 # ============================================================
 on:
   workflow_dispatch:
     inputs:
       confirm_base:
-        description: "کل SHA پایهٔ v0.11.1 را عیناً وارد کنید"
+        description: "SHA کامل ۴۰ کاراکتری پایهٔ v0.11.1 (b1a5d39…) — عیناً و بدون کوتاه‌سازی"
         required: true
         default: ""
       rotate_secret_key:
-        description: "تعویض SECRET_KEY با API رسمی لیارا (توصیه‌شده؛ مقدار تصادفی و پنهان)"
+        description: "تعویض SECRET_KEY پس از انتشارِ تأییدشده (توصیه‌شده؛ مقدار تصادفی و پنهان)"
         type: boolean
         default: true
       skip_backup_preflight:
@@ -32,12 +49,16 @@ on:
         type: boolean
         default: false
       retry_after_push_failure:
-        description: "تلاش مجدد انتشارِ همان commit پس از push موفق و شکست دیپلوی (بدون merge/push مجدد)"
+        description: "ازسرگیری پس از push موفق و شکست دیپلوی (بدون بکاپ و push مجدد)"
+        type: boolean
+        default: false
+      rotation_only:
+        description: "فقط تعویض SECRET_KEY + راستی‌آزمایی (فقط وقتی v0.11.2 فعال است)"
         type: boolean
         default: false
 
 permissions:
-  contents: write
+  contents: write   # کمینهٔ لازم برای push به main — فقط در همین workflow
 
 concurrency:
   group: nobatyar-release
@@ -48,81 +69,157 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 100
     env:
-      EXPECTED_BASE: b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd
+      EXPECTED_BASE: b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd   # v0.11.1 — فقط SHA کامل
       BRANCH: feat/security-design-v0.11.2
-      LEAKED_KEY_FP: 1aa0b435a5ce
+      NOBATYAR_SITE: https://shirazhealthtour.ir
       LIARA_TOKEN: ${{ secrets.LIARA_API_KEY }}
       ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
     steps:
-      - name: گارد تأیید پایه
+      - name: فاز ۰ — گاردهای ورودی (تأیید پایه فقط-SHA-کامل + Secret + انحصار حالت‌ها)
         env:
           CONFIRM_BASE: ${{ inputs.confirm_base }}   # ارجاع با env — بدون تزریق متن ورودی به شل
+          RETRY_MODE: ${{ inputs.retry_after_push_failure }}
+          ROTATE_ONLY: ${{ inputs.rotation_only }}
         run: |
-          [ "$CONFIRM_BASE" = "$EXPECTED_BASE" ] || [ "$CONFIRM_BASE" = "b1a5d39" ] || { echo "❌ مقدار تأیید پایه منطبق نیست — انتشار متوقف شد"; exit 1; }
+          FULL_SHA_RE='^[0-9a-f]{40}$'
+          if ! [[ "$CONFIRM_BASE" =~ $FULL_SHA_RE ]]; then
+            echo "PHASE_GUARD: FAILED reason=confirm_base-باید-SHA-کامل-۴۰-کاراکتری-باشد"; exit 1
+          fi
+          if [ "$CONFIRM_BASE" != "$EXPECTED_BASE" ]; then
+            echo "PHASE_GUARD: FAILED reason=confirm_base-با-پایهٔ-انتشار-منطبق-نیست"; exit 1
+          fi
+          if [ -z "$LIARA_TOKEN" ]; then
+            echo "PHASE_GUARD: FAILED reason=Secret-ریپویی-LIARA_API_KEY-ثبت-نشده-است"; exit 1
+          fi
+          if [ "$RETRY_MODE" = "true" ] && [ "$ROTATE_ONLY" = "true" ]; then
+            echo "PHASE_GUARD: FAILED reason=دو-حالت-ازسرگیری-هم‌زمان-مجاز-نیست"; exit 1
+          fi
+          echo "PHASE_GUARD: OK (تأیید پایه با SHA کامل پذیرفته شد)"
 
-      # اکشن شخص ثالث: فقط actions/checkout رسمی گیت‌هاب، پین‌شده به SHA مشخص (نسخهٔ v4)
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # اکشن رسمی گیت‌هاب، پین‌شده به SHA مشخص (v4.4.0).
+      # persist-credentials: true عمداً — push به main به آن نیاز دارد؛ توکن در فاز ۳
+      # پیش از بسته‌بندی از .git/config حذف می‌شود و گارد نشت بسته (فاز ۴) هر بقایای
+      # توکن داخل آرشیو را صراحتاً blocks می‌کند.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: true
 
-      - name: پاک‌سازی ریموت و هویت گیت
+      - name: بهداشت گیت (URL تمیز بدون اعتبار + هویت commit)
         run: |
           git remote set-url origin "https://github.com/${{ github.repository }}.git"
           git config user.name "nobatyar-release-bot"
           git config user.email "bot@users.noreply.github.com"
 
-      - name: گام ۳ — پیش‌فلایت بکاپ تولید + اثبات بازیابی
-        if: ${{ inputs.skip_backup_preflight != true }}
-        run: python3 ci/backup_preflight.py
+      - name: فاز ۲ — پیش‌فلایت بکاپ + اثبات بازیابی (پیش از هر تغییر)
+        if: ${{ inputs.skip_backup_preflight != true && inputs.retry_after_push_failure != true && inputs.rotation_only != true }}
+        run: |
+          python3 ci/backup_preflight.py
+          echo "PHASE_BACKUP: OK"
 
-      - name: گام ۴ — تعویض امن SECRET_KEY (API رسمی لیارا؛ مقدار پنهان)
-        if: ${{ inputs.rotate_secret_key == true }}
-        run: python3 ci/rotate_secret_key.py
+      - name: فاز ۲ (ازسرگیری) — بکاپ در اجرای قبلی انجام شده است
+        if: ${{ inputs.retry_after_push_failure == true || inputs.rotation_only == true }}
+        run: |
+          echo "PHASE_BACKUP: SKIPPED (حالت ازسرگیری — بکاپِ اجرای قبلی معتبر است)"
 
-      - name: گام ۵ و ۶ — گارد origin/main + fast-forward + push main
-        if: ${{ inputs.retry_after_push_failure != true }}
+      - name: فاز ۳ — گارد origin/main + fast-forward + push main + تأیید سمت سرور
+        if: ${{ inputs.retry_after_push_failure != true && inputs.rotation_only != true }}
         run: |
           ORIGIN_MAIN=$(git rev-parse origin/main)
-          echo "origin/main=$ORIGIN_MAIN"
-          [ "$ORIGIN_MAIN" = "$EXPECTED_BASE" ] || { echo "❌ origin/main روی نقطهٔ مورد انتظار نیست — انتشار متوقف شد"; exit 1; }
-          git merge-base --is-ancestor "$ORIGIN_MAIN" "$BRANCH" || { echo "❌ شاخه مبدأ را دربر نمی‌گیرد"; exit 1; }
-          BASE_SHA=$(git rev-parse "$BRANCH")
-          echo "release branch head = $BASE_SHA"
+          echo "PHASE_PUSH: origin/main=$ORIGIN_MAIN"
+          if [ "$ORIGIN_MAIN" != "$EXPECTED_BASE" ]; then
+            echo "PHASE_PUSH: FAILED reason=main-روی-نقطهٔ-مورد-انتظار-نیست"; exit 1
+          fi
+          RELEASE_SHA=$(git rev-parse "origin/$BRANCH")
+          echo "PHASE_PUSH: release head=$RELEASE_SHA"
+          git merge-base --is-ancestor "$ORIGIN_MAIN" "origin/$BRANCH" || { echo "PHASE_PUSH: FAILED reason=main-دربرگیرندهٔ-شاخه-نیست"; exit 1; }
           git checkout -B main origin/main
-          git merge --ff-only "$BRANCH" || { echo "❌ fast-forward ممکن نشد — متوقف شد"; exit 1; }
-          [ "$(git rev-parse main)" = "$BASE_SHA" ] || { echo "❌ SHA بعد از merge نامنتظره است"; exit 1; }
-          git push origin main
-          echo "RELEASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git merge --ff-only "origin/$BRANCH" || { echo "PHASE_PUSH: FAILED reason=fast-forward-ناممکن-بود"; exit 1; }
+          [ "$(git rev-parse main)" = "$RELEASE_SHA" ] || { echo "PHASE_PUSH: FAILED reason=SHA-بعد-از-merge-نامنتظره-است"; exit 1; }
+          git push origin main || { echo "PHASE_PUSH: FAILED reason=push-به-github-ناموفق-بود"; exit 1; }
+          # راستی‌آزمایی سمت سرور: مرجع main روی GitHub باید دقیقاً همان SHA باشد
+          PUSHED=$(git ls-remote origin "refs/heads/main" | cut -f1)
+          [ "$PUSHED" = "$RELEASE_SHA" ] || { echo "PHASE_PUSH: FAILED reason=push-به-سرور-نرسید ls-remote=$PUSHED"; exit 1; }
+          echo "PHASE_PUSH: OK main@$RELEASE_SHA (تأیید سمت سرور)"
+          echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
+          # حذف توکن احراز گیت‌هاب از پیکربندی، پیش از هرگونه بسته‌بندی و ارسال سورس
+          git config --unset-all "http.https://github.com/.extraheader" || true
 
-      - name: گارد تلاش مجدد پس از push موفق و شکست دیپلوی
+      - name: فاز ۳ (ازسرگیری) — گارد push-انجام‌شده (بدون push مجدد)
         if: ${{ inputs.retry_after_push_failure == true }}
         run: |
-          # فقط وقتی مجاز است که origin/main دقیقاً روی سرِ شاخهٔ تأییدشده باشد
-          # (یعنی push قبلی انجام شده ولی دیپلوی شکست خورده)؛ وگرنه متوقف می‌شود.
-          [ "$(git rev-parse origin/main)" = "$(git rev-parse "$BRANCH")" ] || { echo "❌ این حالت فقط برای تلاش مجددِ همان commit تأییدشده است — متوقف شد"; exit 1; }
-          git checkout -B main origin/main
-          echo "RELEASE_SHA=$(git rev-parse "$BRANCH")" >> "$GITHUB_ENV"
+          RH=$(git rev-parse "origin/$BRANCH")
+          OM=$(git rev-parse origin/main)
+          [ "$OM" = "$RH" ] || { echo "PHASE_RESUME_PUSH: FAILED reason=main-هم‌تراز-سرِ-شاخهٔ-تأییدشده-نیست"; exit 1; }
+          git checkout -B main "origin/$BRANCH"
+          echo "RELEASE_SHA=$RH" >> "$GITHUB_ENV"
+          echo "PHASE_RESUME_PUSH: OK main@$RH (push پیش‌تر انجام شده)"
 
-      - name: گام ۷ — بستهٔ سورس و انتشار لیارا (گاردهای F2)
+      - name: گارد حالت rotation_only — فقط وقتی v0.11.2 همین حالا فعال است
+        if: ${{ inputs.rotation_only == true }}
         run: |
+          LIVE=$(curl -s -m 20 "$NOBATYAR_SITE/api/health" | python3 -c 'import json,sys; sys.stdout.write((json.load(sys.stdin) or {}).get("version",""))' 2>/dev/null || true)
+          [ "$LIVE" = "0.11.2" ] || { echo "PHASE_RESUME_ROTATE: FAILED reason=نسخهٔ-فعال-«$LIVE»-است-نه-0.11.2"; exit 1; }
+          echo "PHASE_RESUME_ROTATE: OK (v0.11.2 فعال — تعویض کلید مجاز است)"
+
+      - name: فاز ۴ — بستهٔ سورس + گارد نشت بسته + انتشار لیارا (گاردهای F2)
+        if: ${{ inputs.rotation_only != true }}
+        run: |
+          [ -n "$RELEASE_SHA" ] || { echo "PHASE_DEPLOY: FAILED reason=RELEASE_SHA-تعریف-نشده-است"; exit 1; }
           cd backend
           tar --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv*' \
+              --exclude='.git' --exclude='.env' --exclude='.env.*' \
               -czf /tmp/liara_source.tar.gz .
           cd "$GITHUB_WORKSPACE"
+          [ -s /tmp/liara_source.tar.gz ] || { echo "PHASE_DEPLOY: FAILED reason=بستهٔ-سورس-ساخته-نشده-است"; exit 1; }
+          # ---- گارد نشت بسته: هیچ اثری از .git/.env یا توکن گیت‌هاب مجاز نیست ----
+          if tar -tzf /tmp/liara_source.tar.gz | grep -E '(^|/)\.git(/|$)|(^|/)\.env'; then
+            echo "PHASE_DEPLOY: FAILED reason=.git-یا-.env-داخل-بسته-است"; exit 1
+          fi
+          rm -rf /tmp/archcheck && mkdir -p /tmp/archcheck
+          tar -xzf /tmp/liara_source.tar.gz -C /tmp/archcheck
+          if grep -rIlnE 'ghs_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|extraheader|AUTHORIZATION: basic' /tmp/archcheck > /tmp/leak_hits.txt; then
+            echo "PHASE_DEPLOY: FAILED reason=الگوی-اعتبار-داخل-بسته-یافت-شد"
+            head -5 /tmp/leak_hits.txt
+            rm -rf /tmp/archcheck /tmp/leak_hits.txt
+            exit 1
+          fi
+          rm -rf /tmp/archcheck /tmp/leak_hits.txt
+          echo "PHASE_DEPLOY: گارد نشت بسته سبز است"
           RELEASE_MESSAGE="انتشار v0.11.2 نوبتیار — ممیزی امنیت (رفع نشت مراکز pending، بستن docs/openapi، قفل وابستگی‌ها، throttle ربات) + راه‌های ارتباطی رسمی سایت و ربات + صفحات شرایط/حریم خصوصی + تعویض SECRET_KEY (کامیت ${RELEASE_SHA})" \
           DEPLOY_REPO="$GITHUB_WORKSPACE" \
           python3 ci/deploy_liara.py
+          echo "PHASE_DEPLOY: OK"
           RID=$(grep -o 'RELEASE CREATED: .*' /tmp/liara_deploy.log | tail -1 | awk '{print $3}')
           [ -n "$RID" ] || { echo "⚠️ شناسهٔ release از لاگ استخراج نشد"; RID="unknown"; }
           echo "RELEASE_ID=$RID" >> "$GITHUB_ENV"
 
-      - name: گام ۸ — راستی‌آزمایی پس از انتشار (exit 1 در شکست)
+      - name: فاز ۵ — راستی‌آزمایی پس از انتشار v0.11.2 (exit 1 در شکست)
+        if: ${{ inputs.rotation_only != true }}
         run: |
           sleep 20
-          bash ci/postdeploy_verify.sh
+          if bash ci/postdeploy_verify.sh; then
+            echo "PHASE_VERIFY: OK (v0.11.2 تأیید شد)"
+          else
+            echo "PHASE_VERIFY: FAILED — انتشار تأیید نمی‌شود؛ تعویض SECRET_KEY انجام نمی‌شود؛ مسیر بازیابی: workflow «rollback-v0112»"
+            exit 1
+          fi
 
-      - name: خلاصهٔ انتشار
+      - name: فاز ۶ — تعویض SECRET_KEY (فقط پس از انتشارِ تأییدشده) + راستی‌آزمایی نهایی
+        if: ${{ inputs.rotate_secret_key == true || inputs.rotation_only == true }}
+        run: |
+          python3 ci/rotate_secret_key.py || { echo "PHASE_ROTATE: FAILED — کلید قدیمی دست‌نخورده مانده است؛ مسیر بازیابی: اجرای مجدد همین workflow با rotation_only=true"; exit 1; }
+          echo "PHASE_ROTATE: OK (کلید تعویض و راستی‌آزمایی شد)"
+          sleep 10
+          if bash ci/postdeploy_verify.sh; then
+            echo "PHASE_FINAL_VERIFY: OK (اپ پس از ری‌استارتِ ناشی از تعویض env سالم است)"
+          else
+            echo "PHASE_FINAL_VERIFY: FAILED — اپ پس از تعویض کلید سالم نیست؛ مسیر بازیابی: workflow «rollback-v0112» + بررسی لاگ لیارا"
+            exit 1
+          fi
+
+      - name: فاز ۷ — خلاصهٔ انتشار و مسیرهای بازیابی
         if: always()
         run: |
           {
@@ -131,11 +228,19 @@ jobs:
             echo "| مورد | مقدار |"
             echo "| --- | --- |"
             echo "| RELEASE_SHA | \`${RELEASE_SHA:-—}\` |"
-            echo "| Release ID | \`${RELEASE_ID:-—}\` |"
-            echo "| نسخهٔ فعال | 0.11.2 (در صورت سبز بودن گام ۸) |"
-            echo "| تعویض SECRET_KEY | ${{ inputs.rotate_secret_key }} |"
-            echo "| حالت تلاش مجدد | ${{ inputs.retry_after_push_failure }} |"
-            echo "| نقطهٔ بازگشت | main@${EXPECTED_BASE} (v0.11.1) |"
+            echo "| Release ID لیارا | \`${RELEASE_ID:-—}\` |"
+            echo "| نسخهٔ فعال | 0.11.2 (فقط با سبز بودن فاز ۵ و ۶) |"
+            echo "| تعویض SECRET_KEY | ${{ inputs.rotate_secret_key }} / فقط-تعویض: ${{ inputs.rotation_only }} |"
+            echo "| نقطهٔ بازگشت تولید | v0.11.1 — main@b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd / لیارا release 6af246caaf4697b4ff0f1fe3 |"
             echo ""
-            echo "در صورت شکست: workflow ‹rollback-v0112› را با مقدار ROLLBACK اجرا کنید."
+            echo "### مسیر بازیابی بر اساس فاز شکست‌خورده"
+            echo ""
+            echo "| فاز شکست‌خورده | وضعیت تولید | مسیر بازیابی |"
+            echo "| --- | --- | --- |"
+            echo "| ۰ گارد ورودی | دست‌نخورده | اصلاح ورودی‌ها و اجرای مجدد |"
+            echo "| ۲ بکاپ | دست‌نخورده | اصلاح و اجرای مجدد |"
+            echo "| ۳ push | main ممکن است جلو رفته باشد؛ تولید همچنان v0.11.1 | اجرای مجدد با retry_after_push_failure=true |"
+            echo "| ۴ دیپلوی | v0.11.1 (release جدید ساخته نشد یا شکست خورد) | اجرای مجدد با retry_after_push_failure=true یا rollback-v0112 |"
+            echo "| ۵ راستی‌آزمایی | v0.11.2 مشکوک | rollback-v0112 (بازگشت به v0.11.1) — تعویض کلید انجام نشده |"
+            echo "| ۶ تعویض کلید | v0.11.2 سالم با کلید قبلی | اجرای مجدد با rotation_only=true |"
           } >> "$GITHUB_STEP_SUMMARY"
