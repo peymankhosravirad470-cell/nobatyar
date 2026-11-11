@@ -18,6 +18,7 @@
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -165,7 +166,15 @@ def main():
     log("اجرای بکاپ فوری روی تولید…")
     code, d = http("POST", f"{SITE}/api/admin/backup/run", token=admin_token)
     if code != 200:
-        log(f"FAILED: اجرای بکاپ ناموفق (HTTP {code})")
+        # عیب‌یابی امن: سرور در detail فقط نوع استثنا را برمی‌گرداند (بدون PHI/رمز).
+        # احتیاط مضاعف: کوتاه‌سازی + پاک‌سازی هر الگوی توکن‌مانند قبل از چاپ.
+        det = d.get("detail") if isinstance(d, dict) else None
+        if isinstance(det, str) and det.strip():
+            det = re.sub(r"(ghs_|ghp_|github_pat_)[A-Za-z0-9_]+", r"\1***", det)
+            det = re.sub(r"Bearer\s+\S+", "Bearer ***", det)[:200]
+            log(f"FAILED: اجرای بکاپ ناموفق (HTTP {code}) — detail={det!r}")
+        else:
+            log(f"FAILED: اجرای بکاپ ناموفق (HTTP {code}) — بدون detail قابل‌چاپ")
         result["backup_run"] = f"failed http={code}"
         with open(OUT, "w") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
