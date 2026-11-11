@@ -349,6 +349,17 @@ th { background: #eef4fc; color: var(--primary); font-weight: 700; }
 .badge-cancelled{ background: #fee2e2; color: #991b1b; }
 .badge-approved { background: #d1fae5; color: #065f46; }
 .badge-rejected { background: #fee2e2; color: #991b1b; }
+/* v0.13.0: وضعیت‌های تکمیلی چرخهٔ عمر نوبت + فهرست انتظار */
+.badge-completed{ background: #dbeafe; color: #1e40af; }
+.badge-no_show  { background: #ffedd5; color: #9a3412; }
+.badge-rescheduled { background: #ede9fe; color: #5b21b6; }
+.badge-wl-waiting  { background: #fef3c7; color: #92400e; }
+.badge-wl-notified { background: #dbeafe; color: #1e40af; }
+.badge-wl-booked   { background: #d1fae5; color: #065f46; }
+.badge-wl-cancelled{ background: #fee2e2; color: #991b1b; }
+.btn-warn { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
+.btn-warn:hover { background: #ffedd5; }
+dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 

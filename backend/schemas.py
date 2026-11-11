@@ -7,7 +7,8 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 import re
 
-from fa_utils import normalize_mobile, valid_national_code
+from fa_utils import normalize_mobile, valid_national_code, valid_name  # noqa: F401
+from models import WAITLIST_SOURCES, WAITLIST_STATUSES  # noqa: F401
 
 
 # ---------- Clinic Registration ----------
@@ -158,7 +159,93 @@ class AppointmentOut(BaseModel):
 
 
 class AppointmentStatusUpdate(BaseModel):
-    status: str  # confirmed | cancelled | completed
+    status: str  # confirmed | cancelled | completed | no_show (v0.13.0)
+    # یادداشت اختیاری مرکز برای تاریخچه (سقف مشخص ضد سوءاستفاده)
+    note: Optional[str] = Field(None, max_length=300)
+
+
+# ---------- v0.13.0: چرخهٔ عمر نوبت + فهرست انتظار ----------
+class RescheduleRequest(BaseModel):
+    """تغییر زمان نوبت از پنل مرکز — نوبت جایگزین روی اسلات آزاد ساخته می‌شود."""
+    new_slot_id: int
+    note: Optional[str] = Field(None, max_length=300)
+
+
+class AppointmentStatusHistoryOut(BaseModel):
+    id: int
+    appointment_id: int
+    old_status: Optional[str] = None
+    new_status: str
+    actor: str
+    note: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WaitlistCreate(BaseModel):
+    """ثبت در فهرست انتظار — از وب (عمومی) یا ثبت تلفنی توسط منشی."""
+    patient_name: str = Field(..., min_length=2, max_length=100)
+    patient_phone: str
+    preferred_date: Optional[date] = None
+    preferred_note: Optional[str] = Field(None, max_length=200)
+    doctor_id: Optional[int] = None
+    source: str = "web"  # web | bale | phone
+
+    @field_validator("patient_phone")
+    @classmethod
+    def _phone(cls, v):
+        n = normalize_mobile(v)
+        if not n:
+            raise ValueError("شمارهٔ موبایل معتبر نیست")
+        return n
+
+    @field_validator("patient_name")
+    @classmethod
+    def _name(cls, v):
+        if not valid_name(v):
+            raise ValueError("نام معتبر نیست")
+        return v.strip()
+
+    @field_validator("source")
+    @classmethod
+    def _source(cls, v):
+        return v if v in WAITLIST_SOURCES else "web"
+
+    @field_validator("preferred_date")
+    @classmethod
+    def _date_not_past(cls, v):
+        if v and v < date.today():
+            raise ValueError("روز دلخواه نمی‌تواند در گذشته باشد")
+        return v
+
+
+class WaitlistOut(BaseModel):
+    id: int
+    clinic_id: int
+    doctor_id: Optional[int] = None
+    patient_name: str
+    patient_phone: str
+    preferred_date: Optional[date] = None
+    preferred_note: Optional[str] = None
+    status: str
+    source: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WaitlistStatusUpdate(BaseModel):
+    status: str  # waiting | notified | booked | cancelled
+
+    @field_validator("status")
+    @classmethod
+    def _valid(cls, v):
+        if v not in WAITLIST_STATUSES:
+            raise ValueError("وضعیت نامعتبر است")
+        return v
 
 
 # ---------- Feedback (صندوق پیشنهادات) ----------

@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0111" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/style.css?v=0111">
+  <link rel="stylesheet" href="/static/css/style.css?v=0130">
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -131,6 +131,64 @@
         <tbody id="apptBody"></tbody>
       </table>
     </div>
+
+    <div class="card">
+      <h2>فهرست انتظار</h2>
+      <p class="muted" style="font-size:.9rem; line-height:1.9;">بیمارانی که زمان دلخواهشان آزاد نبوده است. پس از تماس دستی با بیمار، وضعیت را به‌روز کنید.
+      <b>اعلان خودکار هنوز فعال نیست</b> (وابسته به کانال ارتباطی واقعی) — این بخش جایگزین تماس دستی نیست.</p>
+      <details style="margin-bottom:.8rem;">
+        <summary style="cursor:pointer;">ثبت تلفنی بیمار در فهرست انتظار</summary>
+        <div class="grid-2" style="margin-top:.6rem;">
+          <div>
+            <label for="wlName">نام بیمار</label>
+            <input type="text" id="wlName" maxlength="100">
+            <label for="wlPhone">موبایل</label>
+            <input type="tel" id="wlPhone" dir="ltr" maxlength="15">
+            <label for="wlDate">روز دلخواه (اختیاری)</label>
+            <input type="date" id="wlDate">
+          </div>
+          <div>
+            <label for="wlDoctor">پزشک (اختیاری)</label>
+            <select id="wlDoctor"><option value="">— فرقی ندارد —</option></select>
+            <label for="wlNote">توضیح (مثلاً «بعدازظهر»)</label>
+            <input type="text" id="wlNote" maxlength="200">
+            <button id="addWlBtn" style="margin-top:.5rem;">ثبت در فهرست انتظار</button>
+          </div>
+        </div>
+      </details>
+      <button class="btn-sm" onclick="loadWaitlist()">بروزرسانی</button>
+      <table>
+        <thead>
+          <tr>
+            <th>بیمار</th>
+            <th>موبایل</th>
+            <th>روز دلخواه</th>
+            <th>پزشک</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="wlBody"></tbody>
+      </table>
+    </div>
+
+    <dialog id="reschedDialog" aria-label="تغییر زمان نوبت" style="border:none; border-radius:12px; padding:1.2rem; max-width:420px; width:92%;">
+      <h3 style="margin-top:0;">تغییر زمان نوبت</h3>
+      <p class="muted" style="font-size:.9rem;">زمان آزاد دلخواه را انتخاب کنید. رزرو اتمیک است؛ اگر کسی هم‌زمان آن را بگیرد، پیام می‌گیرید و نوبت قبلی دست‌نخورده می‌ماند.</p>
+      <label for="reschedSlot">زمان آزاد (دو هفتهٔ پیش رو)</label>
+      <select id="reschedSlot" style="width:100%;"></select>
+      <div id="reschedMsg" style="margin-top:.5rem;"></div>
+      <div style="display:flex; gap:.5rem; margin-top:.8rem;">
+        <button id="reschedGo" class="btn-sm btn-success">ثبت تغییر زمان</button>
+        <button class="btn-sm" onclick="document.getElementById('reschedDialog').close()">انصراف</button>
+      </div>
+    </dialog>
+
+    <dialog id="histDialog" aria-label="تاریخچه وضعیت نوبت" style="border:none; border-radius:12px; padding:1.2rem; max-width:520px; width:94%;">
+      <h3 style="margin-top:0;">تاریخچه وضعیت نوبت</h3>
+      <div id="histBody"></div>
+      <button class="btn-sm" style="margin-top:.8rem;" onclick="document.getElementById('histDialog').close()">بستن</button>
+    </dialog>
   </main>
 
   <script>
@@ -204,6 +262,13 @@
         : _errHtml(json);
     };
 
+    const STATUS_FA = {
+      pending: 'در انتظار تأیید', confirmed: 'تأییدشده', cancelled: 'لغوشده',
+      completed: 'انجام‌شده', no_show: 'عدم حضور', rescheduled: 'تغییر زمان'
+    };
+    const ACTOR_FA = { clinic: 'مرکز', system: 'سیستم', patient: 'بیمار' };
+    const WL_FA = { waiting: 'در انتظار', notified: 'اطلاع‌داده شد', booked: 'نوبت گرفته شد', cancelled: 'لغوشده' };
+
     async function loadAppointments() {
       const res = await fetch('/api/clinic/appointments', { headers });
       const list = await res.json();
@@ -212,16 +277,21 @@
         const dt = new Date(a.appointment_datetime).toLocaleString('fa-IR');
         let actions = '';
         if (a.status === 'pending') {
-          actions = `
-            <button class="btn-sm btn-success" onclick="updateStatus(${a.id},'confirmed')">تأیید</button>
-            <button class="btn-sm btn-danger" onclick="updateStatus(${a.id},'cancelled')">لغو</button>
-          `;
+          actions += `<button class="btn-sm btn-success" onclick="updateStatus(${a.id},'confirmed')">تأیید</button> `;
         }
+        if (a.status === 'pending' || a.status === 'confirmed') {
+          actions += `<button class="btn-sm" onclick="openReschedule(${a.id})">تغییر زمان</button> `;
+          actions += `<button class="btn-sm btn-danger" onclick="updateStatus(${a.id},'cancelled')">لغو</button> `;
+        }
+        if (a.status === 'confirmed') {
+          actions += `<button class="btn-sm btn-warn" onclick="updateStatus(${a.id},'no_show')">عدم حضور</button> `;
+        }
+        actions += `<button class="btn-sm" onclick="showHistory(${a.id})">تاریخچه</button>`;
         return `<tr>
           <td>${esc(a.patient_name)}</td>
-          <td>${esc(a.patient_phone)}</td>
+          <td dir="ltr">${esc(a.patient_phone)}</td>
           <td>${dt}</td>
-          <td><span class="badge badge-${a.status}">${a.status}</span></td>
+          <td><span class="badge badge-${a.status}">${STATUS_FA[a.status] || esc(a.status)}</span></td>
           <td>${actions}</td>
         </tr>`;
       }).join('') || '<tr><td colspan="5">نوبتی وجود ندارد</td></tr>';
@@ -232,8 +302,139 @@
         method: 'PATCH', headers,
         body: JSON.stringify({ status })
       });
-      if (res.ok) loadAppointments();
+      if (res.ok) { loadAppointments(); return; }
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = _errHtml(j);
     }
+
+    // ==================== v0.13.0: تغییر زمان + تاریخچه ====================
+    let _reschedId = null;
+
+    async function openReschedule(id) {
+      _reschedId = id;
+      const dlg = document.getElementById('reschedDialog');
+      const sel = document.getElementById('reschedSlot');
+      const msg = document.getElementById('reschedMsg');
+      msg.innerHTML = '';
+      sel.innerHTML = '<option value="">در حال دریافت زمان‌های آزاد…</option>';
+      dlg.showModal();
+      const from = new Date().toISOString().slice(0, 10);
+      const to = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+      const res = await fetch(`/api/clinic/slots?only_free=true&from_date=${from}&to_date=${to}`, { headers });
+      if (!res.ok) {
+        msg.innerHTML = '<div class="alert alert-error">دریافت زمان‌های آزاد ناموفق بود</div>';
+        return;
+      }
+      const slots = await res.json();
+      const free = (slots || []).filter(s => !s.is_booked && new Date(s.start_datetime) > new Date());
+      sel.innerHTML = free.map(s =>
+        `<option value="${s.id}">${new Date(s.start_datetime).toLocaleString('fa-IR')}</option>`
+      ).join('') || '<option value="">زمان آزادی در دو هفتهٔ پیش رو نیست — ابتدا اسلات تولید کنید</option>';
+    }
+
+    document.getElementById('reschedGo').onclick = async () => {
+      if (!_reschedId) return;
+      const slotId = parseInt(document.getElementById('reschedSlot').value);
+      const msg = document.getElementById('reschedMsg');
+      if (!slotId) { msg.innerHTML = '<div class="alert alert-error">یک زمان آزاد انتخاب کنید</div>'; return; }
+      const res = await fetch(`/api/clinic/appointments/${_reschedId}/reschedule`, {
+        method: 'POST', headers, body: JSON.stringify({ new_slot_id: slotId })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        document.getElementById('reschedDialog').close();
+        document.getElementById('msg').innerHTML = '<div class="alert alert-success">زمان نوبت تغییر کرد.</div>';
+        loadAppointments();
+      } else {
+        msg.innerHTML = _errHtml(j);
+        loadAppointments();  // اگر اسلات هم‌زمان گرفته شده بود، فهرست تازه شود
+      }
+    };
+
+    async function showHistory(id) {
+      const dlg = document.getElementById('histDialog');
+      const body = document.getElementById('histBody');
+      body.innerHTML = '<p>در حال دریافت…</p>';
+      dlg.showModal();
+      const res = await fetch(`/api/clinic/appointments/${id}/history`, { headers });
+      if (!res.ok) { body.innerHTML = '<div class="alert alert-error">دریافت تاریخچه ناموفق بود</div>'; return; }
+      const rows = await res.json();
+      body.innerHTML = (rows || []).map(h => {
+        const t = new Date(h.created_at).toLocaleString('fa-IR');
+        const oldSt = h.old_status ? (STATUS_FA[h.old_status] || h.old_status) : '—';
+        const newSt = STATUS_FA[h.new_status] || h.new_status;
+        return `<div style="border-bottom:1px solid #eee; padding:.5rem 0; line-height:1.9;">
+          <b>${t}</b> — ${oldSt} ← <b>${newSt}</b>
+          <small>(${ACTOR_FA[h.actor] || esc(h.actor)})</small>
+          ${h.note ? `<div class="muted" style="font-size:.85rem;">${esc(h.note)}</div>` : ''}
+        </div>`;
+      }).join('') || '<p>تاریخچه‌ای ثبت نشده است.</p>';
+    }
+
+    // ==================== v0.13.0: فهرست انتظار ====================
+    async function loadWaitlist() {
+      const res = await fetch('/api/clinic/waitlist', { headers });
+      if (!res.ok) return;
+      const rows = await res.json();
+      document.getElementById('wlBody').innerHTML = rows.map(w => {
+        const d = w.preferred_date ? new Date(w.preferred_date + 'T00:00:00').toLocaleDateString('fa-IR') : '—';
+        const doc = w.doctor_id ? esc((_myDoctors.find(x => x.id === w.doctor_id) || {}).full_name || 'پزشک #' + w.doctor_id) : '—';
+        let actions = '';
+        if (w.status === 'waiting') {
+          actions += `<button class="btn-sm btn-success" onclick="updateWl(${w.id},'notified')">تماس شد</button> `;
+          actions += `<button class="btn-sm btn-danger" onclick="updateWl(${w.id},'cancelled')">لغو</button>`;
+        } else if (w.status === 'notified') {
+          actions += `<button class="btn-sm btn-success" onclick="updateWl(${w.id},'booked')">نوبت گرفته شد</button> `;
+          actions += `<button class="btn-sm btn-danger" onclick="updateWl(${w.id},'cancelled')">لغو</button>`;
+        }
+        return `<tr>
+          <td>${esc(w.patient_name)}</td>
+          <td dir="ltr">${esc(w.patient_phone)}</td>
+          <td>${d}${w.preferred_note ? ' — ' + esc(w.preferred_note) : ''}</td>
+          <td>${doc}</td>
+          <td><span class="badge badge-wl-${w.status}">${WL_FA[w.status] || esc(w.status)}</span></td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="6">فهرست انتظار خالی است</td></tr>';
+    }
+
+    async function updateWl(id, status) {
+      const res = await fetch(`/api/clinic/waitlist/${id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ status })
+      });
+      if (res.ok) { loadWaitlist(); return; }
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = _errHtml(j);
+    }
+
+    document.getElementById('addWlBtn').onclick = async () => {
+      const name = document.getElementById('wlName').value.trim();
+      const phone = document.getElementById('wlPhone').value.trim();
+      if (!name || !phone) { alert('نام و موبایل بیمار را وارد کنید'); return; }
+      const clinicId = clinicInfo.id;
+      if (!clinicId) { alert('اطلاعات مرکز کامل نیست؛ دوباره وارد شوید'); return; }
+      const body = {
+        patient_name: name,
+        patient_phone: phone,
+        source: 'phone',
+        preferred_date: document.getElementById('wlDate').value || null,
+        preferred_note: document.getElementById('wlNote').value.trim() || null,
+        doctor_id: parseInt(document.getElementById('wlDoctor').value) || null
+      };
+      const res = await fetch(`/api/public/clinics/${clinicId}/waitlist`, {
+        method: 'POST', headers, body: JSON.stringify(body)
+      });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">بیمار به فهرست انتظار اضافه شد.</div>' : _errHtml(j);
+      if (res.ok) {
+        document.getElementById('wlName').value = '';
+        document.getElementById('wlPhone').value = '';
+        document.getElementById('wlDate').value = '';
+        document.getElementById('wlNote').value = '';
+        loadWaitlist();
+      }
+    };
 
     document.getElementById('logoutBtn').onclick = () => {
       localStorage.removeItem('clinic_token');
@@ -259,6 +460,10 @@
       const sel = document.getElementById('slotDoctor');
       sel.innerHTML = '<option value="">عمومی مرکز</option>' +
         _myDoctors.map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.specialty)})</option>`).join('');
+      // v0.13.0: فهرست پزشک در فرم ثبت تلفنی فهرست انتظار
+      const wlSel = document.getElementById('wlDoctor');
+      if (wlSel) wlSel.innerHTML = '<option value="">— فرقی ندارد —</option>' +
+        _myDoctors.filter(d => d.is_active).map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.specialty)})</option>`).join('');
       if (me.status !== 'approved' || me.revision_requested || me.status_note) {
         document.getElementById('statusCard').style.display = '';
         const fa = { pending: 'در انتظار بررسی', approved: 'تأییدشده', rejected: 'ردشده' };
@@ -389,6 +594,7 @@
     loadStaff();
     loadWorkingHours();
     loadAppointments();
+    loadWaitlist();
   </script>
 </body>
 </html>

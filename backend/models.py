@@ -27,10 +27,19 @@ class SubscriptionStatus(str, enum.Enum):
 
 
 class AppointmentStatus(str, enum.Enum):
-    pending = "pending"       # منتظر تأیید مطب
-    confirmed = "confirmed"
-    cancelled = "cancelled"
-    completed = "completed"
+    pending = "pending"              # منتظر تأیید مطب
+    confirmed = "confirmed"          # تأییدشده
+    cancelled = "cancelled"          # لغوشده
+    completed = "completed"          # انجام‌شده
+    # v0.13.0 (بخش ۹ PRD): تکمیل وضعیت‌های شش‌گانه چرخهٔ عمر نوبت
+    no_show = "no_show"              # عدم حضور بیمار
+    rescheduled = "rescheduled"      # زمان تغییر کرد (رکورد قدیمی — نوبت جایگزین ثبت شده است)
+
+
+# v0.13.0: وضعیت‌های قابل اعمال از سوی مرکز در endpoint عمومی وضعیت.
+# «rescheduled» عمداً در این فهرست نیست — فقط از مسیر endpoint تغییر زمان ساخته می‌شود
+# تا همیشه با نوبت جایگزین جفت باشد و نوبت بی‌فرزندِ «تغییرزمان‌شده» معنا نداشته باشد.
+APPOINTMENT_CLINIC_STATUSES = ("confirmed", "cancelled", "completed", "no_show")
 
 
 class AppointmentSource(str, enum.Enum):
@@ -270,6 +279,70 @@ class Appointment(Base):
             postgresql_where=text("slot_id IS NOT NULL AND status <> 'cancelled'"),
             sqlite_where=text("slot_id IS NOT NULL AND status <> 'cancelled'"),
         ),
+    )
+
+
+class AppointmentStatusHistory(Base):
+    """تاریخچهٔ وضعیت نوبت (v0.13.0 — بخش ۹ PRD).
+
+    هر تغییر وضعیت (تأیید/لغو/انجام/عدم حضور/تغییر زمان) یک ردیف ثبت می‌کند؛
+    فقط درج می‌شود و هرگز ویرایش/حذف نمی‌گردد (حسابرسی).
+    هیچ دادهٔ حساس جدیدی ندارد — فقط وضعیت‌ها و یادداشت کوتاه مرکز.
+    """
+    __tablename__ = "appointment_status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    appointment_id = Column(Integer, ForeignKey("appointments.id", ondelete="CASCADE"),
+                            nullable=False, index=True)
+    old_status = Column(String(20), nullable=True)   # NULL = ثبت اولیه
+    new_status = Column(String(20), nullable=False)
+    # چه کسی تغییر داد: clinic (مدیر/منشی/پزشک از پنل) | system | patient
+    actor = Column(String(20), nullable=False, default="clinic", server_default="clinic")
+    note = Column(String(300), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_appt_history_appt_time", "appointment_id", "created_at"),
+    )
+
+
+# وضعیت‌های فهرست انتظار (v0.13.0 — بخش ۹ PRD)
+WAITLIST_STATUSES = ("waiting", "notified", "booked", "cancelled")
+# منبع ثبت فهرست انتظار — «phone» = ثبت حضوری/تلفنی توسط منشی از پنل
+WAITLIST_SOURCES = ("web", "bale", "phone")
+
+
+class WaitlistEntry(Base):
+    """فهرست انتظار نوبت (v0.13.0 — بخش ۹ PRD).
+
+    بیمار وقتی زمان دلخواهش آزاد نیست، در فهرست انتظار مرکز ثبت می‌شود.
+    صداقت: اعلان خودکار هنوز فعال نیست (وابسته به کانال ارتباطی واقعی)؛
+    مرکز در پنل فهرست را می‌بیند و پس از تماس دستی، وضعیت را به‌روز می‌کند.
+    برای هر (تلفن + مرکز) فقط یک ردیف در انتظارِ فعال مجاز است (ضد اسپم).
+    """
+    __tablename__ = "waitlist_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="SET NULL"), nullable=True)
+
+    patient_name = Column(String(100), nullable=False)
+    patient_phone = Column(String(20), nullable=False, index=True)
+    # روز دلخواه (میلادی در دیتابیس، نمایش شمسی در رابط) — اختیاری
+    preferred_date = Column(Date, nullable=True)
+    # توضیح آزاد کوتاه مثل «بعدازظهر» یا «ساعت ۱۷ به بعد»
+    preferred_note = Column(String(200), nullable=True)
+
+    status = Column(String(15), nullable=False, default="waiting",
+                    server_default="waiting", index=True)
+    source = Column(String(10), nullable=False, default="web", server_default="web")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_waitlist_clinic_status", "clinic_id", "status", "preferred_date"),
     )
 
 

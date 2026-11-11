@@ -21,21 +21,27 @@ from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
     Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
-    FeedbackStatus, Doctor
+    FeedbackStatus, Doctor, AppointmentStatusHistory, WaitlistEntry,  # v0.13.0
+    APPOINTMENT_CLINIC_STATUSES, WAITLIST_STATUSES,
 )
 from schemas import (
     ClinicRegister, ClinicOut, ClinicLogin, AdminLogin, ClinicApprove,
     WorkingHourIn, WorkingHourOut, GenerateSlotsRequest, AvailableSlotOut,
     AppointmentCreate, AppointmentOut, AppointmentStatusUpdate,
     FeedbackCreate, FeedbackOut, FeedbackReply, ClinicAdminUpdate,
-    PasswordChange, LabCreate, LabUpdate, LabOut
+    PasswordChange, LabCreate, LabUpdate, LabOut,
+    RescheduleRequest, AppointmentStatusHistoryOut,          # v0.13.0
+    WaitlistCreate, WaitlistOut, WaitlistStatusUpdate,        # v0.13.0
 )
 from auth import (
     hash_password, verify_password, create_access_token,
     get_current_admin, get_current_clinic,
     login_rate_limit, login_register_fail, login_clear, client_ip,
 )
-from booking import book_slot_atomic, BookingError, AppointmentSource
+from booking import (  # noqa: E402
+    book_slot_atomic, BookingError, AppointmentSource,
+    reschedule_appointment_atomic, add_status_history,
+)
 from admin_security import generate_connect_code
 import bale_bot
 import referral
@@ -156,6 +162,7 @@ from rate_limit import SlidingWindow  # noqa: E402
 _feedback_limit = SlidingWindow(max_events=10, window_seconds=3600)
 _register_limit = SlidingWindow(max_events=10, window_seconds=3600)
 _appointment_limit = SlidingWindow(max_events=30, window_seconds=3600)
+_waitlist_limit = SlidingWindow(max_events=8, window_seconds=3600)  # v0.13.0: ضد اسپم فهرست انتظار
 
 
 def _throttle(request: Request, limiter: SlidingWindow) -> None:
@@ -1244,9 +1251,19 @@ def update_appointment_status(
     if not appt:
         raise HTTPException(404, "نوبت یافت نشد")
 
-    valid = {"confirmed", "cancelled", "completed"}
+    # v0.13.0: وضعیت‌های شش‌گانه — «rescheduled» عمداً از این مسیر مجاز نیست؛
+    # تغییر زمان فقط از endpoint اختصاصی انجام می‌شود تا همیشه با نوبت جایگزین جفت باشد.
+    valid = APPOINTMENT_CLINIC_STATUSES
     if data.status not in valid:
         raise HTTPException(400, "وضعیت نامعتبر")
+
+    old_status = appt.status
+    if data.status == "no_show":
+        # صداقت عملیاتی: «عدم حضور» فقط برای نوبتی معنا دارد که وقتش رسیده باشد
+        # (۱۰ دقیقه گره هراسی برای اختلاف ساعت سرور)
+        grace = datetime.utcnow() + timedelta(minutes=10)
+        if appt.appointment_datetime > grace:
+            raise HTTPException(400, "عدم حضور فقط پس از فرا رسیدن وقت نوبت قابل ثبت است")
 
     appt.status = AppointmentStatus(data.status)
 
@@ -1255,6 +1272,9 @@ def update_appointment_status(
         slot = db.query(AvailableSlot).filter(AvailableSlot.id == appt.slot_id).first()
         if slot:
             slot.is_booked = False
+
+    # v0.13.0: تاریخچهٔ وضعیت — هر گذار یک ردیف فقط-درج (حسابرسی)
+    add_status_history(db, appt, old_status, data.status, actor="clinic", note=data.note)
 
     db.commit()
 
@@ -1272,6 +1292,158 @@ def update_appointment_status(
         logging.getLogger("nobatyar").exception("post-status hooks failed appt=%s", appointment_id)
 
     return {"message": "وضعیت به‌روز شد", "status": data.status}
+
+
+# ==================== v0.13.0: چرخهٔ عمر نوبت (بخش ۹ PRD) ====================
+
+@app.get("/api/clinic/appointments/{appointment_id}/history",
+         response_model=List[AppointmentStatusHistoryOut])
+def get_appointment_history(
+    appointment_id: int,
+    context=Depends(centers.clinic_context),
+    db: Session = Depends(get_db),
+):
+    """تاریخچهٔ وضعیت نوبت — پزشک فقط نوبت‌های خودش را می‌بیند."""
+    clinic, role, staff = context
+    q = db.query(Appointment).filter(
+        Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
+    if role == "doctor" and staff and staff.doctor_id:
+        q = q.filter(Appointment.doctor_id == staff.doctor_id)
+    appt = q.first()
+    if not appt:
+        raise HTTPException(404, "نوبت یافت نشد")
+    return db.query(AppointmentStatusHistory).filter(
+        AppointmentStatusHistory.appointment_id == appointment_id
+    ).order_by(AppointmentStatusHistory.created_at.asc()).all()
+
+
+@app.post("/api/clinic/appointments/{appointment_id}/reschedule")
+def reschedule_appointment(
+    appointment_id: int,
+    data: RescheduleRequest,
+    context=Depends(centers.clinic_context),
+    db: Session = Depends(get_db),
+):
+    """تغییر زمان نوبت — اتمیک: رکورد قدیمی «rescheduled» می‌شود و نوبت جایگزین
+    روی اسلات آزاد جدید با قفل شرطی ساخته می‌شود (دو مرکز/دو درخواست هم‌زمان
+    هرگز یک اسلات را نمی‌برند)."""
+    clinic, role, staff = context
+    if role == "doctor":
+        raise HTTPException(403, "پزشک اجازهٔ تغییر زمان نوبت ندارد")
+    appt = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.clinic_id == clinic.id
+    ).first()
+    if not appt:
+        raise HTTPException(404, "نوبت یافت نشد")
+    try:
+        old_appt, new_appt = reschedule_appointment_atomic(
+            db, appt, data.new_slot_id, actor="clinic", note=data.note)
+    except BookingError as e:
+        status_code = 409 if e.code == "slot_taken" else 400
+        raise HTTPException(status_code, e.message)
+    return {
+        "message": "زمان نوبت تغییر کرد",
+        "old_appointment_id": old_appt.id,
+        "new_appointment": AppointmentOut.model_validate(new_appt),
+    }
+
+
+# ==================== v0.13.0: فهرست انتظار (بخش ۹ PRD) ====================
+
+@app.post("/api/public/clinics/{clinic_id}/waitlist", response_model=WaitlistOut)
+def join_waitlist(
+    clinic_id: int,
+    data: WaitlistCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """ثبت بیمار در فهرست انتظار مرکز — عمومی با محدودسازی نرخ.
+
+    صداقت (بدون ادعای نادرست): اعلان خودکار هنوز فعال نیست؛ مرکز فهرست را در
+    پنل می‌بیند و پس از تماس دستی وضعیت را به‌روز می‌کند. این موضوع در پاسخ
+    نیز به بیمار اعلام می‌شود."""
+    _throttle(request, _waitlist_limit)
+
+    clinic = db.query(Clinic).filter(
+        Clinic.id == clinic_id,
+        Clinic.status == ClinicStatus.approved,
+        Clinic.subscription_status == SubscriptionStatus.active,
+    ).first()
+    if not clinic:
+        raise HTTPException(404, "مرکز یافت نشد یا غیرفعال است")
+
+    if data.doctor_id is not None:
+        doc = db.query(Doctor).filter(
+            Doctor.id == data.doctor_id, Doctor.clinic_id == clinic_id,
+            Doctor.is_active == True).first()  # noqa: E712
+        if not doc:
+            raise HTTPException(404, "پزشک یافت نشد یا غیرفعال است")
+
+    # ضد تکرار: برای هر (تلفن + مرکز) فقط یک ردیف در انتظار فعال
+    dup = db.query(WaitlistEntry).filter(
+        WaitlistEntry.clinic_id == clinic_id,
+        WaitlistEntry.patient_phone == data.patient_phone,
+        WaitlistEntry.status.in_(("waiting", "notified")),
+    ).first()
+    if dup:
+        raise HTTPException(409, "شما هم‌اکنون در فهرست انتظار این مرکز ثبت هستید.")
+
+    entry = WaitlistEntry(
+        clinic_id=clinic_id,
+        doctor_id=data.doctor_id,
+        patient_name=data.patient_name,
+        patient_phone=data.patient_phone,
+        preferred_date=data.preferred_date,
+        preferred_note=data.preferred_note,
+        status="waiting",
+        source=data.source,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@app.get("/api/clinic/waitlist", response_model=List[WaitlistOut])
+def list_waitlist(
+    status_filter: Optional[str] = None,
+    context=Depends(centers.clinic_context),
+    db: Session = Depends(get_db),
+):
+    """فهرست انتظار مرکز — پزشک فقط ردیف‌های خودش را می‌بیند."""
+    clinic, role, staff = context
+    q = db.query(WaitlistEntry).filter(WaitlistEntry.clinic_id == clinic.id)
+    if status_filter:
+        if status_filter not in WAITLIST_STATUSES:
+            raise HTTPException(400, "وضعیت نامعتبر")
+        q = q.filter(WaitlistEntry.status == status_filter)
+    if role == "doctor" and staff and staff.doctor_id:
+        q = q.filter(WaitlistEntry.doctor_id == staff.doctor_id)
+    return q.order_by(WaitlistEntry.created_at.desc()).limit(200).all()
+
+
+@app.patch("/api/clinic/waitlist/{entry_id}", response_model=WaitlistOut)
+def update_waitlist_entry(
+    entry_id: int,
+    data: WaitlistStatusUpdate,
+    context=Depends(centers.clinic_context),
+    db: Session = Depends(get_db),
+):
+    """به‌روزرسانی وضعیت فهرست انتظار (تماس دستی مرکز → «notified» و…)."""
+    clinic, role, staff = context
+    if role == "doctor":
+        raise HTTPException(403, "پزشک اجازهٔ تغییر فهرست انتظار ندارد")
+    entry = db.query(WaitlistEntry).filter(
+        WaitlistEntry.id == entry_id,
+        WaitlistEntry.clinic_id == clinic.id
+    ).first()
+    if not entry:
+        raise HTTPException(404, "ردیف فهرست انتظار یافت نشد")
+    entry.status = data.status
+    db.commit()
+    db.refresh(entry)
+    return entry
 
 
 # Health
