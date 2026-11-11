@@ -287,7 +287,13 @@ def main():
 
         rc, d, raw = curl("POST", f"/v2/projects/{APP}/releases", data=body)
         log(f"create release http_rc={rc} body={raw[:300]}")
-        rid = d.get("release", {}).get("_id") if isinstance(d, dict) and isinstance(d.get("release"), dict) else None
+        # پاسخ موفق 201: {"releaseID": "..."} — (همچنین سازگاری با {"release":{"_id":...}})
+        rid = None
+        if isinstance(d, dict):
+            if d.get("releaseID"):
+                rid = d["releaseID"]
+            elif isinstance(d.get("release"), dict) and d["release"].get("_id"):
+                rid = d["release"]["_id"]
         if rc in (200, 201) and rid:
             release_id = rid
             log(f"RELEASE CREATED: {release_id}")
