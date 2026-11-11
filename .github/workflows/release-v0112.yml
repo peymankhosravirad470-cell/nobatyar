@@ -72,7 +72,7 @@ jobs:
       EXPECTED_BASE: b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd   # v0.11.1 — فقط SHA کامل
       BRANCH: feat/security-design-v0.11.2
       NOBATYAR_SITE: https://shirazhealthtour.ir
-      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY }}
+      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY || secrets.LIARA_API_TOKEN }}
       ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
     steps:

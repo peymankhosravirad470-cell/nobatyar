@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 100
     env:
       ROLLBACK_SHA: b1a5d39ad7f1ad0bce74c8fb4d87c710f9e11fbd
-      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY }}
+      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY || secrets.LIARA_API_TOKEN }}
     steps:
       - name: گارد تأیید و قالب SHA بازگشت
         env:
