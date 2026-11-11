@@ -140,6 +140,22 @@ def main():
     log(f"متغیرهای بکاپ روی لیارا: key_set={result['liara_env']['backup_key_set']} "
         f"dir_set={result['liara_env']['backup_dir_set']} time_set={result['liara_env']['backup_time_set']}")
 
+    # ---------- بخش A2: تطبیق مسیر بکاپ با دیسک Mount‌شده (فقط مسیر/نام/حجم — بدون رمز) ----------
+    def _redact(s):
+        return re.sub(r"(ghs_|ghp_|github_pat_)[A-Za-z0-9_]+", r"\1***", str(s))[:150]
+
+    dir_val = next((e.get("value") for e in envs
+                    if isinstance(e, dict) and e.get("key") == "NOBATYAR_BACKUP_DIR"), None)
+    log(f"مقدار NOBATYAR_BACKUP_DIR روی لیارا: {_redact(dir_val)!r}")
+    proj = d.get("project") if isinstance(d, dict) else None
+    if isinstance(proj, dict):
+        for dk in ("disks", "disk", "mounts", "mountPaths", "volumes"):
+            v = proj.get(dk)
+            if v:
+                log(f"ساختار دیسک لیارا ({dk}): {_redact(json.dumps(v, ensure_ascii=False))}")
+    else:
+        log("⚠️ ساختار project در پاسخ لیارا یافت نشد — مقایسهٔ Mount ممکن نشد")
+
     # ---------- بخش B: ادمین API تولید ----------
     if not ADMIN_USERNAME or not ADMIN_PASSWORD:
         result["admin"] = "skipped: اعتبار ادمین در فایل رمز نبود (قابلیت بازیابی با دادهٔ تولید تأیید نشد)"
