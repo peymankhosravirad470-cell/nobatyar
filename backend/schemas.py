@@ -452,3 +452,92 @@ class ClinicMeOut(RegistrationAdminOut):
     login_username: Optional[str] = None
     subscription_status: str = "inactive"
     subscription_expires_at: Optional[datetime] = None
+
+
+# ---------- Complaints (v0.12.0 — بخش ۱۴ PRD) ----------
+class ComplaintCreate(BaseModel):
+    """ثبت شکایت توسط بیمار — کد پیگیری در پاسخ، یک‌بار نمایش داده می‌شود."""
+    subject_index: int = Field(..., ge=1, le=8, description="موضوع از فهرست بسته (۱ تا ۸)")
+    subject_text: Optional[str] = Field(None, max_length=200)
+    description: str = Field(..., min_length=20, max_length=3000)
+    target_text: Optional[str] = Field(None, max_length=200)
+    clinic_id: Optional[int] = None
+    complainant_name: str = Field(..., min_length=2, max_length=100)
+    contact_phone: str = Field(..., min_length=10, max_length=20)
+    contact_email: Optional[str] = Field(None, max_length=120)
+
+    @field_validator("contact_phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        from fa_utils import normalize_mobile
+        n = normalize_mobile(v)
+        if not n:
+            raise ValueError("شماره موبایل معتبر نیست")
+        return n
+
+    @field_validator("complainant_name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("نام معتبر نیست")
+        return v
+
+
+class ComplaintTrackRequest(BaseModel):
+    """پیگیری شکایت: کد پیگیری + شمارهٔ تماس ثبت‌شده (کنترل مالکیت)."""
+    tracking_code: str = Field(..., min_length=6, max_length=20)
+    contact_phone: str = Field(..., min_length=10, max_length=20)
+
+
+class ComplaintHistoryOut(BaseModel):
+    id: int
+    actor: str
+    action: str
+    status: Optional[str] = None
+    public_reply: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ComplaintTrackOut(BaseModel):
+    """نمای عمومی پیگیری — بدون یادداشت‌های داخلی."""
+    tracking_code: str
+    subject_category: str
+    status: str
+    status_label: str
+    created_at: datetime
+    updated_at: datetime
+    history: List[ComplaintHistoryOut] = []
+
+
+class ComplaintAdminOut(BaseModel):
+    id: int
+    tracking_code: str
+    subject_category: str
+    subject_text: Optional[str] = None
+    description: str
+    target_text: Optional[str] = None
+    clinic_id: Optional[int] = None
+    complainant_name: str
+    contact_phone: str
+    contact_email: Optional[str] = None
+    status: str
+    priority: str
+    first_response_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ComplaintStatusUpdate(BaseModel):
+    """به‌روزرسانی رسیدگی توسط ادمین/مسئول شکایات."""
+    status: str = Field(..., pattern="^(registered|in_review|referred|need_info|answered|closed)$")
+    priority: Optional[str] = Field(None, pattern="^(normal|high|urgent)$")
+    public_reply: Optional[str] = Field(None, max_length=3000)
+    internal_note: Optional[str] = Field(None, max_length=3000)

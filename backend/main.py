@@ -40,9 +40,13 @@ from admin_security import generate_connect_code
 import bale_bot
 import referral
 import centers
+import complaints as complaints_mod  # noqa: F401 — v0.12.0: سامانه شکایات
+import catalog as catalog_mod  # noqa: F401 — v0.12.0: کاتالوگ عمومی
 from centers import router as centers_router
+from complaints import router as complaints_router
+from catalog import router as catalog_router
 
-APP_VERSION = "0.11.2"
+APP_VERSION = "0.12.0"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
@@ -98,11 +102,32 @@ _SECURITY_HEADERS = {
         "https://www.google.com/g/collect; "
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ),
-    "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+    # v0.12.0 (PRD 22.3): ارتقای تدریجی HSTS — max-age یک سال؛ preload فقط پس از
+    # اطمینان از آمادگی همهٔ زیر‌دامنه‌ها فعال می‌شود (فعلاً فعال نیست).
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    # v0.12.0 (PRD 22.4): COOP — سرویس‌های ثالث فعلی (GA/GTM) iframe و اسکریپت‌اند،
+    # popup باز نمی‌کنند؛ سازگار است. پس از تست سازگاری ورود/پرداخت در آینده بازبینی شود.
+    "Cross-Origin-Opener-Policy": "same-origin",
+    # v0.12.0 (PRD 22.2 + 22.5): آزمایش CSP سخت‌گیرانه در حالت Report-Only —
+    # هیچ چیزی را نمی‌شکند؛ فقط تخلفات در کنسول مرورگر گزارش می‌شود تا مهاجرت
+ # تدریجی به nonce/hash و Trusted Types با دادهٔ واقعی انجام شود.
+    "Content-Security-Policy-Report-Only": (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; "
+        "img-src 'self' data: https://www.googletagmanager.com; "
+        "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com "
+        "https://www.google.com/g/collect; "
+        "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+        "require-trusted-types-for 'script'"
+    ),
 }
 
 
 app.include_router(centers_router)
+app.include_router(complaints_router)  # v0.12.0: شکایات و پیگیری
+app.include_router(catalog_router)     # v0.12.0: تخصص‌ها/علائم/پروفایل‌ها
 
 
 # ---------- ریدایرکت www → دامنه اصلی (v0.11.0 — SEO یکپارچه) ----------
@@ -149,6 +174,21 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # داخل backend قرار دارد تا با Root Directory=backend روی لیارا کار کند
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND_DIR, "static")), name="static")
+
+# v0.12.0: قالب‌های سرو-رندر (صفحات تخصص/پزشک/مرکز) — برای سئوی محلی محتوای
+# یکتا باید در HTML اولیه حضور داشته باشد؛ صفحات ایستا با fetch کافی نیستند.
+from fastapi.templating import Jinja2Templates  # noqa: E402
+from fastapi import Request as _Request  # noqa: E402
+TEMPLATES_DIR = os.path.join(FRONTEND_DIR, "templates")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+
+def _not_found(request, message: str = "صفحه مورد نظر یافت نشد"):
+    """نمای ۴۰۴ واحد سایت با کد وضعیت درست."""
+    return templates.TemplateResponse(
+        request=request, name="404.html",
+        context={"message": message}, status_code=404,
+    )
 
 
 @app.middleware("http")
@@ -305,6 +345,140 @@ def admin_panel_page():
     return _html("admin_panel.html")
 
 
+# ==================== صفحات v0.12.0: کاتالوگ، شکایات، رسمی ====================
+
+@app.get("/specialties", response_class=HTMLResponse)
+def specialties_hub_page():
+    """هاب تخصص‌های پزشکی — دسته‌بندی + جست‌وجو + شمارش زنده (fetch)."""
+    return _html("specialties.html")
+
+
+@app.get("/specialties/{slug}")
+def specialty_page(slug: str, request: _Request, db: Session = Depends(get_db)):
+    """صفحهٔ اختصاصی هر تخصص — سرو-رندر برای سئوی محلی شیراز (بخش ۶ PRD)."""
+    sp = catalog_mod.specialty_by_slug(slug)
+    if not sp:
+        return _not_found(request, "تخصص مورد نظر یافت نشد")
+    clinics = db.query(Clinic).filter(
+        Clinic.status == ClinicStatus.approved,
+        Clinic.subscription_status == SubscriptionStatus.active,
+    ).all()
+    from catalog import _clinic_matches_specialty  # تطبیق نرمال‌سازی‌شدهٔ فارسی
+    matched = [c for c in clinics if _clinic_matches_specialty(c, sp)]
+    centers_out, doctors_out = [], []
+    for c in matched:
+        docs = db.query(Doctor).filter(
+            Doctor.clinic_id == c.id, Doctor.is_active == True).all()  # noqa: E712
+        centers_out.append({
+            "id": c.id, "name": c.name, "type": c.type,
+            "address": c.address, "phone": c.phone, "specialty": c.specialty,
+            "doctors_count": len(docs),
+        })
+        for d in docs:
+            doctors_out.append({
+                "id": d.id, "full_name": d.full_name, "specialty": d.specialty,
+                "clinic_id": c.id, "clinic_name": c.name,
+            })
+    related = []
+    for rslug in sp.get("related", []):
+        r = catalog_mod.specialty_by_slug(rslug)
+        if r:
+            related.append({"slug": r["slug"], "name": r["name"]})
+    return templates.TemplateResponse(
+        request=request, name="specialty.html",
+        context={
+            "sp": sp, "centers": centers_out, "doctors": doctors_out,
+            "related": related,
+            "page_title": f"{sp['name']} در شیراز | نوبتیار",
+            "page_desc": sp["description"][:300],
+        },
+    )
+
+
+@app.get("/doctors/{doctor_id}")
+def doctor_page(doctor_id: int, request: _Request, db: Session = Depends(get_db)):
+    """پروفایل عمومی پزشک — فقط دادهٔ واقعی مراکز تأییدشده (بخش ۷ PRD)."""
+    doc = db.query(Doctor).filter(
+        Doctor.id == doctor_id, Doctor.is_active == True).first()  # noqa: E712
+    clinic = None
+    if doc:
+        clinic = db.query(Clinic).filter(
+            Clinic.id == doc.clinic_id,
+            Clinic.status == ClinicStatus.approved,
+            Clinic.subscription_status == SubscriptionStatus.active,
+        ).first()
+    if not doc or not clinic:
+        return _not_found(request, "پروفایل پزشک یافت نشد یا فعال نیست")
+    from datetime import datetime as _dt
+    free_slots = db.query(AvailableSlot).filter(
+        AvailableSlot.doctor_id == doc.id,
+        AvailableSlot.is_booked == False,  # noqa: E712
+        AvailableSlot.start_datetime >= _dt.utcnow(),
+    ).count()
+    return templates.TemplateResponse(
+        request=request, name="doctor.html",
+        context={
+            "doc": doc, "clinic": clinic, "free_slots": free_slots,
+            "page_title": f"دکتر {doc.full_name} — {doc.specialty} در شیراز | نوبتیار",
+            "page_desc": f"پروفایل، خدمات و نوبت‌دهی دکتر {doc.full_name} ({doc.specialty}) در {clinic.name} شیراز",
+        },
+    )
+
+
+@app.get("/centers/{clinic_id}")
+def center_page(clinic_id: int, request: _Request, db: Session = Depends(get_db)):
+    """پروفایل عمومی مرکز درمانی — فقط مراکز واقعی تأییدشده (بخش ۸ PRD)."""
+    clinic = db.query(Clinic).filter(
+        Clinic.id == clinic_id,
+        Clinic.status == ClinicStatus.approved,
+        Clinic.subscription_status == SubscriptionStatus.active,
+    ).first()
+    if not clinic:
+        return _not_found(request, "مرکز مورد نظر یافت نشد یا فعال نیست")
+    docs = db.query(Doctor).filter(
+        Doctor.clinic_id == clinic.id, Doctor.is_active == True).all()  # noqa: E712
+    from datetime import datetime as _dt
+    from urllib.parse import quote as _q
+    addr = f"{clinic.province or 'فارس'}، {clinic.city or 'شیراز'}، {clinic.address}"
+    maps = {
+        "google": f"https://www.google.com/maps/dir/?api=1&destination={_q(addr)}",
+        "neshan": f"https://neshan.org/maps/search/{_q(addr)}",
+        "balad": f"https://balad.ir/search?query={_q(addr)}",
+    }
+    return templates.TemplateResponse(
+        request=request, name="center.html",
+        context={
+            "clinic": clinic, "doctors": docs, "maps": maps,
+            "page_title": f"{clinic.name} — {clinic.specialty or 'خدمات درمانی'} در شیراز | نوبتیار",
+            "page_desc": f"آدرس، تلفن، پزشکان و نوبت‌دهی آنلاین {clinic.name} در شیراز",
+        },
+    )
+
+
+@app.get("/complaints", response_class=HTMLResponse)
+def complaints_page():
+    """سامانه شکایات و پیگیری (بخش ۱۴ PRD)."""
+    return _html("complaints.html")
+
+
+@app.get("/faq", response_class=HTMLResponse)
+def faq_page():
+    """پرسش‌های متداول کامل (بخش ۱۹ PRD)."""
+    return _html("faq.html")
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about_page():
+    """دربارهٔ نوبتیار — معرفی سازمانی صادقانه (بخش ۱۸ PRD)."""
+    return _html("about.html")
+
+
+@app.get("/cancellation", response_class=HTMLResponse)
+def cancellation_page():
+    """سیاست لغو و تغییر نوبت (بخش ۱۹ PRD)."""
+    return _html("cancellation.html")
+
+
 # ==================== SEO: تأیید Google Search Console و Sitemap ====================
 
 GSC_FILENAME = "google27f739a1bb0a6038.html"
@@ -318,22 +492,52 @@ def google_site_verification():
 
 @app.get("/sitemap.xml", include_in_schema=False)
 def sitemap_xml():
-    """Sitemap استاندارد XML — صفحات عمومی اصلی سایت."""
+    """Sitemap پویا — صفحات اصلی + همهٔ تخصص‌ها + مراکز و پزشکان واقعی (بخش ۲۵ PRD).
+
+    فقط URLهای واقعی درج می‌شوند: مراکز تأییدشده/فعال و پزشک‌های فعالِ آن‌ها.
+    از درج صفحات خالی یا ساختگی برای رتبه‌گیری خودداری می‌شود."""
     base = (os.environ.get("NOBATYAR_SITE_URL") or "https://shirazhealthtour.ir").rstrip("/")
     today = datetime.utcnow().date().isoformat()
-    pages = [("/", "1.0"), ("/book", "0.8"), ("/register", "0.8"),
-             ("/register/office", "0.8"), ("/register/clinic", "0.8"),
-             ("/partners", "0.7"), ("/contact", "0.6"),
+    pages = [("/", "1.0"), ("/book", "0.9"), ("/specialties", "0.9"),
+             ("/register", "0.8"), ("/register/office", "0.8"), ("/register/clinic", "0.8"),
+             ("/partners", "0.7"), ("/complaints", "0.7"), ("/faq", "0.6"),
+             ("/about", "0.6"), ("/contact", "0.6"), ("/cancellation", "0.4"),
              ("/terms", "0.3"), ("/privacy", "0.3")]
-    items = "".join(
-        f"<url><loc>{base}{path}</loc><lastmod>{today}</lastmod>"
-        f"<changefreq>weekly</changefreq><priority>{prio}</priority></url>"
-        for path, prio in pages
-    )
+    entries = [f"<url><loc>{base}{p}</loc><lastmod>{today}</lastmod><changefreq>weekly</changefreq><priority>{pr}</priority></url>" for p, pr in pages]
+    # تخصص‌ها — محتوای یکتا و واقعی
+    for sp in catalog_mod.SPECIALTIES:
+        entries.append(
+            f"<url><loc>{base}/specialties/{sp['slug']}</loc><lastmod>{today}</lastmod>"
+            f"<changefreq>weekly</changefreq><priority>0.7</priority></url>")
+    # مراکز و پزشکان واقعی
+    try:
+        from sqlalchemy import or_  # noqa: F401
+        db = SessionLocal()
+        try:
+            clinics = db.query(Clinic).filter(
+                Clinic.status == ClinicStatus.approved,
+                Clinic.subscription_status == SubscriptionStatus.active,
+            ).all()
+            ids = [c.id for c in clinics]
+            for cid in ids:
+                entries.append(
+                    f"<url><loc>{base}/centers/{cid}</loc><lastmod>{today}</lastmod>"
+                    f"<changefreq>daily</changefreq><priority>0.8</priority></url>")
+            if ids:
+                docs = db.query(Doctor.id).filter(
+                    Doctor.clinic_id.in_(ids), Doctor.is_active == True).all()  # noqa: E712
+                for (did,) in docs:
+                    entries.append(
+                        f"<url><loc>{base}/doctors/{did}</loc><lastmod>{today}</lastmod>"
+                        f"<changefreq>daily</changefreq><priority>0.7</priority></url>")
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001 — sitemap هرگز نباید ۵۰۰ بدهد
+        logging.getLogger("nobatyar.catalog").exception("sitemap: خطا در خواندن مراکز/پزشکان")
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        f"{items}</urlset>"
+        f"{''.join(entries)}</urlset>"
     )
     return Response(content=xml, media_type="application/xml")
 

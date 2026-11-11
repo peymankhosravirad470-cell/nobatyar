@@ -603,3 +603,81 @@ class ClinicStaff(Base):
     __table_args__ = (
         Index("ix_staff_clinic_role", "clinic_id", "role"),
     )
+
+
+class ComplaintStatus(str, enum.Enum):
+    """وضعیت شکایت (بخش ۱۴ PRD)."""
+    registered = "registered"       # ثبت‌شده
+    in_review = "in_review"         # در حال بررسی
+    referred = "referred"           # ارجاع‌شده
+    need_info = "need_info"         # نیازمند اطلاعات بیشتر
+    answered = "answered"           # پاسخ داده‌شده
+    closed = "closed"               # مختومه
+
+
+class ComplaintPriority(str, enum.Enum):
+    normal = "normal"
+    high = "high"
+    urgent = "urgent"
+
+
+class Complaint(Base):
+    """شکایت بیمار با کد پیگیری یکتا و غیرقابل‌حدس (v0.12.0 — بخش ۱۴ PRD).
+
+    - کد پیگیری از سمت سرور با secrets تولید می‌شود (فضای ≥۱۰^۱۵؛ غیرقابل حدس).
+    - مشاهدهٔ جزئیات عمومی نیازمند «کد + شمارهٔ تماس ثبت‌شده» است (کنترل مالکیت).
+    - توضیحات داخلی تیم رسیدگی فقط در پنل ادمین نمایش داده می‌شود.
+    """
+    __tablename__ = "complaints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tracking_code = Column(String(20), unique=True, nullable=False, index=True)
+    subject_category = Column(String(120), nullable=False)          # موضوع (از فهرست بسته)
+    subject_text = Column(String(200), nullable=False, default="", server_default="")
+    description = Column(Text, nullable=False)
+    # هدف شکایت: مرکز/پزشک — مقدار آزاد + (اختیاری) اتصال به مرکز واقعی
+    target_text = Column(String(200), nullable=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="SET NULL"), nullable=True, index=True)
+    complainant_name = Column(String(100), nullable=False)
+    contact_phone = Column(String(20), nullable=False, index=True)  # نرمال‌شده
+    contact_email = Column(String(120), nullable=True)
+    status = Column(SAEnum(ComplaintStatus), default=ComplaintStatus.registered,
+                    nullable=False, index=True)
+    priority = Column(SAEnum(ComplaintPriority), default=ComplaintPriority.normal, nullable=False)
+    # زمان رسیدگی اولیه/نهایی — برای گزارش زمان رسیدگی
+    first_response_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    history = relationship("ComplaintHistory", back_populates="complaint",
+                           cascade="all, delete-orphan", order_by="ComplaintHistory.created_at")
+
+    __table_args__ = (
+        Index("ix_complaints_status_created", "status", "created_at"),
+    )
+
+
+class ComplaintHistory(Base):
+    """سوابق رسیدگی به شکایت — هر تغییر وضعیت/پاسخ/یادداشت یک ردیف.
+
+    actor: system | admin | patient
+    internal_note هرگز از مسیر عمومی (پیگیری با کد) برگردانده نمی‌شود.
+    """
+    __tablename__ = "complaint_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    complaint_id = Column(Integer, ForeignKey("complaints.id", ondelete="CASCADE"),
+                          nullable=False, index=True)
+    actor = Column(String(10), nullable=False, default="system", server_default="system")
+    action = Column(String(200), nullable=False)
+    status = Column(SAEnum(ComplaintStatus), nullable=True)
+    public_reply = Column(Text, nullable=True)
+    internal_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    complaint = relationship("Complaint", back_populates="history")
+
+    __table_args__ = (
+        Index("ix_complaint_history_comp_time", "complaint_id", "created_at"),
+    )

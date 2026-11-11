@@ -33,6 +33,7 @@ from auth import (
     security, decode_token,
 )
 from fa_utils import normalize_fa
+import catalog as catalog_mod  # v0.12.0: نتایج علائم در جست‌وجو
 
 router = APIRouter(prefix="/api", tags=["centers"])
 LOG = logging.getLogger("nobatyar.centers")
@@ -503,12 +504,36 @@ def public_clinic_full(clinic_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/public/search")
-def public_search(q: str = "", db: Session = Depends(get_db)):
-    """جست‌وجوی فارسی پزشک/تخصص/مطب/درمانگاه — از یک منبع داده (clinics+doctors)."""
+def public_search(q: str = "", specialty: str = "", db: Session = Depends(get_db)):
+    """جست‌وجوی فارسی پزشک/تخصص/مطب/درمانگاه — از یک منبع داده (clinics+doctors).
+
+    v0.12.0: نتایج «علائم/بیماری‌ها» هم برمی‌گردد (بخش ۱۲ PRD، غیرتشخیصی با هشدار
+    اورژانس) و فیلتر اختیاری specialty (نام تخصص) اضافه شد."""
+    from catalog_data import search_symptoms, EMERGENCY_KEYS
+    from fa_utils import normalize_fa as _nf
+    ns_q = _nf(q or "")
+    emergency = any(_nf(k) in ns_q for k in EMERGENCY_KEYS) if ns_q else False
+    symptom_matches = []
+    if ns_q:
+        for s in search_symptoms(q or "")[:5]:
+            specs = []
+            for sl in s["specialties"]:
+                sp = catalog_mod.specialty_by_slug(sl)
+                if sp:
+                    specs.append({"slug": sp["slug"], "name": sp["name"],
+                                  "url": f"/specialties/{sp['slug']}"})
+            symptom_matches.append({
+                "title": s["title"], "note": s.get("note", ""),
+                "urgent": bool(s.get("urgent")), "specialties": specs,
+            })
+
     rows = db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
     ).all()
+    ns_filter = _nf(specialty or "")
+    if ns_filter:
+        rows = [c for c in rows if ns_filter in _nf(c.specialty or "")]
     doctors = {c.id: db.query(Doctor).filter(
         Doctor.clinic_id == c.id, Doctor.is_active == True).all() for c in rows}  # noqa: E712
     ns = normalize_fa(q or "")
@@ -516,7 +541,8 @@ def public_search(q: str = "", db: Session = Depends(get_db)):
     for c in rows:
         match_center = (not ns) or ns in normalize_fa(c.name) \
             or ns in normalize_fa(c.specialty or "") \
-            or ns in normalize_fa(c.address or "")
+            or ns in normalize_fa(c.address or "") \
+            or ns in normalize_fa(c.doctor_name or "")
         matched_doctors = []
         for d in doctors.get(c.id, []):
             if ns and (ns in normalize_fa(d.full_name) or ns in normalize_fa(d.specialty or "")):
@@ -525,7 +551,16 @@ def public_search(q: str = "", db: Session = Depends(get_db)):
             results.append({
                 "id": c.id, "name": c.name, "specialty": c.specialty,
                 "type": c.type, "address": c.address, "city": c.city,
-                "matched_doctors": [DoctorOut.model_validate(d).model_dump(mode="json")
-                                    for d in matched_doctors],
+                "url": f"/centers/{c.id}",
+                "matched_doctors": [
+                    dict(DoctorOut.model_validate(d).model_dump(mode="json"),
+                         url=f"/doctors/{d.id}")
+                    for d in matched_doctors
+                ],
             })
-    return {"items": results[:50], "total": len(results)}
+    return {
+        "items": results[:50], "total": len(results),
+        "symptoms": symptom_matches,
+        "emergency_notice": emergency,
+        "disclaimer": "نتایج علائم فقط برای راهنمایی مراجعه است و تشخیص پزشکی محسوب نمی‌شود.",
+    }
