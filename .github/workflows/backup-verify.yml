@@ -1,0 +1,32 @@
+# راستی‌آزمایی بکاپ تولید — بکاپ فوری + اثبات بازیابی‌پذیری (رمزگشایی آخرین فایل + چک ساختار)
+# فقط-تشخیص: این workflow هیچ merge، انتشار یا تعویض کلیدی انجام نمی‌دهد.
+# اجرا: Actions → backup-verify → Run workflow
+name: backup-verify
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nobatyar-backup-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NOBATYAR_SITE: https://shirazhealthtour.ir
+      LIARA_TOKEN: ${{ secrets.LIARA_API_KEY || secrets.LIARA_API_TOKEN }}
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout (SHA پین‌شده — بدون ذخیرهٔ اعتبار)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/security-design-v0.11.2
+          persist-credentials: false
+
+      - name: بکاپ فوری روی تولید + اثبات بازیابی‌پذیری (بدون تغییر داده)
+        run: python3 ci/backup_preflight.py
