@@ -163,6 +163,15 @@ def main():
         result["admin_must_change_password"] = True
         log("⚠️ حساب ادمین پرچم must_change_password دارد (پس از انتشار به مالک یادآوری می‌شود)")
 
+    # عیب‌یابی فقط‌خواندنی: آیا تا حالا بکاپ موفقی روی دیسک لیارا نوشته شده؟
+    log("بررسی وضعیت بکاپ موجود (فقط‌خواندنی)…")
+    code, d = http("GET", f"{SITE}/api/admin/backup/status", token=admin_token)
+    st0 = parse_backup_status(d if isinstance(d, dict) else {})
+    result["backup_status_before"] = st0
+    log(f"وضعیت فعلی بکاپ: code={code} enabled={st0.get('enabled')} "
+        f"last_file={st0.get('last_file')} verified={st0.get('last_verified')} "
+        f"last_error={st0.get('last_error')}")
+
     log("اجرای بکاپ فوری روی تولید…")
     code, d = http("POST", f"{SITE}/api/admin/backup/run", token=admin_token)
     if code != 200:
