@@ -16,6 +16,13 @@ Optional env overrides:
   DEPLOY_REPO          repo used for git_info (default /home/z/my-project/nobatyar;
                        rollback uses a detached worktree path instead)
   DEPLOY_LOCK_FILE     lock file path (default /tmp/nobatyar_deploy.lock)
+  LIARA_DISKS_JSON     disks array for the release (default: the app's backup
+                       disk nobatyar-data → /app/backups; "none" = no disks)
+
+F3 (disk preservation): the Liara app filesystem is read-only by default and
+backups only work on the mounted disk. Each release MUST carry the disks
+array, otherwise the disk gets detached from the app (this is exactly what
+broke backups in the v0.11.1 deployment). Default keeps the disk attached.
 
 Self-test without any network:  python3 deploy_liara.py --selftest
 """
@@ -29,6 +36,35 @@ LOG = "/tmp/liara_deploy.log"
 
 TERMINAL_OK = {"DEPLOYED", "PUSHED"}
 TERMINAL_BAD = {"FAILED", "ERROR", "CANCELED", "DEPLOY_FAILED", "BUILD_FAILED"}
+
+# ---- F3: دیسک‌های دائمی اپ ----
+# فایل‌سیستم لیارا پیش‌فرض ReadOnly است و بکاپ فقط روی دیسک Mount‌شده کار می‌کند.
+# هر ریلیز باید همین لیست را حمل کند؛ وگرنه دیسک از اپ جدا می‌شود
+# (ریلیز v0.11.1 دیسک را نداشت و بکاپ تولید شکست). سابقهٔ معتبر v0.11.0:
+#   "disks": [{"name": "nobatyar-data", "mountTo": "/app/backups"}]
+DEFAULT_DISKS = [{"name": "nobatyar-data", "mountTo": "/app/backups"}]
+
+
+def disks_for_release(env=None):
+    """لیست دیسک‌های ریلیز — fail-fast با اسکیمای سخت‌گیرانه.
+
+    پیش‌فرض: دیسک بکاپ اپ. LIARA_DISKS_JSON بازنویسی می‌کند؛
+    مقدار "none"/"[]" یعنی عمداً بدون دیسک.
+    """
+    env = os.environ if env is None else env
+    raw = env.get("LIARA_DISKS_JSON")
+    if raw is not None:
+        val = raw.strip()
+        if val.lower() in ("none", "[]", "empty"):
+            return []
+        parsed = json.loads(val)  # خطای JSON همین‌جا می‌ترکد — نه در میانهٔ انتشار
+        if not isinstance(parsed, list) or not all(
+                isinstance(x, dict) and isinstance(x.get("name"), str) and x.get("name")
+                and isinstance(x.get("mountTo"), str) and x.get("mountTo")
+                for x in parsed):
+            raise ValueError('LIARA_DISKS_JSON نامعتبر؛ انتظار: [{"name":..., "mountTo":...}]')
+        return [dict(x) for x in parsed]
+    return [dict(x) for x in DEFAULT_DISKS]
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
@@ -130,7 +166,24 @@ def selftest():
     assert sanitize_remote("https://x-access-token:ghs_abcdef1234567890@github.com/o/r.git") == "https://github.com/o/r.git"
     assert sanitize_remote("https://github.com/o/r.git") == "https://github.com/o/r.git"
     assert sanitize_remote("git@github.com:o/r.git") == "git@github.com:o/r.git"  # SSH بدون :// دست‌نخورده (و در workflow با set-url تمیز می‌شود)
-    print("selftest: ✅ گارد F2 و پاک‌سازی URL ریموت سبز است")
+    # F3 — دیسک پیش‌فرض: هر ریلیز باید دیسک بکاپ را با مسیر درست حمل کند
+    d0 = disks_for_release(env={})
+    assert d0 == [{"name": "nobatyar-data", "mountTo": "/app/backups"}], "دیسک پیش‌فرض اشتباه است"
+    assert disks_for_release(env={"LIARA_DISKS_JSON": "none"}) == []
+    assert disks_for_release(env={"LIARA_DISKS_JSON": "[]"}) == []
+    d2 = disks_for_release(env={"LIARA_DISKS_JSON": json.dumps([{"name": "x", "mountTo": "/y"}])})
+    assert d2 == [{"name": "x", "mountTo": "/y"}]
+    try:
+        disks_for_release(env={"LIARA_DISKS_JSON": '[{"name": 1}]'})
+        assert False, "اسکیمای نامعتبر دیسک باید رد می‌شد"
+    except ValueError:
+        pass
+    try:
+        disks_for_release(env={"LIARA_DISKS_JSON": "not-json"})
+        assert False, "JSON نامعتبر باید زودتر می‌ترکید"
+    except (ValueError, json.JSONDecodeError):
+        pass
+    print("selftest: ✅ گارد F2 و پاک‌سازی URL ریموت و گارد دیسک F3 سبز است")
     return 0
 
 
@@ -157,6 +210,9 @@ def main():
     repo = os.environ.get("DEPLOY_REPO", "/home/z/my-project/nobatyar")
     info = git_info(repo)
     log(f"git_info.commit={info.get('commit')} branch={info.get('branch')}")
+    # F3 — دیسک‌ها پیش از هر آپلودی محاسبه می‌شوند (fail-fast؛ انتشار نیمیافتهٔ بی‌دیسک ممنوع)
+    disks = disks_for_release()
+    log(f"release disks: {json.dumps(disks, ensure_ascii=False)}")
     source_id = None
     release_id = None
 
@@ -212,6 +268,7 @@ def main():
             "message": os.environ.get("RELEASE_MESSAGE") or "انتشار نوبتیار",
             "gitInfo": info,
             "platformConfig": {k: pc[k] for k in ("mirror", "version") if k in pc},
+            "disks": disks,   # F3 — بدون این فیلد لیارا دیسک را از اپ جدا می‌کند
             "sourceID": source_id,
         }
         log("release body keys: " + json.dumps({k: (v if k not in ("gitInfo",) else "...") for k, v in body.items()}, ensure_ascii=False)[:300])
