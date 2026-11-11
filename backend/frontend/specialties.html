@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="فهرست کامل تخصص‌های پزشکی در شیراز با شمارش زندهٔ مراکز و پزشکان فعال نوبتیار + جست‌وجوی علائم و بیماری‌ها برای یافتن تخصص مناسب.">
+  <link rel="canonical" href="https://shirazhealthtour.ir/specialties">
+  <title>تخصص‌های پزشکی در شیراز | نوبتیار</title>
+  <meta property="og:site_name" content="نوبتیار">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fa_IR">
+  <meta property="og:title" content="تخصص‌های پزشکی در شیراز | نوبتیار">
+  <meta property="og:description" content="فهرست تخصص‌ها، جست‌وجوی علائم و مراکز واقعی شیراز — سامانه نوبتیار.">
+  <meta property="og:url" content="https://shirazhealthtour.ir/specialties">
+  <meta property="og:image" content="https://shirazhealthtour.ir/static/img/og-image.jpg">
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Black.woff2?v=0120" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0120" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0120">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "خانه", "item": "https://shirazhealthtour.ir/"},
+      {"@type": "ListItem", "position": 2, "name": "تخصص‌های پزشکی"}
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="sr-only">رفتن به محتوای اصلی</a>
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی">
+        <picture>
+          <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
+          <img src="/static/img/nobatyar-mark.png" alt="" class="brand-mark" width="120" height="78">
+        </picture>
+        <span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+      </a>
+      <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+        <span></span><span></span><span></span>
+        <span class="sr-only">باز و بسته کردن منو</span>
+      </button>
+      <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+        <a href="/">خانه</a>
+        <a href="/specialties" aria-current="page">تخصص‌ها</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/complaints">شکایات و پیگیری</a>
+        <a href="/partners">ویژه پزشکان و درمانگاه‌ها</a>
+        <a href="/contact">تماس با ما</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <a href="/register" class="nav-cta">ثبت‌نام مراکز</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+    <nav class="crumbs" aria-label="مسیر صفحه">
+      <ol>
+        <li><a href="/">خانه</a></li>
+        <li aria-current="page">تخصص‌های پزشکی</li>
+      </ol>
+    </nav>
+
+    <section class="page-hero" aria-label="تخصص‌های پزشکی">
+      <span class="kicker">کشف خدمت مناسب نیاز شما</span>
+      <h1>تخصص‌های پزشکی در شیراز</h1>
+      <p>در این صفحه همهٔ تخصص‌های پشتیبانی‌شدهٔ نوبتیار با شمارش زندهٔ مراکز و پزشکان فعال فهرست شده‌اند. اگر علامت یا بیماری مشخصی دارید، با جست‌وجوی علائم می‌توانید تخصص مناسب را پیدا کنید؛ این راهنما تشخیص پزشکی نیست.</p>
+      <div class="hero-search" role="search" style="margin-top:1rem;">
+        <label for="hubSearch" class="sr-only">جست‌وجوی تخصص، علامت یا بیماری</label>
+        <input type="search" id="hubSearch" autocomplete="off" placeholder="نام تخصص، علامت یا بیماری… مثلاً «کمردرد»">
+        <button type="button" id="hubSearchGo">جست‌وجو</button>
+      </div>
+      <p class="search-emergency" id="hubEmergency" role="alert" hidden style="max-width:34rem;">
+        در موارد اورژانسی بلافاصله با <a href="tel:115">اورژانس ۱۱۵</a> تماس بگیرید.
+      </p>
+    </section>
+
+    <div class="hub-wrap">
+      <section class="symptom-panel" id="symptomPanel" aria-label="نتایج بر اساس علامت" hidden>
+        <h2>بر اساس علامت جست‌وجو شده</h2>
+        <div id="symptomItems"></div>
+        <p style="font-size:.75rem;color:var(--muted);margin-top:.5rem;">نتایج فقط برای راهنمایی مراجعه است و تشخیص پزشکی محسوب نمی‌شود.</p>
+      </section>
+
+      <div id="hubContent" aria-live="polite">
+        <p class="empty-state">در حال دریافت فهرست تخصص‌ها از سامانه…</p>
+      </div>
+    </div>
+
+    <section class="info-card" aria-label="راهنمای استفاده" style="margin-top:1.4rem;">
+      <h2>چطور تخصص مناسب را پیدا کنم؟</h2>
+      <ul class="info-list">
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>اگر نام تخصص را می‌دانید، از فهرست بالا آن را انتخاب کنید.</span></li>
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>اگر فقط علامت دارید (مثل سردرد یا کمردرد)، علامت را جست‌وجو کنید تا تخصص‌های مرتبط پیشنهاد شود.</span></li>
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>در صفحهٔ هر تخصص، توضیح علمی، خدمات و مراکز واقعی شیراز را می‌بینید و می‌توانید مستقیم نوبت بگیرید.</span></li>
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>در موارد اورژانسی به‌جای جست‌وجو، با <a href="tel:115">اورژانس ۱۱۵</a> تماس بگیرید.</span></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer-v2">
+    <div class="container">
+      <div class="footer-bottom" style="border-top:0;margin-top:0;">
+        <span>© <span class="footer-jalali-year">۱۴۰</span> نوبتیار — همهٔ حقوق محفوظ است</span>
+        <span class="foot-links">
+          <a href="/">خانه</a>
+          <a href="/book">رزرو نوبت</a>
+          <a href="/complaints">شکایات</a>
+          <a href="/contact">تماس با ما</a>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var btn = document.querySelector('.nav-burger');
+      var nav = document.getElementById('mainnav');
+      if (btn && nav) btn.addEventListener('click', function () {
+        var open = nav.classList.toggle('nav-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      var y = document.querySelector('.footer-jalali-year');
+      if (y) {
+        try {
+          y.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date());
+        } catch (e) { /* بی‌خطر */ }
+      }
+    })();
+
+    (function () {
+      var esc = function (s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
+      var content = document.getElementById('hubContent');
+      var hubInput = document.getElementById('hubSearch');
+      var hubGo = document.getElementById('hubSearchGo');
+      var symPanel = document.getElementById('symptomPanel');
+      var symItems = document.getElementById('symptomItems');
+      var emergencyEl = document.getElementById('hubEmergency');
+      var SPECS = [];
+      var CATS = {};
+
+      function fa(n) {
+        try { return new Intl.NumberFormat('fa-IR').format(n); } catch (e) { return String(n); }
+      }
+
+      function renderHub(filter) {
+        var f = (filter || '').trim();
+        var html = '';
+        var total = 0;
+        Object.keys(CATS).forEach(function (cat) {
+          var items = CATS[cat].filter(function (s) {
+            return !f || s.name.indexOf(f) !== -1 || s.category.indexOf(f) !== -1;
+          });
+          if (!items.length) return;
+          total += items.length;
+          html += '<section class="hub-cat" aria-label="' + esc(cat) + '"><h2>' + esc(cat) + '</h2><div class="hub-items">';
+          items.forEach(function (s) {
+            var badge = s.clinics_count ? '<span class="count-badge">' + fa(s.clinics_count) + ' مرکز فعال</span>' : '';
+            html += '<a class="hub-item" href="' + esc(s.url) + '">' + esc(s.name) + badge + '</a>';
+          });
+          html += '</div></section>';
+        });
+        if (!total) {
+          html = '<p class="empty-state">تخصصی با این نام یافت نشد. می‌توانید علامت بیماری را جست‌وجو کنید (بالای صفحه) یا <a href="#" id="clearHub">پاک‌کردن فیلتر</a>.</p>';
+        }
+        content.innerHTML = html;
+        var clear = document.getElementById('clearHub');
+        if (clear) clear.addEventListener('click', function (e) {
+          e.preventDefault(); hubInput.value = ''; renderHub('');
+        });
+      }
+
+      function renderSymptoms(data) {
+        var items = (data && data.items) || [];
+        if (emergencyEl) emergencyEl.hidden = !(data && data.emergency_notice);
+        if (!items.length) { symPanel.hidden = true; return; }
+        var html = '';
+        items.forEach(function (s) {
+          var links = (s.specialties || []).map(function (sp) {
+            return '<a href="' + esc(sp.url) + '">' + esc(sp.name) + '</a>';
+          }).join('، ');
+          html += '<div class="sym-item"><b>' + esc(s.title) + '</b>' +
+            (s.urgent ? ' <span class="sr-urgent">اورژانسی</span>' : '') +
+            '<span>' + esc(s.note || '') + '</span>' +
+            '<span>تخصص مرتبط: ' + links + '</span></div>';
+        });
+        symItems.innerHTML = html;
+        symPanel.hidden = false;
+      }
+
+      function doSearch() {
+        var q = (hubInput.value || '').trim();
+        if (location.search.indexOf('q=') !== -1) {
+          history.replaceState(null, '', q ? '/specialties?q=' + encodeURIComponent(q) : '/specialties');
+        }
+        renderHub(q);
+        if (q.length >= 2) {
+          fetch('/api/public/symptoms?q=' + encodeURIComponent(q))
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { if (d) renderSymptoms(d); })
+            .catch(function () { symPanel.hidden = true; });
+        } else {
+          symPanel.hidden = true;
+          if (emergencyEl) emergencyEl.hidden = true;
+        }
+      }
+
+      var initial = new URLSearchParams(location.search).get('q') || '';
+      fetch('/api/public/specialties')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          SPECS = (d && d.items) || [];
+          CATS = {};
+          SPECS.forEach(function (s) { (CATS[s.category] = CATS[s.category] || []).push(s); });
+          hubInput.value = initial;
+          renderHub(initial);
+          if (initial.length >= 2) doSearch();
+        })
+        .catch(function () {
+          content.innerHTML = '<p class="empty-state">دریافت فهرست تخصص‌ها ناموفق بود؛ لطفاً صفحه را دوباره بارگذاری کنید.</p>';
+        });
+
+      var t = null;
+      hubInput.addEventListener('input', function () {
+        clearTimeout(t); t = setTimeout(doSearch, 250);
+      });
+      hubInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+      });
+      hubGo.addEventListener('click', doSearch);
+    })();
+  </script>
+</body>
+</html>

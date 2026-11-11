@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block meta_desc %}{{ page_desc }}{% endblock %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "خانه", "item": "https://shirazhealthtour.ir/"},
+    {"@type": "ListItem", "position": 2, "name": "{{ clinic.name }}", "item": "https://shirazhealthtour.ir/centers/{{ clinic.id }}"},
+    {"@type": "ListItem", "position": 3, "name": "{{ doc.full_name }}"}
+  ]
+}
+</script>
+{% endblock %}
+{% block crumbs %}
+<nav class="crumbs" aria-label="مسیر صفحه">
+  <ol>
+    <li><a href="/">خانه</a></li>
+    <li><a href="/specialties">تخصص‌های پزشکی</a></li>
+    <li><a href="/centers/{{ clinic.id }}">{{ clinic.name }}</a></li>
+    <li aria-current="page">{{ doc.full_name }}</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+<section class="page-hero" aria-label="پروفایل پزشک">
+  <span class="kicker">{{ doc.specialty }}</span>
+  <h1>دکتر {{ doc.full_name }}</h1>
+  <p>پروفایل، محل فعالیت و روش دریافت نوبت از دکتر {{ doc.full_name }} در {{ clinic.name }} — شیراز. اطلاعات این صفحه از پروندهٔ ثبت‌شدهٔ مرکز در نوبتیار نمایش داده می‌شود.</p>
+</section>
+
+<div class="profile-grid">
+  <div>
+    <section class="info-card" aria-label="اطلاعات حرفه‌ای">
+      <h2>اطلاعات حرفه‌ای</h2>
+      <ul class="info-list">
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>تخصص:</b> {{ doc.specialty }}</span></li>
+        {% if doc.medical_number %}
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>شمارهٔ نظام پزشکی:</b> <span dir="ltr">{{ doc.medical_number }}</span> <small style="color:var(--muted);">(ثبت‌شده در پروندهٔ مرکز؛ اعتبارسنجی مدارک در فرایند تأیید نوبتیار انجام می‌شود)</small></span></li>
+        {% endif %}
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>محل فعالیت:</b> {{ clinic.name }} — {% if clinic.type == 'office' %}مطب{% else %}درمانگاه{% endif %}</span></li>
+      </ul>
+      <p class="notice-box">تصویر و اطلاعات تکمیلی پزشک پس از احراز و تأیید مدارک توسط خود پزشک یا مرکز، به این پروفایل اضافه می‌شود. نوبتیار اطلاعات تأییدنشده را به‌عنوان واقعیت منتشر نمی‌کند.</p>
+    </section>
+
+    <section class="info-card" aria-label="خدمات مرکز">
+      <h2>خدمات مرکز محل فعالیت</h2>
+      {% if clinic.services_text %}
+      <p class="prose" style="max-width:none;">{{ clinic.services_text }}</p>
+      {% else %}
+      <p class="empty-state">فهرست خدمات این مرکز هنوز توسط مدیر مرکز تکمیل نشده است.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside>
+    <div class="side-card">
+      <h2>دریافت نوبت</h2>
+      {% if free_slots %}
+      <p class="contact-line"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>هم‌اکنون {{ free_slots }} نوبت خالی برای این پزشک ثبت شده است.</span></p>
+      {% endif %}
+      <p class="contact-line"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M9 15l2 2 4-4"/></svg><span><a href="/book">رزرو نوبت آنلاین از صفحهٔ رزرو</a></span></p>
+      {% if clinic.booking_method %}<p class="contact-line"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>روش نوبت‌دهی مرکز: {{ clinic.booking_method }}</span></p>{% endif %}
+    </div>
+    <div class="side-card" style="margin-top:1rem;">
+      <h2>آدرس و تماس</h2>
+      <p class="contact-line"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>{{ clinic.address }}{% if clinic.city %} — {{ clinic.city }}{% endif %}</span></p>
+      <p class="contact-line"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.6 2Z"/></svg><span><a href="tel:{{ clinic.phone }}" dir="ltr">{{ clinic.phone }}</a></span></p>
+      {% if clinic.working_hours_text %}<p class="contact-line"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>ساعات کاری: {{ clinic.working_hours_text }}</span></p>{% endif %}
+      <p style="margin-top:.6rem;"><a class="btn btn-sm" href="/centers/{{ clinic.id }}">مشاهدهٔ پروفایل مرکز</a></p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

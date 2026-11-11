@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}نوبتیار | سامانه نوبت‌دهی آنلاین شیراز{% endblock %}</title>
+  <meta name="description" content="{% block meta_desc %}نوبتیار — سامانه هوشمند نوبت‌دهی مطب‌ها، درمانگاه‌ها و آزمایشگاه‌های شیراز.{% endblock %}">
+  <link rel="canonical" href="{% block canonical %}https://shirazhealthtour.ir/{{ request.url.path.lstrip('/') }}{% endblock %}">
+  <meta property="og:site_name" content="نوبتیار">
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+  <meta property="og:locale" content="fa_IR">
+  <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+  <meta property="og:description" content="{{ self.meta_desc() }}">
+  <meta property="og:url" content="https://shirazhealthtour.ir{{ request.url.path }}">
+  <meta property="og:image" content="https://shirazhealthtour.ir/static/img/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Black.woff2?v=0120" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0120" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0120">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <a href="#main-content" class="sr-only">رفتن به محتوای اصلی</a>
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی">
+        <picture>
+          <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
+          <img src="/static/img/nobatyar-mark.png" alt="" class="brand-mark" width="120" height="78">
+        </picture>
+        <span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+      </a>
+      <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+        <span></span><span></span><span></span>
+        <span class="sr-only">باز و بسته کردن منو</span>
+      </button>
+      <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+        <a href="/">خانه</a>
+        <a href="/specialties">تخصص‌ها</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/complaints">شکایات و پیگیری</a>
+        <a href="/partners">ویژه پزشکان و درمانگاه‌ها</a>
+        <a href="/contact">تماس با ما</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <a href="/register" class="nav-cta">ثبت‌نام مراکز</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+    {% block crumbs %}{% endblock %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer-v2">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand footer-intro">
+          <picture>
+            <source type="image/webp" srcset="/static/img/nobatyar-badge.webp">
+            <img src="/static/img/nobatyar-badge.png" alt="لوگوی رسمی نوبتیار" width="200" height="200" loading="lazy">
+          </picture>
+          <h2 class="footer-heading">معرفی نوبتیار</h2>
+          <p>نوبتیار یک سامانهٔ سلامت دیجیتال با محوریت شهر شیراز است که معرفی پزشکان و مراکز درمانی و نوبت‌دهی آنلاین را یک‌جا فراهم می‌کند؛ تا بیماران بدون تماس تلفنی و صف، با اطلاع از زمان‌های خالی واقعی، نوبت بگیرند و مراکز درمانی نیز برنامهٔ کاری خود را منظم و شفاف مدیریت کنند.</p>
+          <p>نوبتیار اطلاعات مراکز را پیش از انتشار بررسی می‌کند، هیچ دادهٔ نمایشی یا ساختگی منتشر نمی‌کند و هر قابلیت را فقط وقتی فعال اعلام می‌کند که واقعاً کار کند.</p>
+          <a href="/about" class="footer-more">ادامهٔ معرفی نوبتیار ←</a>
+        </div>
+        <nav class="footer-col" aria-label="خدمات و امکانات">
+          <h3 class="footer-heading">خدمات و امکانات</h3>
+          <ul>
+            <li><a href="/book">رزرو نوبت آنلاین</a></li>
+            <li><a href="/specialties">تخصص‌های پزشکی</a></li>
+            <li><a href="/book">مراکز درمانی شیراز</a></li>
+            <li><a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">یادآور نوبت و دارو (ربات بله)</a></li>
+            <li><a href="/cancellation">سیاست لغو و تغییر نوبت</a></li>
+          </ul>
+        </nav>
+        <nav class="footer-col" aria-label="پیوندهای مهم و قوانین">
+          <h3 class="footer-heading">پیوندهای مهم</h3>
+          <ul>
+            <li><a href="/about">دربارهٔ نوبتیار</a></li>
+            <li><a href="/complaints">ثبت و پیگیری شکایت</a></li>
+            <li><a href="/faq">پرسش‌های متداول</a></li>
+            <li><a href="/partners">همکاری پزشکان و مراکز</a></li>
+            <li><a href="/terms">شرایط و ضوابط</a></li>
+            <li><a href="/privacy">حریم خصوصی</a></li>
+          </ul>
+        </nav>
+        <div class="footer-col" aria-label="راه‌های ارتباطی">
+          <h3 class="footer-heading">راه‌های ارتباطی</h3>
+          <ul class="footer-contact">
+            <li><a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 20l1-4.9a8.4 8.4 0 1 1 17-3.6Z"/></svg> ربات رسمی بله: nobatyarshirazbot</a></li>
+            <li><a href="mailto:shiraznobatyar@gmail.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg> ایمیل: shiraznobatyar@gmail.com</a></li>
+            <li><a href="https://shirazhealthtour.ir" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg> shirazhealthtour.ir</a></li>
+            <li><a href="/contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg> صفحهٔ تماس با ما</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span class="footer-jalali-year">۱۴۰</span> نوبتیار — همهٔ حقوق محفوظ است</span>
+        <span class="foot-links">
+          <a href="/">خانه</a>
+          <a href="/book">رزرو نوبت</a>
+          <a href="/complaints">شکایات</a>
+          <a href="/contact">تماس با ما</a>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var btn = document.querySelector('.nav-burger');
+      var nav = document.getElementById('mainnav');
+      if (btn && nav) btn.addEventListener('click', function () {
+        var open = nav.classList.toggle('nav-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      var y = document.querySelector('.footer-jalali-year');
+      if (y) {
+        try {
+          y.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date());
+        } catch (e) { /* بی‌خطر */ }
+      }
+    })();
+    {% block page_script %}{% endblock %}
+  </script>
+</body>
+</html>

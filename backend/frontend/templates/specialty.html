@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block meta_desc %}{{ page_desc }}{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "خانه", "item": "https://shirazhealthtour.ir/"},
+    {"@type": "ListItem", "position": 2, "name": "تخصص‌های پزشکی", "item": "https://shirazhealthtour.ir/specialties"},
+    {"@type": "ListItem", "position": 3, "name": "{{ sp.name }}"}
+  ]
+}
+</script>
+{% endblock %}
+{% block crumbs %}
+<nav class="crumbs" aria-label="مسیر صفحه">
+  <ol>
+    <li><a href="/">خانه</a></li>
+    <li><a href="/specialties">تخصص‌های پزشکی</a></li>
+    <li aria-current="page">{{ sp.name }}</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+<section class="page-hero" aria-label="{{ sp.name }}">
+  <span class="kicker">{{ sp.category }}</span>
+  <h1>{{ sp.name }} در شیراز</h1>
+  <p>{{ sp.description }}</p>
+</section>
+
+<div class="profile-grid">
+  <div>
+    <section class="info-card" aria-label="خدمات و بیماری‌های مرتبط">
+      <h2>خدمات رایج این تخصص</h2>
+      <ul class="info-list">
+        {% for s in sp.services %}
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>{{ s }}</span></li>
+        {% endfor %}
+      </ul>
+      <h3 style="margin-top:1.1rem;">بیماری‌ها و علائمی که معمولاً به این تخصص مراجعه می‌کنند</h3>
+      <div class="chip-row">
+        {% for c in sp.conditions %}
+        <a href="/specialties?q={{ c | urlencode }}">{{ c }}</a>
+        {% endfor %}
+      </div>
+      <p class="notice-box">این اطلاعات صرفاً برای راهنمایی مراجعه است و تشخیص پزشکی محسوب نمی‌شود. در موارد اورژانسی با <a href="tel:115">اورژانس ۱۱۵</a> تماس بگیرید.</p>
+    </section>
+
+    <section class="info-card" aria-label="مراکز ارائه‌دهنده این تخصص در شیراز">
+      <h2>مراکز ارائه‌دهنده در شیراز{% if centers %} ({{ centers | length }} مرکز){% endif %}</h2>
+      {% if centers %}
+        {% for c in centers %}
+        <a class="doctor-row" href="/centers/{{ c.id }}">
+          <span class="avatar-letter" aria-hidden="true">{{ c.name[:1] }}</span>
+          <span>
+            <b>{{ c.name }}</b>
+            <span>{{ 'مطب' if c.type == 'office' else 'درمانگاه' }} — {{ c.address }}</span>
+            <span>{{ c.doctors_count }} پزشک فعال</span>
+          </span>
+        </a>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">هنوز مرکزی در این تخصص فعال نشده است. مراکز پس از بررسی و تأیید مدارک به فهرست اضافه می‌شوند؛ اگر مرکز درمانی شما این خدمت را ارائه می‌دهد، از <a href="/register">صفحهٔ ثبت‌نام</a> اقدام کنید.</p>
+      {% endif %}
+    </section>
+
+    <section class="info-card" aria-label="پزشکان این تخصص در شیراز">
+      <h2>پزشکان این تخصص{% if doctors %} ({{ doctors | length }} پزشک){% endif %}</h2>
+      {% if doctors %}
+        {% for d in doctors %}
+        <a class="doctor-row" href="/doctors/{{ d.id }}">
+          <span class="avatar-letter" aria-hidden="true">{{ d.full_name[:1] }}</span>
+          <span>
+            <b>{{ d.full_name }}</b>
+            <span>{{ d.specialty }} — {{ d.clinic_name }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">هنوز پزشکی در این تخصص ثبت نشده است؛ پروفایل پزشکان فقط از مراکز تأییدشده منتشر می‌شود.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside>
+    <div class="side-card">
+      <h2>جست‌وجو و رزرو</h2>
+      <p class="contact-line">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M9 15l2 2 4-4"/></svg>
+        <span><a href="/book">رزرو نوبت آنلاین</a> از مراکز فعال نوبتیار</span>
+      </p>
+      <p class="contact-line">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 20l1-4.9a8.4 8.4 0 1 1 17-3.6Z"/></svg>
+        <span><a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">دریافت نوبت از ربات بله</a></span>
+      </p>
+    </div>
+    {% if related %}
+    <div class="side-card" style="margin-top:1rem;">
+      <h2>تخصص‌های مرتبط</h2>
+      <div class="chip-row">
+        {% for r in related %}
+        <a href="/specialties/{{ r.slug }}">{{ r.name }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

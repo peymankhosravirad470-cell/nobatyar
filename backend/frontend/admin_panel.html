@@ -98,6 +98,37 @@
     </div>
 
     <div class="card">
+      <h2>⚖️ سامانه شکایات و رسیدگی (v0.12.0)</h2>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.7rem;">
+        <button class="btn-sm" onclick="loadComplaints('')">همه</button>
+        <button class="btn-sm" onclick="loadComplaints('registered')">ثبت‌شده</button>
+        <button class="btn-sm" onclick="loadComplaints('in_review')">در حال بررسی</button>
+        <button class="btn-sm" onclick="loadComplaints('referred')">ارجاع‌شده</button>
+        <button class="btn-sm" onclick="loadComplaints('need_info')">نیازمند اطلاعات</button>
+        <button class="btn-sm" onclick="loadComplaints('answered')">پاسخ‌داده‌شده</button>
+        <button class="btn-sm" onclick="loadComplaints('closed')">مختومه</button>
+        <input type="text" id="complaintSearch" placeholder="جست‌وجو: کد/موضوع/نام" onkeydown="if(event.key==='Enter')loadComplaints('')">
+        <button class="btn-sm" onclick="loadComplaints('')">بروزرسانی</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>کد پیگیری</th>
+            <th>موضوع</th>
+            <th>شاکی</th>
+            <th>وضعیت</th>
+            <th>اولویت</th>
+            <th>تاریخ</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="complaintsBody"></tbody>
+      </table>
+      <div id="complaintDetail" style="margin-top:1rem;"></div>
+      <p style="color:#666;font-size:0.85em">یادداشت داخلی هرگز برای شاکی نمایش داده نمی‌شود؛ فقط «پاسخ عمومی» در بخش پیگیری بیمار دیده می‌شود. تمام اقدامات با ثبت سوابق انجام می‌شود.</p>
+    </div>
+
+    <div class="card">
       <h2>🧪 مدیریت آزمایشگاه‌ها</h2>
       <button class="btn-sm" onclick="loadLabs()">بروزرسانی</button>
       <table>
@@ -650,11 +681,94 @@
         </tr>`).join('') || '<tr><td colspan="4">رکوردی ثبت نشده</td></tr>';
     }
 
+    // ==================== v0.12.0: شکایات و رسیدگی ====================
+    const C_STATUS = { registered: 'ثبت‌شده', in_review: 'در حال بررسی', referred: 'ارجاع‌شده', need_info: 'نیازمند اطلاعات بیشتر', answered: 'پاسخ داده‌شده', closed: 'مختومه' };
+    async function loadComplaints(status) {
+      const q = (document.getElementById('complaintSearch') || {}).value || '';
+      let url = '/api/admin/complaints?';
+      if (status) url += `status=${encodeURIComponent(status)}&`;
+      if (q.trim()) url += `q=${encodeURIComponent(q.trim())}`;
+      const res = await fetch(url, { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const items = await res.json();
+      document.getElementById('complaintsBody').innerHTML = (items || []).map(c => `
+        <tr>
+          <td dir="ltr"><b>${esc(c.tracking_code)}</b></td>
+          <td>${esc(c.subject_category)}${c.target_text ? '<br><small>' + esc(c.target_text) + '</small>' : ''}</td>
+          <td>${esc(c.complainant_name)}<br><small dir="ltr">${esc(c.contact_phone)}</small></td>
+          <td>${C_STATUS[c.status] || esc(c.status)}</td>
+          <td>${esc(c.priority)}</td>
+          <td>${esc((c.created_at || '').slice(0, 10))}</td>
+          <td><button class="btn-sm" onclick="openComplaint(${c.id})">رسیدگی</button></td>
+        </tr>`).join('') || '<tr><td colspan="7">شکایتی یافت نشد</td></tr>';
+    }
+
+    async function openComplaint(id) {
+      const res = await fetch(`/api/admin/complaints/${id}`, { headers });
+      const c = await res.json();
+      if (!res.ok) { document.getElementById('complaintDetail').innerHTML = _errHtml(c); return; }
+      const hres = await fetch(`/api/admin/complaints/${id}/history`, { headers });
+      const hj = hres.ok ? await hres.json() : { history: [] };
+      document.getElementById('complaintDetail').innerHTML = `
+        <div class="card">
+          <h3 style="margin-bottom:.5rem;">پروندهٔ ${esc(c.tracking_code)} — ${C_STATUS[c.status] || esc(c.status)}</h3>
+          <p><b>موضوع:</b> ${esc(c.subject_category)} ${esc(c.subject_text || '')}<br>
+             <b>شاکی:</b> ${esc(c.complainant_name)} — <span dir="ltr">${esc(c.contact_phone)}</span><br>
+             ${c.target_text ? '<b>مرتبط با:</b> ' + esc(c.target_text) + '<br>' : ''}
+             ${c.contact_email ? '<b>ایمیل:</b> <span dir="ltr">' + esc(c.contact_email) + '</span><br>' : ''}
+             <b>شرح:</b></p>
+          <p style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem;">${esc(c.description)}</p>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.8rem 0;">
+            <label for="cpStatus">تغییر وضعیت:</label>
+            <select id="cpStatus" class="btn-sm">
+              ${Object.keys(C_STATUS).map(s => `<option value="${s}" ${s === c.status ? 'selected' : ''}>${C_STATUS[s]}</option>`).join('')}
+            </select>
+            <label for="cpPriority">اولویت:</label>
+            <select id="cpPriority" class="btn-sm">
+              <option value="normal" ${c.priority === 'normal' ? 'selected' : ''}>معمولی</option>
+              <option value="high" ${c.priority === 'high' ? 'selected' : ''}>بالا</option>
+              <option value="urgent" ${c.priority === 'urgent' ? 'selected' : ''}>فوری</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:.5rem;">
+            <label for="cpReply">پاسخ عمومی (برای شاکی قابل مشاهده)</label>
+            <textarea id="cpReply" rows="3" style="width:100%;"></textarea>
+          </div>
+          <div class="field" style="margin-bottom:.5rem;">
+            <label for="cpNote">یادداشت داخلی (فقط تیم رسیدگی)</label>
+            <textarea id="cpNote" rows="2" style="width:100%;"></textarea>
+          </div>
+          <button class="btn-sm" onclick="saveComplaint(${c.id})">ثبت رسیدگی</button>
+          <h4 style="margin:1rem 0 .4rem;">سوابق رسیدگی</h4>
+          <ol style="padding-inline-start:1.2rem;font-size:.85em;">
+            ${(hj.history || []).map(h => `<li>${esc(h.action)}${h.public_reply ? ' — پاسخ: «' + esc(h.public_reply) + '»' : ''}${h.internal_note ? ' <em>(داخلی: ' + esc(h.internal_note) + ')</em>' : ''} <small>${esc((h.created_at || '').slice(0, 16).replace('T', ' '))}</small></li>`).join('') || '<li>سابقه‌ای ثبت نشده</li>'}
+          </ol>
+        </div>`;
+      document.getElementById('complaintDetail').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function saveComplaint(id) {
+      const body = {
+        status: document.getElementById('cpStatus').value,
+        priority: document.getElementById('cpPriority').value,
+        public_reply: document.getElementById('cpReply').value.trim() || null,
+        internal_note: document.getElementById('cpNote').value.trim() || null
+      };
+      const res = await fetch(`/api/admin/complaints/${id}/status`, { method: 'POST', headers, body: JSON.stringify(body) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + '</div>'
+        : _errHtml(j);
+      loadComplaints('');
+      openComplaint(id);
+    }
+
     loadPending();
     loadRegistrations('pending');
     loadCompanions();
     loadFeedback();
     loadLabs();
+    loadComplaints('');
   </script>
 </body>
 </html>
