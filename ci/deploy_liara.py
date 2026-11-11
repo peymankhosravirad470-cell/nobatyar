@@ -34,7 +34,7 @@ ARCHIVE = "/tmp/liara_source.tar.gz"
 API = "https://api.liara.ir"
 LOG = "/tmp/liara_deploy.log"
 
-TERMINAL_OK = {"DEPLOYED", "PUSHED"}
+TERMINAL_OK = {"DEPLOYED", "PUSHED", "READY"}   # READY = وضعیت موفق واقعی لیارا (سابقهٔ ریلیزهای زنده)
 TERMINAL_BAD = {"FAILED", "ERROR", "CANCELED", "DEPLOY_FAILED", "BUILD_FAILED"}
 
 # ---- F3: دیسک‌های دائمی اپ ----
@@ -157,6 +157,9 @@ def selftest():
     assert b2 and "موازی" in b2, "انتشار موازی بلاک نشد"
     # release قبلی شکست خورده → انتشار جدید مجاز است
     assert duplicate_guard({"_id": "r3", "gitInfo": {"commit": "abc"}, "state": "FAILED"}, "abc") is None
+    # READY = وضعیت موفق لیارا → همان commit = تکراری
+    b_r = duplicate_guard({"_id": "r5", "gitInfo": {"commit": "abc"}, "state": "READY"}, "abc")
+    assert b_r and "تکراری" in b_r, "READY باید تکراری تلقی شود"
     # commit متفاوت یا اطلاعات ناقص → مجاز
     assert duplicate_guard({"_id": "r4", "gitInfo": {"commit": "abc"}, "state": "DEPLOYED"}, "xyz") is None
     assert duplicate_guard({}, "abc") is None
@@ -238,6 +241,15 @@ def main():
 
         # ---- F2 گارد انتشار تکراری ----
         block = duplicate_guard(last, info.get("commit"))
+        # F2 override — فقط برای redeploy عمدیِ همان commit با پیکربندی جدید (مثل بازاتصال دیسک).
+        # فقط وقتی ریلیز قبلی TERMINAL است مجاز است؛ اگر هنوز در حال build باشد، گارد موازی برقرار می‌ماند.
+        if block and os.environ.get("FORCE_REDEPLOY_SAME_COMMIT") == "1":
+            _st = str((last.get("state") or last.get("status") or "")).upper()
+            if _st in TERMINAL_OK:
+                log("F2 override: FORCE_REDEPLOY_SAME_COMMIT=1 — redeploy عمدی همان commit با پیکربندی جدید (terminal=" + _st + ")")
+                block = None
+            else:
+                log("F2 override رد شد: ریلیز قبلی terminal نیست (state=" + (_st or "?") + ") — انتشار موازی همچنان ممنوع")
         if block:
             log("F2 guard: " + block)
             return 5
@@ -289,7 +301,7 @@ def main():
     # نگه‌داشتن قفل تا پایان فرآیند (عمداً بسته نمی‌شود؛ با خروج فرآیند آزاد می‌شود)
 
     # --- Phase 2: poll release state (401-tolerant) ---
-    terminal = {"DEPLOYED", "PUSHED", "FAILED", "ERROR", "CANCELED", "DEPLOY_FAILED", "BUILD_FAILED"}
+    terminal = {"DEPLOYED", "PUSHED", "READY", "FAILED", "ERROR", "CANCELED", "DEPLOY_FAILED", "BUILD_FAILED"}
     last_state = None
     deadline = time.time() + 25 * 60
     while time.time() < deadline:
