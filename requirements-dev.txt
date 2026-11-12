@@ -1,0 +1,18 @@
+# ============================================================================
+# Nobatyar — وابستگی‌های توسعه/تست (فقط برای محیط توسعه و اجرای run_tests.sh)
+#
+# هشدار استقرار: لیارا فقط backend/requirements.txt را نصب می‌کند (ریشهٔ اپ
+# پوشهٔ backend/ است که liara.json در آن قرار دارد). این فایل هرگز در
+# استقرار تولید استفاده نمی‌شود و نباید به backend/requirements.txt اضافه شود.
+#
+# نصب:  pip install -r requirements-dev.txt   (از ریشهٔ مخزن)
+# ============================================================================
+-r backend/requirements.txt
+
+# pytest — برای ۵ فایل pytest-style مجموعه (test_admin_recovery،
+# test_security_hardening، test_security_phase3، test_v041_critical،
+# test_v041_pg_concurrency) که با اجرای مستقیم python3 واقعاً pytest را
+# در زیر-پردازش اجرا می‌کنند. نسخهٔ پین‌شده = نسخه‌ای که کل مجموعهٔ ۲۱ فایل
+# با آن سبز شد (اجرای کامل 2026-11-12 روی PostgreSQL 18.4 — ۲۱/۲۱ PASS،
+# ۶۰۹ گام). در نبود pytest این ۵ فایل صادقانه FAIL می‌گیرند نه «سبزِ پوچ».
+pytest==9.0.2
