@@ -850,63 +850,6 @@ def admin_bot_connect_code(admin: Admin = Depends(get_current_admin)):
 
 # ==================== بکاپ و بازیابی کامل (فقط ادمین) ====================
 
-def _dt_out(v):
-    return v.isoformat() if v is not None else None
-
-
-def _dump_row(obj, fields):
-    out = {}
-    for f, kind in fields:
-        v = getattr(obj, f)
-        if kind == "dt":
-            out[f] = _dt_out(v)
-        elif kind == "time":
-            out[f] = v.isoformat() if v is not None else None
-        elif kind == "enum":
-            out[f] = (v.value if hasattr(v, "value") else str(v)) if v is not None else None
-        else:
-            out[f] = v
-    return out
-
-
-_DUMP_SPECS = {
-    "admins": (Admin, [
-        ("id", "int"), ("username", "str"), ("password_hash", "str"),
-        ("bale_chat_id", "str"), ("password_changed_at", "dt"), ("created_at", "dt"),
-    ]),
-    "clinics": (Clinic, [
-        ("id", "int"), ("name", "str"), ("specialty", "str"), ("address", "str"),
-        ("phone", "str"), ("status", "enum"), ("type", "str"),
-        ("doctor_name", "str"), ("latitude", "float"), ("longitude", "float"),
-        ("login_username", "str"), ("password_hash", "str"),
-        ("subscription_status", "enum"), ("subscription_expires_at", "dt"),
-        ("created_at", "dt"), ("updated_at", "dt"),
-    ]),
-    "working_hours": (WorkingHour, [
-        ("id", "int"), ("clinic_id", "int"), ("day_of_week", "int"),
-        ("start_time", "time"), ("end_time", "time"),
-        ("slot_duration_minutes", "int"),
-    ]),
-    "available_slots": (AvailableSlot, [
-        ("id", "int"), ("clinic_id", "int"),
-        ("start_datetime", "dt"), ("end_datetime", "dt"), ("is_booked", "bool"),
-    ]),
-    "appointments": (Appointment, [
-        ("id", "int"), ("clinic_id", "int"), ("slot_id", "int"),
-        ("patient_name", "str"), ("patient_phone", "str"),
-        ("patient_national_code", "str"), ("phone_verified", "bool"),
-        ("appointment_datetime", "dt"), ("status", "enum"), ("source", "enum"),
-        ("bale_chat_id", "str"), ("notes", "str"),
-        ("created_at", "dt"), ("updated_at", "dt"),
-    ]),
-    "feedback": (Feedback, [
-        ("id", "int"), ("chat_id", "str"), ("subject", "str"), ("message", "str"),
-        ("status", "enum"), ("admin_reply", "str"),
-        ("answered_by", "int"), ("answered_at", "dt"), ("created_at", "dt"),
-        ("notify_status", "str"), ("notify_attempts", "int"),
-        ("notified_at", "dt"), ("notify_updated_at", "dt"), ("last_notify_error", "str"),
-    ]),
-}
 
 
 @app.post("/api/admin/backup/run")
@@ -922,23 +865,57 @@ def admin_backup_run(admin: Admin = Depends(get_current_admin)):
 
 @app.get("/api/admin/backup/status")
 def admin_backup_status(admin: Admin = Depends(get_current_admin)):
-    """وضعیت بکاپ خودکار + راستی‌آزمایی آخرین فایل (بدون افشای محتوا)."""
+    """داشبورد واقعی بکاپ — وضعیت عملی، نه فقط وضعیت اجرای Job.
+
+    پوشش واقعی (تعداد جدول/درصد)، آخرین بکاپ سالم، عملیات‌نگار، دیسک،
+    RPO/RTO مستند و وضعیت صادقانهٔ نسخهٔ خارج از لیارا.
+    """
     import backup_svc
     enabled = backup_svc.backup_enabled()
+    _, bdir, _, keep_days, keep_weeks, keep_months = backup_svc._config()
     out = {
         "enabled": enabled,
         "schedule": os.environ.get("NOBATYAR_BACKUP_TIME") or "03:30",
-        "keep_days": int(os.environ.get("NOBATYAR_BACKUP_KEEP_DAYS") or "30"),
+        "retention": {"keep_days": keep_days, "keep_weeks": keep_weeks,
+                      "keep_months": keep_months,
+                      "policy": "روزانه×۱۴ + هفتگی×۸ + ماهانه×۶؛ آخرین بکاپ سالم هرگز حذف نمی‌شود"},
         "dir_set": bool(os.environ.get("NOBATYAR_BACKUP_DIR")),
         "key_set": bool(os.environ.get("NOBATYAR_BACKUP_KEY")),
         "offsite": {"active": False,
                     "note": "نسخهٔ خارج از لیارا (S3/آبجکت‌استوریج) فعال نیست — نیازمند اطلاعات احراز سرویس ذخیره‌سازی از مالک"},
+        "rpo_rto": {
+            "rpo": "≤ ۲۴ ساعت — بکاپ رمزنگاری‌شدهٔ خودکار روزانه (03:30 UTC) + اجرای دستی هر زمان",
+            "rto": "≤ ۳۰ دقیقه — بازیابی ایزولهٔ اثبات‌شده در چند دقیقه + مهاجرت/ری‌استارت",
+        },
     }
-    if enabled:
+    if enabled and bdir:
+        out["disk_free_bytes"] = backup_svc.disk_free_bytes(bdir)
         try:
             out["last"] = backup_svc.verify_last_backup()
         except Exception as e:  # noqa: BLE001
             out["last_error"] = f"{type(e).__name__}"
+        out["ops_recent"] = backup_svc.read_oplog(bdir, 15)
+        last_ok = next((o for o in reversed(out["ops_recent"])
+                        if o.get("op") == "backup" and o.get("result") == "ok"), None)
+        if last_ok:
+            out["last_healthy_backup"] = {"file": last_ok.get("file"),
+                                          "ts": last_ok.get("ts")}
+        last_restore = next((o for o in reversed(out["ops_recent"])
+                             if o.get("op") == "restore"), None)
+        if last_restore:
+            out["last_restore"] = last_restore
+    # پوشش واقعی: جداول دیتابیس فعلی در برابر پوشش آخرین بکاپ
+    try:
+        from sqlalchemy import inspect as _insp
+        from database import IS_POSTGRES as _pg, engine as _eng
+        _schema = {"schema": "public"} if _pg else {}
+        total = len(_insp(_eng).get_table_names(**_schema)) - 1  # alembic_version داده نیست
+        covered = (out.get("last") or {}).get("tables_covered")
+        out["coverage"] = {"total_tables": total, "covered_in_last_backup": covered,
+                           "pct": (round(100.0 * covered / total, 1)
+                                   if covered is not None and total else None)}
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 
@@ -947,137 +924,323 @@ def admin_backup(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """دumper کامل همه جدول‌ها به JSON — برای مهاجرت و پشتیبان‌گیری.
+    """دامپ کامل و پویا — همهٔ جداول واقعی دیتابیس (فرمت v2).
 
+    - پوشش پویا: هر جدولی که در دیتابیس واقعاً وجود دارد (حتی ناشناخته به کد).
+    - یک تراکنش REPEATABLE READ روی PostgreSQL — snapshot سازگار.
+    - متادیتا: نسخهٔ برنامه + نسخهٔ شِما + موتور دیتابیس + فهرست پوشش.
     خروجی شامل هش رمزهاست؛ فقط با توکن ادمین قابل دریافت است و نباید عمومی شود.
     """
-    from datetime import datetime as _dt
-    data = {}
-    counts = {}
-    for key, (model, fields) in _DUMP_SPECS.items():
-        rows = db.query(model).order_by(model.id).all()
-        data[key] = [_dump_row(r, fields) for r in rows]
-        counts[key] = len(data[key])
-    return {
-        "format": "nobatyar-backup-v1",
-        "created_at": _dt.utcnow().isoformat(),
-        "database": "postgresql" if IS_POSTGRES else "sqlite",
-        "counts": counts,
-        "data": data,
-    }
+    import backup_svc
+    return backup_svc.create_backup_payload()
+
+
+_RESTORE_CONFIRM_HEADER = "X-Confirm-Restore"
+_RESTORE_CONFIRM_VALUE = "REPLACE-ALL-DATA"
+
+
+def _migration_rank(rev: str) -> int:
+    """رتبهٔ نسخهٔ مهاجرت بر اساس فهرست رسمی alembic/versions (نام فایل‌ها).
+
+    بازگشت -۱ یعنی «ناشناخته به این کد» — در کنترل سازگاری، بکاپِ ناشناخته رد می‌شود.
+    """
+    import re as _re
+    d = os.path.join(os.path.dirname(__file__), "alembic", "versions")
+    ranks = {}
+    for i, f in enumerate(sorted(os.listdir(d))):
+        if f.endswith(".py") and _re.match(r"\d+_", f):
+            ranks[f[:-3]] = i
+    return ranks.get(rev, -1)
+
+
+def _restore_col_converter(col_type):
+    """تبدیل‌گر مقدار JSON به نوع پایتونی ستون مقصد (از inspector دیتابیس)."""
+    from datetime import datetime as _dtm, date as _dte, time as _tme
+    from decimal import Decimal as _Dec
+    try:
+        pt = col_type.python_type
+    except Exception:  # noqa: BLE001 — نوع خاص → عبور خام
+        return lambda v: v
+
+    def conv(v):
+        if v is None:
+            return None
+        if pt is bool:
+            return bool(v)
+        if pt is int:
+            return int(v)
+        if pt is float:
+            return float(v)
+        if pt is _Dec:
+            return _Dec(str(v))
+        if pt is bytes:
+            return bytes.fromhex(v) if isinstance(v, str) else bytes(v)
+        if pt is _dtm:
+            return _dtm.fromisoformat(str(v))
+        if pt is _dte:
+            return _dte.fromisoformat(str(v))
+        if pt is _tme:
+            try:
+                return _tme.fromisoformat(str(v))  # «09:00:00.000000» هم پشتیبانی می‌شود
+            except ValueError:
+                base = str(v).split(".")[0]
+                hh, mm, ss = (list(map(int, base.split(":"))) + [0, 0, 0])[:3]
+                return _tme(hh, mm, ss)
+        return pt(str(v)) if pt is not str else str(v)
+    return conv
+
+
+def _topo_order(tables, fks_by_table):
+    """ترتیب توپولوژیک درج (اول والد، بعد فرزند) بر اساس FKهای بینِ جداول بازیابی."""
+    ts = set(tables)
+    deps = {t: {fk["referred_table"] for fk in fks_by_table.get(t, [])
+                if fk["referred_table"] in ts and fk["referred_table"] != t}
+            for t in ts}
+    ordered, done = [], set()
+    remaining = sorted(ts)
+    while remaining:
+        ready = [t for t in remaining if deps[t] <= done]
+        if not ready:  # چرخهٔ FK (در شِمای فعلی وجود ندارد) → ترتیب الفبایی
+            ordered.extend(remaining)
+            break
+        ordered.extend(ready)
+        done |= set(ready)
+        remaining = [t for t in remaining if t not in done]
+    return ordered
 
 
 @app.post("/api/admin/restore")
 def admin_restore(
     payload: dict,
+    request: Request,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """بازیابی کامل از خروجی /api/admin/backup — برای مهاجرت بین دیتابیس‌ها.
+    """بازیابی واقعی و کامل از خروجی /api/admin/backup (فرمت v2 — و v1 قدیمی).
 
-    امنیت:
-    - فقط با توکن ادمین.
-    - فقط وقتی متغیر محیطی NOBATYAR_ALLOW_RESTORE=1 باشد (پس از مهاجرت حذف می‌شود).
-    - همه جدول‌ها را خاک و از نو می‌سازد (فقط از فرمت رسمی بکاپ).
-    - روی «همان نشستِ» احراز هویت اجرا می‌شود تا TRUNCATE در PostgreSQL قفل نشود؛
-      و همه‌چیز در «یک تراکنش» است: یا کامل، یا هیچ (اتمیک).
+    بازیابی واقعی است نه صرفاً بازکردن فایل:
+    - همهٔ جداولِ موجود در بکاپ و موجود در مقصد، خاک و از نو پر می‌شوند.
+    - ترتیب درج توپولوژیک بر اساس FK + بازتنظیم Sequenceها (PostgreSQL).
+    - پیش از commit: شمارش تک‌تک جداول با بکاپ مقایسه و «اسکن نقض FK» اجرا می‌شود؛
+      هر ناهم‌خوانی → rollback کامل (اتمیک: یا کامل، یا هیچ).
+    - گزارش دقیق: تعداد بازیابی‌شده + جدول‌های ردشده/خارج از بکاپ + ستون‌های نادیده.
+
+    امنیت و جلوگیری از اجرای تصادفی مخرب:
+    - فقط با توکن ادمین + فقط وقتی NOBATYAR_ALLOW_RESTORE=1 (خارج از حالت مهاجرت خاموش است).
+    - هدر صریح X-Confirm-Restore: REPLACE-ALL-DATA الزامی است (دو لایهٔ تأیید).
+    - کنترل نسخه: بکاپِ مهاجرتِ جدیدتر از کدِ مقصد رد می‌شود.
     """
     import os
+    from sqlalchemy import text as _text, inspect as _inspect
+    from sqlalchemy.exc import DBAPIError
+
     if os.environ.get("NOBATYAR_ALLOW_RESTORE") != "1":
         raise HTTPException(403, "بازیابی غیرفعال است (NOBATYAR_ALLOW_RESTORE تنظیم نشده)")
-    if payload.get("format") != "nobatyar-backup-v1":
+    # هدر تأیید صریح — حتی با ALLOW=1، بازیابی بدون اعلام قصد رد می‌شود
+    confirm = request.headers.get(_RESTORE_CONFIRM_HEADER)
+    if confirm != _RESTORE_CONFIRM_VALUE:
+        raise HTTPException(400, "تأیید صریح الزامی است: هدر "
+                                 f"{_RESTORE_CONFIRM_HEADER}: {_RESTORE_CONFIRM_VALUE}")
+    fmt = payload.get("format")
+    if fmt not in ("nobatyar-backup-v2", "nobatyar-backup-v1"):
         raise HTTPException(400, "فرمت بکاپ شناخته نشد")
     data = payload.get("data") or {}
-    for key, (model, fields) in _DUMP_SPECS.items():
-        if key not in data or not isinstance(data[key], list):
-            raise HTTPException(400, f"بخش {key} در بکاپ یافت نشد")
-
-    from datetime import datetime as _dt
-    from datetime import time as _time
-    from sqlalchemy import text as _text
+    data = {k: v for k, v in data.items() if isinstance(v, list)}
+    if not data:
+        raise HTTPException(400, "بکاپ خالی است (هیچ جدولی برای بازیابی نیست)")
+    counts = payload.get("counts") or {}
 
     try:
-        # identity map را خالی می‌کنیم تا درج رکوردهای هم‌id با شیء احراز‌شده تداخل نکند
+        conn = db.connection()
+        insp = _inspect(conn)
+        _schema = {"schema": "public"} if IS_POSTGRES else {}
+        target_tables = set(insp.get_table_names(**_schema))
+
+        # ---------- کنترل سازگاری نسخهٔ شِما ----------
+        target_head = None
+        if "alembic_version" in target_tables:
+            target_head = conn.execute(
+                _text("SELECT version_num FROM alembic_version")).scalar()
+        backup_head = payload.get("schema_version")
+        if backup_head and target_head and backup_head != target_head:
+            # بکاپ قدیمی‌تر → مجاز (مسیر مستند: بازیابی سپس مهاجرت)؛
+            # بکاپ جدیدتر از کد مقصد یا ناشناخته → رد (ناسازگار/غیرقابل‌اثبات)
+            if _migration_rank(backup_head) == -1:
+                raise HTTPException(400, f"نسخهٔ شِمای بکاپ ناشناخته است: {backup_head}")
+            if _migration_rank(backup_head) > _migration_rank(target_head):
+                raise HTTPException(
+                    400, f"بکاپ از نسخهٔ شِمای جدیدتر است ({backup_head} > {target_head}) — "
+                         "اول کد مقصد را ارتقا دهید")
+
+        restored_set = {t for t in data if t in target_tables}
+        skipped_no_table = sorted(set(data) - restored_set)
+        not_in_backup = sorted(target_tables - set(data) - {"alembic_version"})
+
+        # قربانیان CASCADE: جدول‌هایی که FK به جداولِ جایگزین‌شده دارند و خودشان
+        # در بکاپ نیستند — TRUNCATE CASCADE آن‌ها را هم خالی می‌کند؛ باید صادقانه
+        # گزارش و در صورت داشتن داده (بکاپ ناقص v1) بازیابی رد شود.
+        cascade_victims = set()
+        for t in target_tables - restored_set:
+            try:
+                for fk in insp.get_foreign_keys(t, **_schema):
+                    if fk["referred_table"] in restored_set:
+                        cascade_victims.add(t)
+                        break
+            except Exception:  # noqa: BLE001
+                pass
+        if fmt == "nobatyar-backup-v1" and not payload.get("allow_cascade_loss"):
+            victims_with_data = []
+            for t in sorted(cascade_victims):
+                try:
+                    if conn.execute(_text(f'SELECT COUNT(*) FROM "{t}"')).scalar():
+                        victims_with_data.append(t)
+                except Exception:  # noqa: BLE001
+                    pass
+            if victims_with_data:
+                raise HTTPException(
+                    400, "بکاپ v1 پوشش ناقص دارد و جداول وابستهٔ دارای داده "
+                         f"({', '.join(victims_with_data)}) حذف می‌شدند؛ "
+                         "از بکاپ v2 کامل استفاده کنید یا برای پذیرش صریح "
+                         "allow_cascade_loss=true بفرستید")
+
+        # ---------- طرح درج: ترتیب توپولوژیک + تبدیل نوع ----------
+        fks_by_table = {t: insp.get_foreign_keys(t, **_schema) for t in restored_set}
+        insert_order = _topo_order(restored_set, fks_by_table)
+
+        conv_cache = {}
+        ignored_columns = {}
+        plan = {}  # t -> list[dict] آمادهٔ درج
+        for t in insert_order:
+            tcols = insp.get_columns(t, **_schema)
+            col_conv = {}
+            for c in tcols:
+                conv_cache[(t, c["name"])] = _restore_col_converter(c["type"])
+                col_conv[c["name"]] = c
+            rows = []
+            skipped_cols = set()
+            for row in data[t]:
+                out = {}
+                for k, v in row.items():
+                    if k not in col_conv:
+                        skipped_cols.add(k)
+                        continue
+                    out[k] = conv_cache[(t, k)](v)
+                # سازگاری بکاپ‌های v1 قدیمی: فیلدهای اعلان که بعداً اضافه شدند
+                if t == "feedback":
+                    out.setdefault("notify_status", "pending")
+                    out.setdefault("notify_attempts", 0)
+                rows.append(out)
+            ignored_columns[t] = sorted(skipped_cols)
+            plan[t] = rows
+
+        # ---------- پاک‌سازی (در همان تراکنش — اتمیک) ----------
         db.expunge_all()
-
-        # ۱) پاک‌سازی (در همان تراکنش)
         if IS_POSTGRES:
-            tables = ", ".join(k for k, _ in _DUMP_SPECS.items())
-            db.execute(_text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
+            if restored_set:
+                tbls = ", ".join(f'"{t}"' for t in sorted(restored_set))
+                conn.exec_driver_sql(
+                    f"TRUNCATE TABLE {tbls} RESTART IDENTITY CASCADE")
         else:
-            for key in ("appointments", "available_slots", "working_hours", "feedback", "clinics", "admins"):
-                db.query(_DUMP_SPECS[key][0]).delete()
+            for t in reversed(insert_order):
+                conn.exec_driver_sql(f'DELETE FROM "{t}"')
 
-        # ۲) درج به ترتیب وابستگی‌ها + تبدیل نوع
-        def _parse(kind, v):
-            if v is None:
-                return None
-            if kind == "dt":
-                return _dt.fromisoformat(v)
-            if kind == "time":
-                hh, mm, ss = (list(map(int, str(v).split(":"))) + [0, 0, 0])[:3]
-                return _time(hh, mm, ss)
-            if kind == "enum":
-                return v  # مقدار رشته‌ای؛ پایین‌تر به عضو enum تبدیل می‌شود
-            return v
+        # ---------- درج توپولوژیک ----------
+        inserted_counts = {}
+        for t in insert_order:
+            rows = plan[t]
+            if rows:
+                tbl_obj = None
+                from sqlalchemy import Table, MetaData
+                md = MetaData()
+                tbl_obj = Table(t, md, autoload_with=conn, **_schema)
+                for i in range(0, len(rows), 500):
+                    conn.execute(tbl_obj.insert(), rows[i:i + 500])
+            inserted_counts[t] = len(rows)
 
-        _ENUM_FIELDS = {
-            "clinics": {"status": ClinicStatus, "subscription_status": SubscriptionStatus},
-            "appointments": {"status": AppointmentStatus, "source": AppointmentSource},
-            "feedback": {"status": FeedbackStatus},
-        }
-
-        inserted = {}
-        for key in ("admins", "clinics", "working_hours", "available_slots", "appointments", "feedback"):
-            model, fields = _DUMP_SPECS[key]
-            enums = _ENUM_FIELDS.get(key, {})
-            objs = []
-            for row in data[key]:
-                kwargs = {}
-                for f, kind in fields:
-                    v = _parse(kind, row.get(f))
-                    if f in enums and v is not None:
-                        v = enums[f](v)
-                    kwargs[f] = v
-                # سازگاری با بکاپ‌های قدیمی‌تر (بدون فیلدهای جدید اعلان)
-                if key == "feedback":
-                    kwargs["notify_status"] = kwargs.get("notify_status") or "pending"
-                    kwargs["notify_attempts"] = kwargs.get("notify_attempts") or 0
-                objs.append(model(**kwargs))
-            if objs:
-                db.add_all(objs)
-            inserted[key] = len(objs)
-
-        # ۳) flush صریح: رکوردهای در صف باید در دیتابیس بنشینند تا MAX(id) درست باشد
-        db.flush()
-
-        # ۴) بازتنظیم شمارنده‌ها در PostgreSQL (در همین تراکنش/اتصال)
+        # ---------- بازتنظیم Sequenceها (PostgreSQL — فقط ستون‌های serial واقعی) ----------
+        sequences_reset = {}
         if IS_POSTGRES:
-            for t in ("admins", "clinics", "working_hours", "available_slots", "appointments", "feedback"):
-                db.execute(_text(
-                    f"""SELECT setval(pg_get_serial_sequence('{t}', 'id'),
-                         COALESCE((SELECT MAX(id) FROM {t}), 0) + 1, false)"""
-                ))
+            for t in insert_order:
+                seq = conn.execute(_text(
+                    "SELECT pg_get_serial_sequence(:t, 'id')"), {"t": t}).scalar()
+                if seq:
+                    conn.execute(_text(
+                        f"SELECT setval('{seq}', COALESCE((SELECT MAX(id) FROM \"{t}\"), 0) + 1, false)"))
+                    sequences_reset[t] = True
 
-        # ۵) یک کامیت اتمیک
+        # ---------- راستی‌آزمایی پیش از commit: شمارش + اسکن نقض FK ----------
+        verify = {}
+        for t in insert_order:
+            verify[t] = conn.execute(_text(f'SELECT COUNT(*) FROM "{t}"')).scalar()
+        mismatched = [t for t in insert_order
+                      if counts.get(t) is not None and verify[t] != counts[t]]
+        if mismatched:
+            raise RuntimeError(f"بازیابی ناقص (شمارش ناهم‌خوان): {mismatched}")
+
+        fk_violations = []
+        fk_unchecked = []
+        for t in insert_order:
+            for fk in fks_by_table.get(t, []):
+                ref_t = fk["referred_table"]
+                pair = list(zip(fk["constrained_columns"], fk["referred_columns"]))
+                if len(pair) != 1 or ref_t not in target_tables:
+                    fk_unchecked.append(f"{t}->{ref_t}")
+                    continue
+                ccol, rcol = pair[0]
+                n = conn.execute(_text(
+                    f'SELECT COUNT(*) FROM "{t}" c LEFT JOIN "{ref_t}" p '
+                    f'ON c."{ccol}" = p."{rcol}" '
+                    f'WHERE c."{ccol}" IS NOT NULL AND p."{rcol}" IS NULL')).scalar()
+                if n:
+                    fk_violations.append({"table": t, "column": ccol,
+                                          "ref": ref_t, "violations": int(n)})
+        if fk_violations:
+            raise RuntimeError(f"نقض کلید خارجی پس از درج: {fk_violations}")
+
+        # ---------- یک کامیت اتمیک ----------
         db.commit()
 
-        # ۶) راستی‌آزمایی تعدادها
-        verify = {}
-        for key, (model, _) in _DUMP_SPECS.items():
-            verify[key] = db.query(model).count()
-        mismatched = [k for k in inserted if verify[k] != inserted[k]]
-        if mismatched:
-            raise HTTPException(500, f"بازیابی ناقص: {mismatched}")
-        return {
+        report = {
             "message": "بازیابی کامل انجام شد",
+            "format": fmt,
+            "coverage": "full" if fmt == "nobatyar-backup-v2" else "legacy-partial-v1",
             "restored": verify,
-            "source_database": payload.get("database"),
-            "target_database": "postgresql" if IS_POSTGRES else "sqlite",
+            "rows_total": sum(verify.values()),
+            "skipped_no_table": skipped_no_table,
+            "not_in_backup": not_in_backup,
+            "cascade_truncated": sorted(cascade_victims - restored_set),
+            "ignored_columns": {k: v for k, v in ignored_columns.items() if v},
+            "fk_violations": [],
+            "sequences_reset": sorted(sequences_reset),
+            "backup_meta": {
+                "created_at": payload.get("created_at"),
+                "app_version": payload.get("app_version"),
+                "backup_schema_version": backup_head,
+                "target_schema_version": target_head,
+                "source_database": payload.get("database"),
+                "target_database": "postgresql" if IS_POSTGRES else "sqlite",
+            },
         }
+        if fk_unchecked:
+            report["fk_unchecked"] = fk_unchecked
+        try:
+            import backup_svc
+            if os.environ.get("NOBATYAR_BACKUP_DIR"):
+                backup_svc._oplog(os.environ["NOBATYAR_BACKUP_DIR"],
+                                  {"op": "restore", "result": "ok",
+                                   "file": payload.get("_source_file"),
+                                   "rows": report["rows_total"],
+                                   "tables": len(verify),
+                                   "coverage": report["coverage"]})
+        except Exception:  # noqa: BLE001
+            pass
+        return report
     except HTTPException:
         db.rollback()
         raise
+    except (DBAPIError, RuntimeError) as e:
+        db.rollback()
+        raise HTTPException(500, f"خطا در بازیابی (rollback کامل شد): {type(e).__name__}")
     except Exception as e:  # noqa: BLE001
         db.rollback()
         raise HTTPException(500, f"خطا در بازیابی: {type(e).__name__}")

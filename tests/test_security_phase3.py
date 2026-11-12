@@ -107,27 +107,33 @@ def test_backup_restore_roundtrip():
     }
     db.close()
 
-    # ---------- بکاپ ----------
+    # ---------- بکاپ (فرمت v2 — پوشش کامل پویا) ----------
     r = client.get("/api/admin/backup", headers=AUTH)
     assert r.status_code == 200, r.text
     backup = r.json()
-    assert backup["format"] == "nobatyar-backup-v1"
-    assert backup["counts"] == expected_counts, (backup["counts"], expected_counts)
+    assert backup["format"] == "nobatyar-backup-v2"
+    # v2 پوشش کامل دارد (۲۸ جدول)؛ شمارش ۶ جدول آزمون باید دقیق و بدون تغییر باشد
+    assert all(backup["counts"].get(k) == v for k, v in expected_counts.items()), \
+        (backup["counts"], expected_counts)
     print(f"✅ بکاپ گرفته شد: {backup['counts']}")
 
     # ---------- بازیابی (endpoint خودش همه جدول‌ها را خاک و از نو می‌سازد) ----------
     # NOTE: در جریان واقعی مهاجرت، ادمینِ هدف موجود است (ساخته‌شده از env) و
     # احراز هویت قبل از پاک‌سازی انجام می‌شود؛ بنابراین restore با توکن ادمین کار می‌کند.
-    r = client.post("/api/admin/restore", json=backup, headers=AUTH)
+    CONF = {"X-Confirm-Restore": "REPLACE-ALL-DATA"}
+    r = client.post("/api/admin/restore", json=backup, headers={**AUTH, **CONF})
     assert r.status_code in (200, 403), r.text  # 403 وقتی فلگ محیطی فعال نیست
     if r.status_code == 403:
         # فلگ را فعال می‌کنیم (شبیه‌سازی استقرار مهاجرت)
         os.environ["NOBATYAR_ALLOW_RESTORE"] = "1"
-        r = client.post("/api/admin/restore", json=backup, headers=AUTH)
+        r = client.post("/api/admin/restore", json=backup, headers={**AUTH, **CONF})
     assert r.status_code == 200, r.text
     res = r.json()
-    assert res["restored"] == expected_counts, (res, expected_counts)
-    print(f"✅ بازیابی کامل: {res['restored']}")
+    # v2: همهٔ جداول واقعی بازیابی می‌شوند؛ شمارش ۶ جدول آزمون باید دقیق باشد
+    for k, v in expected_counts.items():
+        assert res["restored"].get(k) == v, (k, res["restored"].get(k), v)
+    assert res["coverage"] == "full"
+    print(f"✅ بازیابی کامل: {len(res['restored'])} جدول (پوشش کامل v2)")
 
     # ---------- تطبیق محتوا ----------
     db = SessionLocal()
