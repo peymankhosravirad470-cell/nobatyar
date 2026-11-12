@@ -205,6 +205,48 @@ from database import _run_alembic
 _run_alembic("upgrade", "head")   # idempotent — اجرای تکراری خطا نمی‌دهد
 check("مهاجرت 0012 idempotent (اجرای تکراری بدون خطا)", True)
 
+# ==================== ۹) رگرسیون Article.status — سازگاری Enum با ستون VARCHAR مهاجرت 0012 ====================
+# نقص اصلاح‌شده: SAEnum(ArticleStatus) بومی PostgreSQL به نوع بومی articlestatus وابسته
+# بود که مهاجرت 0012 هرگز نمی‌سازد؛ مسیر insertmanyvalues (درج دسته‌ای ≥۲ ردیف،
+# مثل seed استارتاپ) با «type articlestatus does not exist» می‌شکست و کل تراکنش
+# seed را برمی‌گرداند. فیکس: native_enum=False + length=12 (سازگار با VARCHAR(10/12)).
+from models import Article, ArticleStatus  # noqa: E402
+
+_col = Article.__table__.columns["status"]
+check("Article.status: نوع Enum غیربومی است (native_enum=False — بدون وابستگی به CREATE TYPE)",
+      getattr(_col.type, "native_enum", None) is False)
+check("Article.status: length=12 (هم‌خوان با ArticleAdminIn.status max_length=12)",
+      getattr(_col.type, "length", None) == 12)
+
+# رفتار واقعی: درج دسته‌ای ۳ ردیف در یک تراکنش (مسیر insertmanyvalues) + گردش خواندن
+from datetime import datetime as _dt  # noqa: E402
+_db2 = SessionLocal()
+_batch_ok, _batch_detail = False, ""
+try:
+    _ts = _dt.utcnow()
+    _rows = [Article(slug="regr-batch-status-1", title="رگرسیون وضعیت ۱",
+                     summary="خلاصه", body="متن آزمون رگرسیون درج دسته‌ای",
+                     status=ArticleStatus.published, published_at=_ts),
+             Article(slug="regr-batch-status-2", title="رگرسیون وضعیت ۲",
+                     summary="خلاصه", body="متن آزمون رگرسیون درج دسته‌ای",
+                     status=ArticleStatus.published, published_at=_ts),
+             Article(slug="regr-batch-status-3", title="رگرسیون وضعیت ۳",
+                     summary="خلاصه", body="متن آزمون رگرسیون درج دسته‌ای",
+                     status=ArticleStatus.draft, published_at=_ts)]
+    _db2.add_all(_rows)
+    _db2.commit()  # درج دسته‌ای — روی شِمای مهاجرت‌یافته باید سبز باشد
+    _ids = [r.id for r in _rows]
+    _read = _db2.query(Article).filter(Article.id.in_(_ids)).all()
+    _statuses = {(a.status.value if hasattr(a.status, "value") else str(a.status)) for a in _read}
+    _batch_ok = len(_read) == 3 and _statuses == {"published", "draft"}
+finally:
+    _db2.query(Article).filter(Article.slug.like("regr-batch-status-%")).delete(
+        synchronize_session=False)
+    _db2.commit()
+    _db2.close()
+check("درج دسته‌ای ۳ مقاله در یک تراکنش + گردش خواندن وضعیت (بدون نوع بومی)",
+      _batch_ok, detail=_batch_detail)
+
 # ==================== جمع‌بندی ====================
 total = len(PASS)
 ok = sum(1 for _, v in PASS if v)
