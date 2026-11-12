@@ -4,7 +4,8 @@
 جریان:
   1. اعتبار ادمین فقط از env (در GitHub Actions از Secretهای رسمی تزریق می‌شود؛ هرگز چاپ نمی‌شود — فقط اثرانگشت sha256[:12])
   2. dump کامل واقعی از GET /api/admin/backup تولید (فقط-خواندنی روی تولید)
-  3. در یک SQLite محلیِ تازه، همان endpoint رسمی /api/admin/restore (کد v0.11.2) اجرا می‌شود
+  3. در یک SQLite محلیِ تازه، همان endpoint رسمی /api/admin/restore (قرارداد v2) اجرا می‌شود
+     — با هدر تأیید صریح X-Confirm-Restore: REPLACE-ALL-DATA (بند ۲ سند بازیابی)
   4. تعدادها با dump مقایسه + ورود مجدد با hash بازسازی‌شدهٔ تولید
   5. DB موقت حذف می‌شود؛ dump فقط در حافظه است؛ هیچ PHI چاپ/ذخیره نمی‌شود
 """
@@ -58,11 +59,11 @@ def main():
         return 2
     tok = d["access_token"]
     st, dump = http_json("GET", f"{SITE}/api/admin/backup", token=tok)
-    if st != 200 or dump.get("format") != "nobatyar-backup-v1":
+    if st != 200 or dump.get("format") not in ("nobatyar-backup-v2", "nobatyar-backup-v1"):
         print(f"FAILED: گرفتن dump (HTTP {st})")
         return 3
     counts = dump.get("counts", {})
-    print(f"dump OK: format={dump['format']} source_db={dump.get('database')} counts={counts}")
+    print(f"dump OK: format={dump['format']} source_db={dump.get('database')} tables={len(counts)} rows={sum(counts.values())}")
 
     print("== گام ۳: بازسازی همان dump در SQLite ایزولهٔ محلی با همان endpoint رسمی ==")
     if os.path.exists(TMP_DB):
@@ -92,12 +93,14 @@ def main():
     ltok = r.json().get("access_token")
 
     r = client.post("/api/admin/restore", json=dump,
-                    headers={"Authorization": f"Bearer {ltok}"})
+                    headers={"Authorization": f"Bearer {ltok}",
+                             "X-Confirm-Restore": "REPLACE-ALL-DATA"})
     if r.status_code != 200:
         print(f"FAILED: restore محلی (HTTP {r.status_code}) body={r.text[:200]}")
         return 5
     restored = r.json().get("restored", {})
-    print(f"restored={restored} target_db={r.json().get('target_database')}")
+    print(f"restored tables={len(restored)} rows_total={r.json().get('rows_total')} "
+          f"coverage={r.json().get('coverage')} target_db={r.json().get('backup_meta', {}).get('target_database')}")
 
     ok = True
     print("== گام ۴: مقایسهٔ تعدادها (dump تولید == بازسازی محلی) ==")

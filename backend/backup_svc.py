@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -316,6 +317,50 @@ def _apply_retention(bdir: str, keep_days: int, keep_weeks: int, keep_months: in
     return removed
 
 
+# ==================== انتقال Offsite (محور ۱ ممیزی ۲۰۲۶-۱۱-۱۳) ====================
+
+def _offsite_upload(bdir: str, fname: str) -> dict | None:
+    """انتقال نسخهٔ رمزنگاری‌شدهٔ تازه به فضای مستقل از لیارا (اگر پیکربندی شده باشد).
+
+    - فایل fernet + sidecar sha256 آپلود می‌شوند؛ bucket فقط ciphertext می‌بیند
+      (بدون کلید رمزگشایی).
+    - شکست آپلود هرگز بکاپ محلی را ناموفق نمی‌کند؛ فقط عملیات‌نگار + لاگ مشاهده‌پذیر
+      (LOG.exception در سطح ERROR — با هندلر stdout دیوارشده در startup دیده می‌شود).
+    """
+    try:
+        import offsite_store
+        if not offsite_store.offsite_enabled():
+            return None
+        results = []
+        for name in (fname, fname + ".sha256"):
+            p = os.path.join(bdir, name)
+            if not os.path.isfile(p):
+                continue
+            try:
+                r = offsite_store.upload_file(p, name)
+                r["file"] = name
+                results.append(r)
+                _oplog(bdir, {"op": "offsite_upload",
+                              "result": "ok" if r.get("ok") else "failed",
+                              "file": name, "size": r.get("size"),
+                              "status": r.get("status")})
+            except Exception as e:  # noqa: BLE001 — شکست offsite ≠ شکست بکاپ محلی
+                results.append({"file": name, "ok": False, "error": type(e).__name__})
+                _oplog(bdir, {"op": "offsite_upload", "result": "failed",
+                              "file": name, "error": type(e).__name__})
+                LOG.exception("offsite upload failed file=%s", name)
+        return {"files": results,
+                "ok": bool(results) and all(r.get("ok") for r in results)}
+    except Exception:  # noqa: BLE001 — هرگز جریان بکاپ محلی را نمی‌شکند
+        LOG.exception("offsite upload step failed")
+        try:
+            _oplog(bdir, {"op": "offsite_upload", "result": "failed",
+                          "error": "step_error"})
+        except Exception:  # noqa: BLE001
+            pass
+        return {"files": [], "ok": False}
+
+
 # ==================== اجرای بکاپ ====================
 
 def run_backup_now() -> dict:
@@ -348,18 +393,23 @@ def run_backup_now() -> dict:
     _verify_file(path, key)
     # ---- نگهداری لایه‌ای (فقط وقتی نسخهٔ تازه سالم تأیید شد) ----
     removed = _apply_retention(bdir, keep_days, keep_weeks, keep_months)
+    # ---- Offsite: نسخهٔ مستقل از لیارا — اگر پیکربندی شده باشد (غیرفعال = None) ----
+    offsite = _offsite_upload(bdir, fname)
     dur_ms = int((time.monotonic() - t0) * 1000)
     _oplog(bdir, {"op": "backup", "result": "ok", "file": fname, "size": size,
                   "sha256": sha, "tables": len(payload["counts"]),
                   "rows": sum(payload["counts"].values()),
                   "duration_ms": dur_ms, "removed_old": len(removed),
-                  "format": BACKUP_FORMAT})
-    LOG.info("backup written file=%s size=%d tables=%d removed_old=%d duration_ms=%d",
-             fname, size, len(payload["counts"]), len(removed), dur_ms)
+                  "format": BACKUP_FORMAT,
+                  "offsite_ok": (offsite["ok"] if offsite else None)})
+    LOG.info("backup written file=%s size=%d tables=%d removed_old=%d duration_ms=%d offsite=%s",
+             fname, size, len(payload["counts"]), len(removed), dur_ms,
+             ("ok" if offsite and offsite.get("ok") else
+              "failed" if offsite else "disabled"))
     return {"file": fname, "size": size, "sha256": sha,
             "counts": payload["counts"], "tables": len(payload["counts"]),
             "rows": sum(payload["counts"].values()), "removed_old": removed,
-            "duration_ms": dur_ms, "format": BACKUP_FORMAT}
+            "duration_ms": dur_ms, "format": BACKUP_FORMAT, "offsite": offsite}
 
 
 # ==================== زمان‌بند روزانه ====================
@@ -413,17 +463,87 @@ async def backup_scheduler_loop():
         await asyncio.sleep(300)
 
 
+def _ensure_stdout_logging() -> None:
+    """مشاهده‌پذیری در لاگ لیارا (بند ۴ ممیزی ۲۰۲۶-۱۱-۱۳).
+
+    پیش‌فرض Python: root logger در سطح WARNING است — یعنی «موفقیتِ» بکاپ
+    زمان‌بندی‌شده (LOG.info) هرگز در لاگ لیارا دیده نمی‌شد و تنها مدرک هر اجرا
+    حضور فایل جدید بود. این تابع هندلر stdout در سطح INFO نصب می‌کند تا موفقیت
+    و شکست هر دو خط لاگ صریح داشته باشند.
+    """
+    has_stream = any(isinstance(h, logging.StreamHandler)
+                     and not isinstance(h, logging.FileHandler)
+                     for h in LOG.handlers)
+    if not has_stream:
+        h = logging.StreamHandler(sys.stdout)
+        h.setFormatter(logging.Formatter(
+            "%(asctime)s %(name)s %(levelname)s %(message)s"))
+        LOG.addHandler(h)
+    if LOG.level == logging.NOTSET or LOG.level > logging.INFO:
+        LOG.setLevel(logging.INFO)
+    LOG.propagate = False  # جلوگیری از تکرار خط از مسیر root
+
+
+def startup_disk_check() -> bool:
+    """پیش‌چک دیسک در startup — درس حادثهٔ ۲۰۲۶-۱۱-۱۱.
+
+    در حادثهٔ ۱۱ نوامبر، کانتینر بدون دیسک بکاپ بالا آمده بود و شکست فقط روز
+    بعد در 03:30 UTC (با لاگ traceback) دیده شد. این چک همان لحظهٔ deploy،
+    قابل‌نوشتن‌بودن NOBATYAR_BACKUP_DIR را با فایل probe می‌آزماید.
+    """
+    key, bdir, *_ = _config()
+    if not key or not bdir:
+        return True  # بکاپ فعال نیست — مربوط به این چک نیست
+    try:
+        os.makedirs(bdir, exist_ok=True)
+        probe = os.path.join(bdir, ".write_probe")
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write(datetime.utcnow().isoformat())
+        os.remove(probe)
+        LOG.info("startup disk check OK: backup dir writable (%s)", bdir)
+        return True
+    except OSError as e:
+        LOG.error("startup disk check FAILED: backup dir not writable (%s): %s",
+                  bdir, e)
+        try:
+            _oplog(bdir if os.path.isdir(bdir) else os.path.dirname(bdir) or bdir,
+                   {"op": "startup_disk_check", "result": "failed",
+                    "error": type(e).__name__, "dir": bdir})
+        except Exception:  # noqa: BLE001 — عملیات‌نگار هرگز نمی‌شکند
+            pass
+        return False
+
+
 def start_backup_task():
     """در startup فراخوانی می‌شود — فقط اگر بکاپ پیکربندی شده باشد."""
     global _scheduler_task
     if not backup_enabled():
         LOG.info("backup disabled (NOBATYAR_BACKUP_KEY/NOBATYAR_BACKUP_DIR not set)")
         return
+    _ensure_stdout_logging()
+    disk_ok = startup_disk_check()
+    if not disk_ok:
+        # حادثهٔ ۲۰۲۶-۱۱-۱۱: دیسک mount نشده/خواندنی — هشدار فوری به ادمین‌های متصل
+        try:
+            loop0 = asyncio.get_running_loop()
+            loop0.create_task(_notify_failure(
+                "startup: دیسک بکاپ قابل‌نوشتن نیست (mount دیسک را کنترل کنید)"))
+        except RuntimeError:
+            pass
     try:
         loop = asyncio.get_running_loop()
         _scheduler_task = loop.create_task(backup_scheduler_loop())  # مرجع نگه‌داشته می‌شود
         LOG.info("backup scheduler started (time=%s dir set, key set, "
-                 "tiers=14d/8w/6m default)",
-                 (os.environ.get("NOBATYAR_BACKUP_TIME") or "03:30"))
+                 "tiers=14d/8w/6m default, disk_ok=%s, offsite=%s)",
+                 (os.environ.get("NOBATYAR_BACKUP_TIME") or "03:30"), disk_ok,
+                 ("enabled" if _offsite_ready() else "disabled"))
     except RuntimeError:
         LOG.warning("no running loop; backup scheduler not started")
+
+
+def _offsite_ready() -> bool:
+    try:
+        import offsite_store
+        return offsite_store.offsite_enabled()
+    except Exception:  # noqa: BLE001
+        return False

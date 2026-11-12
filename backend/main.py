@@ -863,6 +863,38 @@ def admin_backup_run(admin: Admin = Depends(get_current_admin)):
     return {"message": "بکاپ ساخته شد", **info}
 
 
+def _offsite_summary() -> dict:
+    """خلاصهٔ صادقانهٔ وضعیت Offsite (محور ۱ ممیزی ۲۰۲۶-۱۱-۱۳) — بدون هیچ مقدار رمزی.
+
+    - پیکربندی نشده → active=False + راهنمای متغیرها (تصمیم فعال‌سازی با مالک).
+    - پیکربندی‌شده → host/bucket/prefix + آخرین نتیجهٔ آپلود از عملیات‌نگار.
+    """
+    summary = {"active": False, "note":
+               "نسخهٔ خارج از لیارا فعال نیست — فعال‌سازی با تنظیم NOBATYAR_OFFSITE_ENDPOINT/"
+               "BUCKET/ACCESS_KEY/SECRET_KEY توسط مالک (بدون خرید خودکار)"}
+    try:
+        import backup_svc
+        import offsite_store
+        st = offsite_store.offsite_status()
+        if st["enabled"]:
+            summary = {"active": True, **st}
+            _, bdir, *_ = backup_svc._config()
+            last = None
+            for o in reversed(backup_svc.read_oplog(bdir or "", 40) if bdir else []):
+                if o.get("op") == "offsite_upload":
+                    last = o
+                    break
+            if last:
+                summary["last_upload"] = {"file": last.get("file"),
+                                          "result": last.get("result"),
+                                          "ts": last.get("ts")}
+        else:
+            summary.update({"endpoint_host": None, "bucket": None})
+    except Exception:  # noqa: BLE001 — داشبورد هرگز نمی‌شکند
+        pass
+    return summary
+
+
 @app.get("/api/admin/backup/status")
 def admin_backup_status(admin: Admin = Depends(get_current_admin)):
     """داشبورد واقعی بکاپ — وضعیت عملی، نه فقط وضعیت اجرای Job.
@@ -881,8 +913,7 @@ def admin_backup_status(admin: Admin = Depends(get_current_admin)):
                       "policy": "روزانه×۱۴ + هفتگی×۸ + ماهانه×۶؛ آخرین بکاپ سالم هرگز حذف نمی‌شود"},
         "dir_set": bool(os.environ.get("NOBATYAR_BACKUP_DIR")),
         "key_set": bool(os.environ.get("NOBATYAR_BACKUP_KEY")),
-        "offsite": {"active": False,
-                    "note": "نسخهٔ خارج از لیارا (S3/آبجکت‌استوریج) فعال نیست — نیازمند اطلاعات احراز سرویس ذخیره‌سازی از مالک"},
+        "offsite": _offsite_summary(),
         "rpo_rto": {
             "rpo": "≤ ۲۴ ساعت — بکاپ رمزنگاری‌شدهٔ خودکار روزانه (03:30 UTC) + اجرای دستی هر زمان",
             "rto": "≤ ۳۰ دقیقه — بازیابی ایزولهٔ اثبات‌شده در چند دقیقه + مهاجرت/ری‌استارت",
