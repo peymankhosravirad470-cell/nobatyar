@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware  # v0.11.2: فشرده‌سازی متن (بهبود LCP موبایل)
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError  # v0.13.0: ضمانت قید یکتایی فهرست انتظار
 
 import os  # noqa: E402 — پیش از تنظیمات CORS استفاده می‌شود
 
@@ -52,7 +53,7 @@ from centers import router as centers_router
 from complaints import router as complaints_router
 from catalog import router as catalog_router
 
-APP_VERSION = "0.12.0"
+APP_VERSION = "0.13.0"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
@@ -1400,7 +1401,13 @@ def join_waitlist(
         source=data.source,
     )
     db.add(entry)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # v0.13.0 (اصلاح ممیزی): ضمانت سطح-دیتابیس (ux_waitlist_active_phone_clinic)
+        # در نزاع هم‌زمانی پیش‌بررسی را دور می‌زند — پاسخ ۴۰۹ به‌جای خطای ۵۰۰
+        db.rollback()
+        raise HTTPException(409, "شما هم‌اکنون در فهرست انتظار این مرکز ثبت هستید.")
     db.refresh(entry)
     return entry
 
@@ -1441,7 +1448,12 @@ def update_waitlist_entry(
     if not entry:
         raise HTTPException(404, "ردیف فهرست انتظار یافت نشد")
     entry.status = data.status
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # v0.13.0: قید یکتایی فعال — فعال‌کردن ردیف دوم برای همان (تلفن + مرکز) ممنوع
+        db.rollback()
+        raise HTTPException(409, "برای این تلفن در این مرکز قبلاً ردیف فعال وجود دارد.")
     db.refresh(entry)
     return entry
 

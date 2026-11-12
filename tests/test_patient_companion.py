@@ -65,11 +65,23 @@ CHAT = 777001
 CHAT2 = 777002
 TEMP_PHONE = "09123456789"
 
-# ---------- ۰) مهاجرت: دیتابیس تازه → head = 0006 و جدول موجود ----------
+# ---------- ۰) مهاجرت: دیتابیس تازه → head و جدول موجود ----------
+# اصلاح ریشه‌ای (2026-11-12): این گام قبلاً head را به رشتهٔ ثابت «0008_centers»
+# گره زده بود؛ با افزودن مهاجرت‌های 0009 و 0010 (شکایات + چرخهٔ نوبت/فهرست انتظار)
+# و 0011 (قید یکتایی فهرست انتظار) این انتظار کهنه شد و تست قرمز می‌شد،
+# در حالی که رفتار محصول درست است (دیتابیس تازه باید تا آخرین مهاجرت بالا برود).
+# انتظار حالا از خودِ اسکریپت‌های alembic خوانده می‌شود — با افزودن مهاجرت‌های
+# جدید این گام خودبه‌خود هم‌روز می‌شود و دیگر کهنه نمی‌شود.
 init_db()
 ver = [r[0] for r in engine.connect().execute(sa_text("SELECT version_num FROM alembic_version")).all()]
-check("مهاجرت: head دیتابیس تازه = 0008_centers",
-      ver == ["0008_centers"])
+from alembic.config import Config as _ACfg  # noqa: E402
+from alembic.script import ScriptDirectory as _AScriptDir  # noqa: E402
+_cfg = _ACfg()
+_cfg.set_main_option("script_location", os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "backend", "alembic"))
+_expected_head = _AScriptDir.from_config(_cfg).get_current_head()
+check("مهاجرت: head دیتابیس تازه = آخرین مهاجرت موجود در اسکریپت‌ها",
+      ver == [_expected_head])
 check("مهاجرت: جدول patient_companions ساخته شد",
       "patient_companions" in set(sa_inspect(engine).get_table_names()))
 init_db()  # idempotent — نباید خطا دهد

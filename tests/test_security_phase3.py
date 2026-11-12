@@ -289,3 +289,13 @@ def test_no_default_admin_created_without_env(monkeypatch=None):
     finally:
         os.environ.pop("ADMIN_USERNAME", None)
         os.environ.pop("ADMIN_PASSWORD", None)
+
+
+# ==================== اجرای مستقیم با Exit Code معتبر ====================
+# اصلاح ممیزی (2026-11-12): این فایل pytest-style است و اجرای مستقیم
+# «python3 tests/test_....py» قبلاً هیچ تابع تستی را اجرا نمی‌کرد و بی‌صدا
+# exit=0 می‌داد («سبزِ پوچ» — یافتهٔ ممیزی پذیرش). حالا اجرای مستقیم = اجرای
+# واقعی pytest روی همین فایل در زیر-پردازش ایزوله با Exit Code واقعی pytest.
+if __name__ == "__main__":
+    import subprocess
+    sys.exit(subprocess.call([sys.executable, "-m", "pytest", __file__, "-q", "--no-header"]))

@@ -181,19 +181,33 @@ doc4 = r.json()["id"]
 from datetime import date, timedelta  # noqa: E402
 from datetime import datetime as _dt  # noqa: E402
 
+# اصلاح ریشه‌ای (2026-11-12): تست قبلاً همیشه «فردا» را هدف می‌گرفت؛ ساعات کاری
+# فقط شنبه تا پنجشنبه تعریف شده (range(6) با نگاشت ۰=شنبه) و جمعه هدف ندارد.
+# اگر فردا جمعه بود، مولد اسلات درست‌کار تولید صفر می‌داد و سه گام (۱۹، ۲۰، ۲۳)
+# به‌همراه همهٔ گام‌های بعد از خط ۲۱۴ کرش می‌شد — تست وابسته به روزِ اجرا بود.
+# محصول سالم است؛ هدف آزمون حالا اولین روزِ غیرجمعهٔ آینده است تا قطعی‌ناپذیر باشد.
+# نگاشت روزِ ما: ۰=شنبه … ۶=جمعه → python weekday جمعه = 4
+def _next_working_date():
+    d = date.today() + timedelta(days=1)
+    while d.weekday() == 4:  # جمعه — بدون ساعات کاری در این تست
+        d += timedelta(days=1)
+    return d
+
+target_date = _next_working_date()
+
 me = client.get("/api/clinic/me", headers=ch).json()
 docs = {d["full_name"]: d["id"] for d in me["doctors"]}
 doc_internal = docs["دکتر داخلی تستی"]
 doc_ortho = docs["دکتر ارتوپد تستی"]
 
 r = client.post("/api/clinic/slots/generate", headers=ch,
-                json={"from_date": str(date.today() + timedelta(days=1)),
-                      "to_date": str(date.today() + timedelta(days=1)),
+                json={"from_date": str(target_date),
+                      "to_date": str(target_date),
                       "doctor_id": doc_internal})
 check("۱۹. تولید اسلات برای پزشک داخلی", r.status_code == 200 and r.json()["created"] > 0, r.text[:150])
 r = client.post("/api/clinic/slots/generate", headers=ch,
-                json={"from_date": str(date.today() + timedelta(days=1)),
-                      "to_date": str(date.today() + timedelta(days=1)),
+                json={"from_date": str(target_date),
+                      "to_date": str(target_date),
                       "doctor_id": doc_ortho})
 check("۲۰. تولید اسلات برای پزشک ارتوپد", r.status_code == 200 and r.json()["created"] > 0)
 
@@ -311,9 +325,11 @@ check("۴۰. مطب مستقل: پزشک پیش‌فرض ساخته شد", len(r
 for _d in range(6):
     client.post("/api/clinic/working-hours", headers=oh,
                 json={"day_of_week": _d, "start_time": "17:00", "end_time": "20:00", "slot_duration_minutes": 30})
+# همان اصلاح قطعی‌ناپذیری: اولین روزِ غیرجمعهٔ آینده (گام ۴۱ با همان منطق گام ۱۹)
+_off_target = _next_working_date()
 r = client.post("/api/clinic/slots/generate", headers=oh,
-                json={"from_date": str(date.today() + timedelta(days=1)),
-                      "to_date": str(date.today() + timedelta(days=1))})
+                json={"from_date": str(_off_target),
+                      "to_date": str(_off_target)})
 check("۴۱. مطب مستقل: اسلات عمومی (بدون انتخاب پزشک) ساخته شد", r.status_code == 200 and r.json()["created"] > 0)
 
 # ==================== ۱۶) دادهٔ نمایشی (برچسب صریح) ====================

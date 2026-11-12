@@ -94,7 +94,7 @@
 
           <div class="hero-search" role="search">
             <label for="heroSearch" class="sr-only">جست‌وجوی پزشک، تخصص، علامت یا مرکز درمانی</label>
-            <input type="search" id="heroSearch" autocomplete="off" aria-expanded="false" aria-controls="heroSearchResults"
+            <input type="search" id="heroSearch" autocomplete="off"
                    placeholder="نام پزشک، تخصص، علامت بیماری یا مرکز درمانی…">
             <button type="button" id="heroSearchGo">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -609,7 +609,8 @@
 
       function close() {
         box.hidden = true;
-        input.setAttribute('aria-expanded', 'false');
+        // اصلاح AXE (aria-allowed-attr): aria-expanded روی input مجاز نیست؛
+        // اعلام نتیجه‌ها از طریق ناحیهٔ زندهٔ #heroSearchStatus انجام می‌شود
       }
 
       function render(data) {
@@ -640,7 +641,7 @@
         if (statusEl) statusEl.textContent = count ? (count + ' نتیجهٔ پیشنهادی نمایش داده شد') : 'نتیجه‌ای یافت نشد';
         if (emergencyEl) emergencyEl.hidden = !data.emergency_notice;
         box.hidden = false;
-        input.setAttribute('aria-expanded', 'true');
+        // اصلاح AXE: اعلام بازشدن نتایج با aria-live همان کافی است
       }
 
       function search() {

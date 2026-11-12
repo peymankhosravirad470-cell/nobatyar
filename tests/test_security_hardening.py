@@ -25,7 +25,7 @@ import sys  # noqa: E402
 sys.path.insert(0, sys_path)
 
 from fastapi.testclient import TestClient  # noqa: E402
-from main import app, _feedback_limit  # noqa: E402
+from main import app, _feedback_limit, APP_VERSION  # noqa: E402
 from database import init_db, Base, engine  # noqa: E402
 from auth import client_ip  # noqa: E402
 from schemas import AppointmentCreate  # noqa: E402
@@ -141,8 +141,13 @@ def test_appointment_notes_max_length():
 # ---------- ۶. نسخهٔ اعلامی ----------
 
 def test_health_version_bumped():
+    # اصلاح ریشه‌ای (2026-11-12): انتظار قبلی رشتهٔ ثابت «0.11.2» بود و با هر
+    # ارتقای نسخه (0.12.0 → 0.13.0) کهنه می‌شد — یافتهٔ ممیزی پذیرش.
+    # هدف این آزمون «سازگاری نسخهٔ اعلامی endpoint با نسخهٔ واقعی اپلیکیشن» است؛
+    # پس از منبع واحد حقیقت (APP_VERSION در main) مقایسه می‌کنیم.
     r = client.get("/api/health")
-    assert r.json()["version"] == "0.11.2"  # v0.11.2: ممیزی امنیت/طراحی + ارتباطات
+    assert r.json()["version"] == APP_VERSION
+    assert r.json()["version"] == "0.13.0"  # نسخهٔ جاری شاخه (سند صریح)
 
 
 # ---------- ۷. تلهٔ رگرسیون XSS ----------
@@ -174,3 +179,13 @@ def test_public_pages_escape_error_details():
     for page in ("book.html", "register.html", "admin_login.html", "clinic_login.html"):
         html = _read(page)
         assert "${json.detail" not in html, f"{page} هنوز detail را مستقیم رندر می‌کند"
+
+
+# ==================== اجرای مستقیم با Exit Code معتبر ====================
+# اصلاح ممیزی (2026-11-12): این فایل pytest-style است و اجرای مستقیم
+# «python3 tests/test_....py» قبلاً هیچ تابع تستی را اجرا نمی‌کرد و بی‌صدا
+# exit=0 می‌داد («سبزِ پوچ» — یافتهٔ ممیزی پذیرش). حالا اجرای مستقیم = اجرای
+# واقعی pytest روی همین فایل در زیر-پردازش ایزوله با Exit Code واقعی pytest.
+if __name__ == "__main__":
+    import subprocess
+    sys.exit(subprocess.call([sys.executable, "-m", "pytest", __file__, "-q", "--no-header"]))

@@ -343,6 +343,17 @@ class WaitlistEntry(Base):
 
     __table_args__ = (
         Index("ix_waitlist_clinic_status", "clinic_id", "status", "preferred_date"),
+        # v0.13.0 (اصلاح ممیزی): قید یکتایی سطح-دیتابیس ضد ثبت تکراری هم‌زمان —
+        # برای هر (تلفن + مرکز) فقط یک ردیف «فعال» (waiting/notified) مجاز است.
+        # ایندکس جزئی؛ هم PostgreSQL و هم SQLite از WHERE در ایندکس پشتیبانی می‌کنند.
+        # پیش‌بررسیِ نرم‌افزاری در join_waitlist کافی نیست (TOCTOU) — این قید
+        # تنها ضمانت درست در برابر نزاع هم‌زمانی است.
+        Index(
+            "ux_waitlist_active_phone_clinic", "clinic_id", "patient_phone",
+            unique=True,
+            postgresql_where=text("status IN ('waiting', 'notified')"),
+            sqlite_where=text("status IN ('waiting', 'notified')"),
+        ),
     )
 
 

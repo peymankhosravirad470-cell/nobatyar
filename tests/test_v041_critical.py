@@ -578,3 +578,13 @@ def test_connect_code_api_flow(client, admin_id, auth_headers):
     assert aid == admin_id
     assert verify_connect_code(info["code"], 424242) is None  # یک‌بارمصرف
     assert verify_connect_code("XXXX-XXXX", 424242) is None   # کد ناشناخته
+
+
+# ==================== اجرای مستقیم با Exit Code معتبر ====================
+# اصلاح ممیزی (2026-11-12): این فایل pytest-style است و اجرای مستقیم
+# «python3 tests/test_....py» قبلاً هیچ تابع تستی را اجرا نمی‌کرد و بی‌صدا
+# exit=0 می‌داد («سبزِ پوچ» — یافتهٔ ممیزی پذیرش). حالا اجرای مستقیم = اجرای
+# واقعی pytest روی همین فایل در زیر-پردازش ایزوله با Exit Code واقعی pytest.
+if __name__ == "__main__":
+    import subprocess
+    sys.exit(subprocess.call([sys.executable, "-m", "pytest", __file__, "-q", "--no-header"]))

@@ -1,34 +1,61 @@
 """
-تست مهاجرت Alembic روی PostgreSQL واقعی (pgserver):
+تست مهاجرت Alembic روی PostgreSQL واقعی:
 - ارتقای دیتابیس خالی تا head (head پویا؛ از خود اسکریپت‌های alembic خوانده می‌شود)
 - وجود همهٔ جدول‌های جدید + ستون‌های جدید
 - سازگاری با مدل‌ها (create/drop کار می‌کند)
 - مقایسهٔ schema مدل‌ها با خروجی migration (فقط فهرست جدول/ستون)
 اجرای مستقل: python3 tests/test_v060_pg_migration.py
+
+v0.13.0 (اصلاح ممیزی): محیط معتبر PostgreSQL به دو راه:
+  ۱) NOBATYAR_TEST_PG_URI → PostgreSQL بیرونی واقعی (مثلاً ۱۸.۴) — اولویت دارد
+  ۲) در نبود آن، pgserver ایزوله (مثل قبل)
+  اگر هیچ‌کدام مقدور نباشد: خروجی «SKIP شفاف» با Exit Code اختصاصی ۳ —
+  هرگز به‌عنوان موفق شمرده نمی‌شود (بند ۳ و ۷ دستور کارفرما).
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
-
-import pgserver
 
 PASS = []
 def check(name, cond):
     PASS.append((name, bool(cond)))
     print(("✅" if cond else "❌"), name)
 
-data_dir = "/tmp/nb_pg_migration_test"
-os.environ.pop("DATABASE_URL", None)
-os.environ["PGSERVER_PORT_CLEANUP"] = "1"
-db = pgserver.get_server(data_dir)
-uri = db.get_uri()
-# دیتابیس جداگانهٔ آزمایشی
 import sqlalchemy as _sa
+
+
+def _with_db(base_uri: str, dbname: str) -> str:
+    """نام دیتابیس در URI را با دیتابیس آزمایشی جایگزین می‌کند."""
+    from urllib.parse import urlsplit, urlunsplit
+    parts = urlsplit(base_uri)
+    return urlunsplit((parts.scheme, parts.netloc, "/" + dbname,
+                       parts.query, parts.fragment))
+
+
+_EXTERNAL_PG_URI = os.environ.get("NOBATYAR_TEST_PG_URI") or ""
+if _EXTERNAL_PG_URI:
+    uri = _EXTERNAL_PG_URI
+    print("PG: استفاده از PostgreSQL بیرونی معتبر (NOBATYAR_TEST_PG_URI)")
+else:
+    try:
+        import pgserver
+    except ModuleNotFoundError:
+        print("⏭ SKIP: نه NOBATYAR_TEST_PG_URI تنظیم است نه ماژول pgserver موجود —")
+        print("        این آزمون PostgreSQL واقعی لازم دارد و به‌عنوان موفق شمرده نمی‌شود.")
+        sys.exit(3)  # کد اختصاصی skip — در گزارش جدا از «موفق» می‌آید
+    data_dir = "/tmp/nb_pg_migration_test"
+    os.environ.pop("DATABASE_URL", None)
+    os.environ["PGSERVER_PORT_CLEANUP"] = "1"
+    db = pgserver.get_server(data_dir)
+    uri = db.get_uri()
+
+# دیتابیس جداگانهٔ آزمایشی
 _admin = _sa.create_engine(uri, isolation_level="AUTOCOMMIT")
 with _admin.connect() as conn:
     conn.execute(_sa.text("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='nobatyar_migration_test'"))
     conn.execute(_sa.text("DROP DATABASE IF EXISTS nobatyar_migration_test"))
     conn.execute(_sa.text("CREATE DATABASE nobatyar_migration_test"))
-pg_uri = db.get_uri("nobatyar_migration_test")
+_admin.dispose()
+pg_uri = _with_db(uri, "nobatyar_migration_test")
 print("PG URI:", pg_uri.rsplit("@", 1)[-1])
 
 os.environ["DATABASE_URL"] = pg_uri

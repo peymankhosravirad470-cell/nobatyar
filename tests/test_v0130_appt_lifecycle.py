@@ -332,7 +332,7 @@ for i in range(9):
         break
 check("۵-۱۵. محدودیت نرخ فهرست انتظار فعال (429 پس از ۸ ثبت)", got_429, str(last_codes))
 
-# ==================== ۶) مهاجرت 0010 idempotent ====================
+# ==================== ۶) مهاجرت‌های 0010/0011 idempotent ====================
 from sqlalchemy import text as _text  # noqa: E402
 with engine.begin() as conn:
     conn.execute(_text("DROP TABLE appointment_status_history"))
@@ -343,10 +343,26 @@ with engine.begin() as conn:
     ver = conn.execute(_text("SELECT version_num FROM alembic_version")).scalar()
     tbls = {r0[0] for r0 in conn.execute(_text(
         "SELECT name FROM sqlite_master WHERE type='table'")).fetchall()}
-check("۶-۱. مهاجرت 0010 از 0009 جدول‌ها را بازمی‌سازد و تا head می‌رود",
-      ver == "0010_appt_lifecycle_waitlist"
+# اصلاح ریشه‌ای (2026-11-12): انتظارِ head از خود اسکریپت‌های alembic خوانده
+# می‌شود تا با افزودن مهاجرت‌های جدید (مثل 0011 قید یکتایی فهرست انتظار)
+# این گام کهنه نشود — همان الگوی test_v060_pg_migration.
+from alembic.config import Config as _ACfg  # noqa: E402
+from alembic.script import ScriptDirectory as _AScriptDir  # noqa: E402
+_cfg = _ACfg()
+_cfg.set_main_option("script_location", os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "backend", "alembic"))
+_expected_head = _AScriptDir.from_config(_cfg).get_current_head()
+check("۶-۱. مهاجرت‌ها از 0009 جدول‌ها را بازمی‌سازند و تا head می‌روند",
+      ver == _expected_head
       and "appointment_status_history" in tbls and "waitlist_entries" in tbls,
-      f"ver={ver}")
+      f"ver={ver} expected={_expected_head}")
+
+# گام جدید — قید یکتایی فهرست انتظار روی SQLite (مهاجرت 0011):
+with engine.begin() as conn:
+    idx = conn.execute(_text(
+        "SELECT name FROM sqlite_master WHERE type='index' "
+        "AND name='ux_waitlist_active_phone_clinic'")).scalar()
+check("۶-۲. ایندکس یکتای جزئی فهرست انتظار (0011) در SQLite ساخته شد", idx is not None)
 
 # ==================== نتیجه ====================
 failed = [n for n, ok in PASS if not ok]
