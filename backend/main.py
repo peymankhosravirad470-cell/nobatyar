@@ -53,7 +53,7 @@ from centers import router as centers_router
 from complaints import router as complaints_router
 from catalog import router as catalog_router
 
-APP_VERSION = "0.13.0"
+APP_VERSION = "0.14.0"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
@@ -135,6 +135,18 @@ _SECURITY_HEADERS = {
 app.include_router(centers_router)
 app.include_router(complaints_router)  # v0.12.0: شکایات و پیگیری
 app.include_router(catalog_router)     # v0.12.0: تخصص‌ها/علائم/پروفایل‌ها
+
+# v0.14.0: مجله سلامت + جایگاه تبلیغات (بخش ۵ و ۲ دستور بازطراحی)
+from magazine import (  # noqa: E402
+    router as magazine_router,
+    admin_router as magazine_admin_router,
+    ads_router as magazine_ads_router,
+    CATEGORIES as MAG_CATEGORIES,
+)
+import models as magazine_models  # noqa: E402 — دسترسی کوتاه به مدل‌های مجله
+app.include_router(magazine_router)
+app.include_router(magazine_admin_router)
+app.include_router(magazine_ads_router)
 
 
 # ---------- ریدایرکت www → دامنه اصلی (v0.11.0 — SEO یکپارچه) ----------
@@ -225,6 +237,64 @@ def on_startup():
     # بکاپ خودکار روزانه — فقط اگر NOBATYAR_BACKUP_KEY/DIR تنظیم شده باشد (v0.11.0)
     import backup_svc
     backup_svc.start_backup_task()
+    # v0.14.0: محتوای اولیهٔ مجله + اسلات تبلیغات + منابع خبر — فقط اگر خالی باشند
+    _seed_initial_content()
+
+
+def _seed_initial_content():
+    """محتوای اولیهٔ v0.14.0 — فقط وقتی جدول‌ها خالی‌اند؛ هیچ دادهٔ جعلی نیست.
+
+    - اسلات تبلیغات «billboard-home» با نمونهٔ طراحی‌شده (غیرفعال — بدون اسپانسر جعلی)
+    - منابع خبری فقط با اتصالی که واقعاً آزموده شده ثبت می‌شوند؛ فعال‌سازی رسمی
+      در اولین دریافت موفق انجام می‌شود (magazine._fetch_source)
+    - سه مقالهٔ سرمقاله‌ای واقعی (تألیف تیم نوبتیار) برای آغاز مجله
+    """
+    db = SessionLocal()
+    try:
+        try:
+            if db.query(magazine_models.AdSlot).count() == 0:
+                db.add(magazine_models.AdSlot(
+                    position="billboard-home",
+                    title="جای تبلیغات برند شما",
+                    subtitle="کسب‌وکار شما، در کنار سلامت مردم شیراز",
+                    body="برای معرفی مجموعه خود در نوبتیار با ما تماس بگیرید.",
+                    is_active=False,
+                ))
+            if db.query(magazine_models.NewsSource).count() == 0:
+                db.add(magazine_models.NewsSource(
+                    name="ایرنا — سرویس سلامت",
+                    site_url="https://www.irna.ir/health",
+                    rss_url="https://www.irna.ir/rss/service/health",
+                    category="news", is_active=False,
+                    note="آزمون اتصال ۲۰۲۶-۱۱-۱۲ از سندباکس: HTTP 200 با ۳۰ آیتم؛ فعال‌سازی در اولین دریافت موفق"))
+                db.add(magazine_models.NewsSource(
+                    name="ایرنا — استان فارس",
+                    site_url="https://www.irna.ir/fars",
+                    rss_url="https://www.irna.ir/rss/service/Fars",
+                    category="news", is_active=False,
+                    note="آزمون اتصال ۲۰۲۶-۱۱-۱۲ از سندباکس: HTTP 200 با ۳۰ آیتم؛ فعال‌سازی در اولین دریافت موفق"))
+                db.add(magazine_models.NewsSource(
+                    name="خبرگزاری مهر — استان فارس",
+                    site_url="https://www.mehrnews.com/service/Fars",
+                    rss_url="https://www.mehrnews.com/rss/service/Fars",
+                    category="news", is_active=False,
+                    note="آزمون اتصال ۲۰۲۶-۱۱-۱۲ از سندباکس: HTTP 200 با ۳۰ آیتم؛ فعال‌سازی در اولین دریافت موفق"))
+                db.add(magazine_models.NewsSource(
+                    name="دانشگاه علوم پزشکی شیراز",
+                    site_url="https://sums.ac.ir",
+                    rss_url="https://sums.ac.ir/rss",
+                    category="news", is_active=False,
+                    note="اتصال آزموده شد: HTTP 403 — در دسترس نیست و به‌عنوان منبع فعال معرفی نمی‌شود"))
+            if db.query(magazine_models.Article).count() == 0:
+                from magazine import _SEED_ARTICLES
+                for s in _SEED_ARTICLES:
+                    db.add(magazine_models.Article(**s))
+            db.commit()
+        except Exception:  # noqa: BLE001 — seed هرگز نباید استارتاپ را بشکند
+            db.rollback()
+            logging.getLogger("nobatyar.magazine").exception("seed initial content failed")
+    finally:
+        db.close()
 
 
 def _bootstrap_admin():
@@ -284,6 +354,83 @@ def _html(name: str):
 @app.get("/", response_class=HTMLResponse)
 def home():
     return _html("index.html")
+
+
+# ---------- v0.14.0: مجله سلامت نوبتیار (سرو-رندر برای SEO) ----------
+
+@app.get("/magazine", response_class=HTMLResponse)
+def magazine_page(request: _Request, q: str = "", cat: str = "",
+                 page: int = 1):
+    """صفحهٔ اصلی مجله — فهرست/جست‌وجو/فیلتر دسته، سرو-رندر با دادهٔ واقعی."""
+    from magazine import category_name as _cname, category_cover as _ccover
+    db = SessionLocal()
+    try:
+        query = db.query(magazine_models.Article).filter(
+            magazine_models.Article.status == magazine_models.ArticleStatus.published)
+        active_cat = cat if cat in {c["slug"] for c in MAG_CATEGORIES} else ""
+        if active_cat:
+            query = query.filter(magazine_models.Article.category == active_cat)
+        ns = (q or "").strip()[:60]
+        if ns:
+            query = query.filter(or_(
+                magazine_models.Article.title.ilike(f"%{ns}%"),
+                magazine_models.Article.summary.ilike(f"%{ns}%")))
+        total = query.count()
+        per = 9
+        rows = query.order_by(magazine_models.Article.published_at.desc()).offset(
+            (max(page, 1) - 1) * per).limit(per).all()
+        articles = [{
+            "slug": a.slug, "title": a.title, "summary": a.summary,
+            "category": a.category, "category_name": _cname(a.category),
+            "cover": a.cover_image or _ccover(a.category),
+            "published_at": a.published_at.strftime("%Y-%m-%d"),
+        } for a in rows]
+    finally:
+        db.close()
+    return templates.TemplateResponse(request=request, name="magazine.html", context={
+        "articles": articles, "total": total, "q": ns, "cat": active_cat,
+        "page": max(page, 1), "per_page": per,
+        "categories": MAG_CATEGORIES,
+    })
+
+
+@app.get("/magazine/article/{slug}", response_class=HTMLResponse)
+def magazine_article_page(request: _Request, slug: str):
+    """صفحهٔ اختصاصی مقاله — متن کامل + مرتبط + JSON-LD NewsArticle."""
+    from magazine import category_name as _cname, category_cover as _ccover
+    db = SessionLocal()
+    try:
+        a = db.query(magazine_models.Article).filter(
+            magazine_models.Article.slug == slug,
+            magazine_models.Article.status == magazine_models.ArticleStatus.published,
+        ).first()
+        if not a:
+            return _not_found(request, "مقالهٔ مورد نظر یافت نشد یا منتشر نشده است")
+        a.views = (a.views or 0) + 1
+        db.commit()
+        related = db.query(magazine_models.Article).filter(
+            magazine_models.Article.status == magazine_models.ArticleStatus.published,
+            magazine_models.Article.category == a.category,
+            magazine_models.Article.id != a.id,
+        ).order_by(magazine_models.Article.published_at.desc()).limit(3).all()
+        art = {
+            "slug": a.slug, "title": a.title, "summary": a.summary, "body": a.body,
+            "category": a.category, "category_name": _cname(a.category),
+            "cover": a.cover_image or _ccover(a.category),
+            "author": a.author, "views": a.views,
+            "published_at": a.published_at.strftime("%Y-%m-%d %H:%M"),
+            "published_iso": a.published_at.isoformat(),
+        }
+        rel = [{
+            "slug": r.slug, "title": r.title, "summary": r.summary,
+            "cover": r.cover_image or _ccover(r.category),
+            "category_name": _cname(r.category),
+            "published_at": r.published_at.strftime("%Y-%m-%d"),
+        } for r in related]
+    finally:
+        db.close()
+    return templates.TemplateResponse(request=request, name="magazine_article.html",
+                                      context={"a": art, "related": rel})
 
 
 @app.get("/register", response_class=HTMLResponse)
@@ -512,6 +659,24 @@ def sitemap_xml():
              ("/about", "0.6"), ("/contact", "0.6"), ("/cancellation", "0.4"),
              ("/terms", "0.3"), ("/privacy", "0.3")]
     entries = [f"<url><loc>{base}{p}</loc><lastmod>{today}</lastmod><changefreq>weekly</changefreq><priority>{pr}</priority></url>" for p, pr in pages]
+    # v0.14.0: مجله سلامت — صفحهٔ اصلی + مقالات واقعی منتشرشده (هیچ URL ساختگی)
+    entries.append(f"<url><loc>{base}/magazine</loc><lastmod>{today}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>")
+    try:
+        from models import Article as _Article, ArticleStatus as _ArticleStatus
+        _db = SessionLocal()
+        try:
+            _arts = _db.query(_Article).filter(
+                _Article.status == _ArticleStatus.published).order_by(
+                _Article.published_at.desc()).limit(100).all()
+            for _a in _arts:
+                entries.append(
+                    f"<url><loc>{base}/magazine/article/{_a.slug}</loc>"
+                    f"<lastmod>{(_a.updated_at or _a.published_at).date().isoformat()}</lastmod>"
+                    f"<changefreq>weekly</changefreq><priority>0.7</priority></url>")
+        finally:
+            _db.close()
+    except Exception:  # noqa: BLE001 — sitemap هرگز نباید ۵۰۰ بدهد
+        logging.getLogger("nobatyar.catalog").exception("sitemap: خطا در خواندن مقالات مجله")
     # تخصص‌ها — محتوای یکتا و واقعی
     for sp in catalog_mod.SPECIALTIES:
         entries.append(

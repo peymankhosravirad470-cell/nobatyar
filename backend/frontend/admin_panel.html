@@ -202,6 +202,61 @@
       </div>
       <p style="color:#666;font-size:0.85em">رمز پیش‌فرض عمومی وجود ندارد؛ پس از اولین ورود، رمز را عوض کنید و آن را در اختیار دیگران قرار ندهید.</p>
     </div>
+    <div class="card">
+      <h2>مجله سلامت — مقالات (v0.14.0)</h2>
+      <button class="btn-sm" onclick="loadMagArticles()">بروزرسانی فهرست</button>
+      <div id="magArticlesBox" style="margin-top:10px"></div>
+      <h3 style="margin-top:16px">ثبت/ویرایش مقاله</h3>
+      <div style="max-width:640px;display:grid;gap:8px">
+        <input type="hidden" id="magEditId">
+        <input type="text" id="magSlug" placeholder="اسلاگ لاتین — مثلاً health-tips">
+        <input type="text" id="magTitle" placeholder="عنوان مقاله">
+        <textarea id="magSummary" rows="2" placeholder="خلاصه (برای کارت‌ها و سئو)"></textarea>
+        <textarea id="magBody" rows="7" placeholder="متن کامل (HTML ساده: p / h2 / ul / li / a)"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="magCategory">
+            <option value="guide">راهنمای سلامت</option>
+            <option value="news">اخبار پزشکی</option>
+            <option value="public-health">سلامت عمومی</option>
+            <option value="hospitals">بیمارستان‌ها و مراکز درمانی</option>
+            <option value="events">رویدادهای پزشکی شیراز</option>
+            <option value="labs-tech">آزمایشگاه‌ها و فناوری سلامت</option>
+          </select>
+          <select id="magStatus">
+            <option value="published">منتشرشده</option>
+            <option value="draft">پیش‌نویس</option>
+          </select>
+          <input type="text" id="magAuthor" placeholder="نویسنده (اختیاری)">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm" id="magSaveBtn">ذخیره مقاله</button>
+          <button class="btn-sm" id="magResetBtn" style="background:#eee;color:#333">پاک‌کردن فرم</button>
+        </div>
+      </div>
+      <p style="color:#666;font-size:0.85em">هیچ خبر ساختگی منتشر نکنید؛ محتوا باید واقعی و با منبع باشد.</p>
+    </div>
+
+    <div class="card">
+      <h2>منابع خبری + گردش تأیید مدیر (v0.14.0)</h2>
+      <button class="btn-sm" onclick="loadSources()">بروزرسانی منابع</button>
+      <div id="sourcesBox" style="margin-top:10px"></div>
+      <div style="max-width:640px;display:grid;gap:8px;margin-top:12px">
+        <input type="text" id="srcName" placeholder="نام منبع">
+        <input type="text" id="srcRss" placeholder="آدرس RSS" dir="ltr">
+        <button class="btn-sm" id="srcAddBtn">ثبت منبع جدید (غیرفعال تا آزمون اتصال)</button>
+      </div>
+      <h3 style="margin-top:16px">خبرهای در انتظار تأیید</h3>
+      <button class="btn-sm" onclick="loadNewsItems()">بروزرسانی</button>
+      <div id="newsItemsBox" style="margin-top:10px"></div>
+      <p style="color:#666;font-size:0.85em">خبرهای تأییدشده فقط با «عنوان + خلاصه + لینک منبع» عمومی می‌شوند؛ متن کامل رسانه‌های دیگر کپی نمی‌شود.</p>
+    </div>
+
+    <div class="card">
+      <h2>جایگاه تبلیغات (v0.14.0)</h2>
+      <button class="btn-sm" onclick="loadAds()">بروزرسانی</button>
+      <div id="adsBox" style="margin-top:10px;max-width:640px;display:grid;gap:8px"></div>
+      <p style="color:#666;font-size:0.85em">جایگاه تبلیغات مستقل از هویت برند است؛ تا زمان فعال‌سازی، «جای تبلیغات برند شما» نمایش داده می‌شود و هیچ اسپانسر جعلی منتشر نمی‌شود.</p>
+    </div>
   </main>
 
   <div id="approveModal" class="card hidden" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);max-width:400px;z-index:100;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
@@ -763,12 +818,169 @@
       openComplaint(id);
     }
 
+    // ---------- v0.14.0: مجله + منابع خبر + تبلیغات ----------
+    async function loadMagArticles() {
+      const res = await fetch('/api/admin/magazine/articles?per_page=50', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const j = await res.json().catch(() => ({ articles: [] }));
+      const box = document.getElementById('magArticlesBox');
+      box.innerHTML = '<table><thead><tr><th>عنوان</th><th>دسته</th><th>وضعیت</th><th>تاریخ</th><th>عملیات</th></tr></thead><tbody>' +
+        (j.articles || []).map(a =>
+          `<tr><td>${esc(a.title)}</td><td>${esc(a.category_name)}</td><td>${a.status === 'published' ? 'منتشرشده' : 'پیش‌نویس'}</td><td>${(a.published_at || '').slice(0, 10)}</td>` +
+          `<td><button class="btn-sm" onclick='editMagArticle(${JSON.stringify(JSON.stringify({id: a.id, slug: a.slug, title: a.title, summary: a.summary, body: a.body, category: a.category, status: a.status, author: a.author}))})'>ویرایش</button> ` +
+          `<button class="btn-sm" style="background:#fee2e2;color:#b91c1c" onclick="delMagArticle(${a.id})">حذف</button></td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+    function editMagArticle(json) {
+      const a = JSON.parse(json);
+      document.getElementById('magEditId').value = a.id;
+      document.getElementById('magSlug').value = a.slug || '';
+      document.getElementById('magTitle').value = a.title || '';
+      document.getElementById('magSummary').value = a.summary || '';
+      document.getElementById('magBody').value = a.body || '';
+      document.getElementById('magCategory').value = a.category || 'guide';
+      document.getElementById('magStatus').value = a.status || 'published';
+      document.getElementById('magAuthor').value = a.author || '';
+      window.scrollTo({ top: document.getElementById('magEditId').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+    }
+    async function delMagArticle(id) {
+      if (!confirm('این مقاله برای همیشه حذف شود؟')) return;
+      const res = await fetch('/api/admin/magazine/articles/' + id, { method: 'DELETE', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + '</div>' : _errHtml(j);
+      loadMagArticles();
+    }
+    document.getElementById('magSaveBtn').onclick = async () => {
+      const id = document.getElementById('magEditId').value;
+      const body = {
+        slug: document.getElementById('magSlug').value.trim(),
+        title: document.getElementById('magTitle').value.trim(),
+        summary: document.getElementById('magSummary').value.trim(),
+        body: document.getElementById('magBody').value,
+        category: document.getElementById('magCategory').value,
+        status: document.getElementById('magStatus').value,
+        author: document.getElementById('magAuthor').value.trim() || null,
+      };
+      const res = await fetch(id ? '/api/admin/magazine/articles/' + id : '/api/admin/magazine/articles', {
+        method: id ? 'PUT' : 'POST', headers, body: JSON.stringify(body)
+      });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + '</div>' : _errHtml(j);
+      if (res.ok) { document.getElementById('magEditId').value = ''; loadMagArticles(); }
+    };
+    document.getElementById('magResetBtn').onclick = () => {
+      ['magEditId', 'magSlug', 'magTitle', 'magSummary', 'magBody', 'magAuthor'].forEach(i => document.getElementById(i).value = '');
+    };
+
+    async function loadSources() {
+      const res = await fetch('/api/admin/magazine/sources', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const j = await res.json().catch(() => ({ sources: [] }));
+      const box = document.getElementById('sourcesBox');
+      box.innerHTML = '<table><thead><tr><th>منبع</th><th>وضعیت اتصال</th><th>آخرین دریافت</th><th>عملیات</th></tr></thead><tbody>' +
+        (j.sources || []).map(s =>
+          `<tr><td>${esc(s.name)}<br><span style="color:#64748b;font-size:.8em" dir="ltr">${esc(s.rss_url)}</span></td>` +
+          `<td>${s.is_active ? '✅ فعال' : '⛔ غیرفعال'}</td><td>${(s.last_fetched_at || '—').slice(0, 16)}${s.last_error ? '<br><span style="color:#b91c1c;font-size:.8em">' + esc(s.last_error) + '</span>' : ''}</td>` +
+          `<td><button class="btn-sm" onclick="fetchSource(${s.id})">دریافت RSS</button> ` +
+          `<button class="btn-sm" style="background:#fee2e2;color:#b91c1c" onclick="delSource(${s.id})">حذف</button></td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+    async function fetchSource(id) {
+      const res = await fetch('/api/admin/magazine/sources/' + id + '/fetch', { method: 'POST', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + ' — ' + (j.added || 0) + ' مورد جدید</div>' : _errHtml(j);
+      loadSources(); loadNewsItems();
+    }
+    async function delSource(id) {
+      if (!confirm('این منبع حذف شود؟')) return;
+      await fetch('/api/admin/magazine/sources/' + id, { method: 'DELETE', headers });
+      loadSources();
+    }
+    document.getElementById('srcAddBtn').onclick = async () => {
+      const body = { name: document.getElementById('srcName').value.trim(), rss_url: document.getElementById('srcRss').value.trim(), category: 'news' };
+      if (!body.name || !body.rss_url) return;
+      const res = await fetch('/api/admin/magazine/sources', { method: 'POST', headers, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + '</div>' : _errHtml(j);
+      if (res.ok) { document.getElementById('srcName').value = ''; document.getElementById('srcRss').value = ''; loadSources(); }
+    };
+
+    async function loadNewsItems() {
+      const res = await fetch('/api/admin/magazine/news?status=pending&per_page=30', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const j = await res.json().catch(() => ({ items: [] }));
+      const box = document.getElementById('newsItemsBox');
+      if (!(j.items || []).length) { box.innerHTML = '<p style="color:#666">هیچ خبر در انتظار تأییدی وجود ندارد.</p>'; return; }
+      box.innerHTML = '<table><thead><tr><th>عنوان</th><th>منبع</th><th>عملیات</th></tr></thead><tbody>' +
+        j.items.map(n =>
+          `<tr><td>${esc(n.title)}<br><span style="color:#64748b;font-size:.8em" dir="ltr">${esc(n.url.slice(0, 60))}…</span></td>` +
+          `<td>${esc(n.source || '')}</td>` +
+          `<td><button class="btn-sm" onclick="approveNews(${n.id})">تأیید و انتشار</button> ` +
+          `<button class="btn-sm" style="background:#fee2e2;color:#b91c1c" onclick="rejectNews(${n.id})">رد</button></td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+    async function approveNews(id) {
+      const res = await fetch('/api/admin/magazine/news/' + id + '/publish', { method: 'POST', headers });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + '</div>' : _errHtml(j);
+      loadNewsItems();
+    }
+    async function rejectNews(id) {
+      const res = await fetch('/api/admin/magazine/news/' + id + '/reject', { method: 'POST', headers });
+      loadNewsItems();
+    }
+
+    async function loadAds() {
+      const res = await fetch('/api/admin/ads', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      const j = await res.json().catch(() => ({ slots: [] }));
+      const box = document.getElementById('adsBox');
+      box.innerHTML = (j.slots || []).map((s, i) => `
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#f8fafc">
+          <b>جایگاه: ${esc(s.position)}</b> — ${s.is_active ? '✅ فعال (اسپانسر واقعی)' : 'نمونهٔ پیش‌فرض (غیرفعال)'}
+          <label style="margin-top:8px">عنوان</label><input id="adTitle${i}" value="${esc(s.title)}">
+          <label>زیرعنوان</label><input id="adSub${i}" value="${esc(s.subtitle)}">
+          <label>متن</label><textarea id="adBody${i}" rows="2">${esc(s.body)}</textarea>
+          <label>آدرس تصویر (اختیاری)</label><input id="adImg${i}" value="${esc(s.image_url || '')}" dir="ltr">
+          <label>لینک اسپانسر (اختیاری)</label><input id="adLink${i}" value="${esc(s.link_url || '')}" dir="ltr">
+          <label>متن لینک</label><input id="adLinkText${i}" value="${esc(s.link_text || '')}">
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="adActive${i}" ${s.is_active ? 'checked' : ''}> فعال‌سازی نمایش تبلیغ</label>
+            <button class="btn-sm" onclick="saveAd(${i}, ${s.id})">ذخیره</button>
+          </div>
+        </div>`).join('');
+    }
+    async function saveAd(i, id) {
+      const body = {
+        title: document.getElementById('adTitle' + i).value,
+        subtitle: document.getElementById('adSub' + i).value,
+        body: document.getElementById('adBody' + i).value,
+        image_url: document.getElementById('adImg' + i).value.trim() || null,
+        link_url: document.getElementById('adLink' + i).value.trim() || null,
+        link_text: document.getElementById('adLinkText' + i).value.trim() || null,
+        is_active: document.getElementById('adActive' + i).checked,
+      };
+      const res = await fetch('/api/admin/ads/' + id, { method: 'PUT', headers, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message) + '</div>' : _errHtml(j);
+    }
+
     loadPending();
     loadRegistrations('pending');
     loadCompanions();
     loadFeedback();
     loadLabs();
     loadComplaints('');
+    loadMagArticles();
+    loadSources();
+    loadNewsItems();
+    loadAds();
   </script>
 </body>
 </html>

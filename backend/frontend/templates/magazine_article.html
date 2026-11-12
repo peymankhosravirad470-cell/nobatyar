@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ a.title }} | مجله سلامت نوبتیار{% endblock %}
+{% block meta_desc %}{{ a.summary[:158] }}{% endblock %}
+{% block head_extra %}
+<link rel="canonical" href="https://shirazhealthtour.ir/magazine/article/{{ a.slug }}">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{ a.title }}">
+<meta property="og:description" content="{{ a.summary[:158] }}">
+<meta property="og:image" content="https://shirazhealthtour.ir{{ a.cover }}">
+<meta property="article:published_time" content="{{ a.published_iso }}">
+<meta property="article:section" content="{{ a.category_name }}">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  "headline": {{ a.title | tojson }},
+  "description": {{ a.summary | tojson }},
+  "image": ["https://shirazhealthtour.ir{{ a.cover }}"],
+  "datePublished": "{{ a.published_iso }}",
+  "dateModified": "{{ a.published_iso }}",
+  "inLanguage": "fa-IR",
+  "author": {"@type": "Organization", "name": "{{ a.author or 'تیم نوبتیار' }}"},
+  "publisher": {"@type": "Organization", "name": "نوبتیار",
+                "logo": {"@type": "ImageObject", "url": "https://shirazhealthtour.ir/static/img/nobatyar-logo.png"}},
+  "mainEntityOfPage": {"@type": "WebPage", "@id": "https://shirazhealthtour.ir/magazine/article/{{ a.slug }}"}
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "خانه", "item": "https://shirazhealthtour.ir/"},
+    {"@type": "ListItem", "position": 2, "name": "مجله سلامت", "item": "https://shirazhealthtour.ir/magazine"},
+    {"@type": "ListItem", "position": 3, "name": {{ a.title | tojson }}}
+  ]
+}
+</script>
+{% endblock %}
+{% block content %}
+<article class="mag-article">
+  <nav class="mag-article-meta" aria-label="مسیر صفحه">
+    <a href="/">خانه</a> <span aria-hidden="true">←</span>
+    <a href="/magazine">مجله سلامت</a> <span aria-hidden="true">←</span>
+    <span class="mag-card-cat">{{ a.category_name }}</span>
+  </nav>
+  <img class="mag-article-cover" src="{{ a.cover }}" alt="" loading="eager" width="1344" height="768">
+  <h1>{{ a.title }}</h1>
+  <div class="mag-article-meta">
+    <span>{{ a.published_at }}</span>
+    <span>{{ a.author or 'تیم نوبتیار' }}</span>
+    <span>{{ a.views }} بازدید</span>
+  </div>
+  <p class="mag-article-lead">{{ a.summary }}</p>
+  <div class="mag-article-body">
+    {{ a.body | safe }}
+  </div>
+</article>
+
+{% if related %}
+<section class="mag-related" aria-label="مطالب مرتبط">
+  <h2>مطالب مرتبط</h2>
+  <div class="mag-grid">
+    {% for r in related %}
+    <a class="mag-card" href="/magazine/article/{{ r.slug }}">
+      <img class="mag-card-img" src="{{ r.cover }}" alt="" loading="lazy" width="1344" height="768">
+      <span class="mag-card-body">
+        <span class="mag-card-cat">{{ r.category_name }}</span>
+        <h3>{{ r.title }}</h3>
+        <p>{{ r.summary }}</p>
+        <span class="mag-card-meta"><span>{{ r.published_at }}</span></span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

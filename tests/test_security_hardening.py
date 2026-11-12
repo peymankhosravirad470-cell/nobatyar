@@ -147,7 +147,7 @@ def test_health_version_bumped():
     # پس از منبع واحد حقیقت (APP_VERSION در main) مقایسه می‌کنیم.
     r = client.get("/api/health")
     assert r.json()["version"] == APP_VERSION
-    assert r.json()["version"] == "0.13.0"  # نسخهٔ جاری شاخه (سند صریح)
+    assert r.json()["version"] == "0.14.0"  # نسخهٔ جاری شاخه (سند صریح — بازطراحی برند/مجله)
 
 
 # ---------- ۷. تلهٔ رگرسیون XSS ----------

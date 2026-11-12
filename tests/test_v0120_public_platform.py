@@ -53,8 +53,8 @@ check("H1 استاندارد PRD در صفحه اصلی", "سامانه هوشم
 check("چیپ تاریخ شمسی و ساعت تهران موجود", "heroJalaliDate" in r.text and "heroClock" in r.text)
 check("جست‌وجوی برجسته هیرو موجود", "heroSearch" in r.text and "/api/public/search" in r.text)
 check("ساعت رسمی ایران (Asia/Tehran) پویا", "Asia/Tehran" in r.text)
-check("فوتر سازمانی با معرفی نوبتیار", "معرفی نوبتیار" in r.text and "مأموریت" in r.text)
-check("فهرست‌های واقعی فوتر (ul/li — رفع WAVE/ARIA)", "footer-values" in r.text and 'role="list"' not in r.text)
+check("فوتر سازمانی با معرفی نوبتیار (v0.14 footer-grid)", "معرفی نوبتیار" in r.text and "site-footer-v2" in r.text)
+check("فهرست‌های واقعی فوتر (ul/li — رفع WAVE/ARIA)", "footer-grid" in r.text and 'role="list"' not in r.text)
 check("عنوان بله H2 است (رفع WAVE)", "<h2>نوبتیار در بله</h2>" in r.text)
 check("CTA بدون heading غیرضروری (رفع WAVE)", 'class="cta-title"' in r.text)
 check("بخش تخصص‌ها در صفحه اصلی", "spec-cats" in r.text)
@@ -239,7 +239,7 @@ check("CSP اجرایی حفظ شده (بدون شکستن سایت)", "default-
 check("CSP سخت‌گیرانه در Report-Only برای مهاجرت nonce/TT (۲۲.۲ و ۲۲.۵)",
       "require-trusted-types-for" in h.get("content-security-policy-report-only", ""),
       h.get("content-security-policy-report-only"))
-check("CSS با نسخهٔ جدید کش‌بوست", "style.css?v=0120" in r.text)
+check("CSS با نسخهٔ جدید کش‌بوست", "style.css?v=0140" in r.text)
 
 # ==================== ۱۰) محدودیت نرخ ثبت شکایت ====================
 # (در انتها اجرا می‌شود — تا شمارندهٔ IP تست سایر تست‌ها را نزدن)

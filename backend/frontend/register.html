@@ -16,22 +16,44 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
-  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0111" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/style.css?v=0111">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0140" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0140">
 </head>
 <body>
-  <header class="site-header">
-    <div class="container">
-      <a href="/" class="brand-inline" aria-label="نوبتیار — صفحهٔ اصلی"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="" class="brand-mark" width="120" height="78"></picture><span class="brand-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span></a>
-      <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav"><span></span><span></span><span></span><span class="sr-only">باز و بسته کردن منو</span></button>
-      <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+  <header class="site-header site-header-v3">
+    <div class="brand-band">
+      <div class="container brand-band-inner">
+        <a href="/" class="brand-lockup" aria-label="نوبتیار — صفحهٔ اصلی">
+          <picture>
+            <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
+            <img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark" width="62" height="40">
+          </picture>
+          <span class="brand-lockup-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+        </a>
+        <div class="brand-band-cta">
+          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="btn-ghost">ربات بله</a>
+          <a href="/book" class="btn-grad">رزرو نوبت آنلاین</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-band">
+      <div class="container">
+        <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+          <span></span><span></span><span></span>
+          <span class="sr-only">باز و بسته کردن منو</span>
+        </button>
+        <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
         <a href="/">خانه</a>
+        <a href="/specialties">تخصص‌ها</a>
         <a href="/book">رزرو نوبت</a>
+        <a href="/magazine">مجله سلامت</a>
+        <a href="/complaints">شکایات و پیگیری</a>
         <a href="/partners">ویژه پزشکان و درمانگاه‌ها</a>
         <a href="/contact">تماس با ما</a>
         <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
-        <a href="/register" class="nav-cta" aria-current="page">ثبت‌نام مراکز</a>
-      </nav>
+        <a href="/register" class="nav-cta">ثبت‌نام مراکز</a>
+        </nav>
+      </div>
     </div>
   </header>
 
@@ -83,53 +105,91 @@
       <footer class="site-footer-v2">
     <div class="container">
       <div class="footer-grid">
-        <div class="footer-brand">
+        <div class="footer-brand footer-intro">
           <picture>
             <source type="image/webp" srcset="/static/img/nobatyar-badge.webp">
             <img src="/static/img/nobatyar-badge.png" alt="لوگوی رسمی نوبتیار" width="200" height="200" loading="lazy">
           </picture>
-          <p>نوبتیار — همراه هوشمند سلامت در شیراز؛ سامانهٔ نوبت‌دهی خودسرویس برای مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌ها.</p>
+          <h2 class="footer-heading">معرفی نوبتیار</h2>
+          <p>نوبتیار یک سامانهٔ سلامت دیجیتال با محوریت شهر شیراز است که معرفی پزشکان و مراکز درمانی و نوبت‌دهی آنلاین را یک‌جا فراهم می‌کند؛ تا بیماران بدون تماس تلفنی و صف، با اطلاع از زمان‌های خالی واقعی، نوبت بگیرند و مراکز درمانی نیز برنامهٔ کاری خود را منظم و شفاف مدیریت کنند.</p>
+          <p>نوبتیار اطلاعات مراکز را پیش از انتشار بررسی می‌کند، هیچ دادهٔ نمایشی یا ساختگی منتشر نمی‌کند و هر قابلیت را فقط وقتی فعال اعلام می‌کند که واقعاً کار کند.</p>
+          <a href="/about" class="footer-more">ادامهٔ معرفی نوبتیار ←</a>
         </div>
-        <nav class="footer-col" aria-label="دسترسی سریع">
-          <h3>دسترسی سریع</h3>
-          <a href="/">خانه</a>
-          <a href="/book">رزرو نوبت</a>
-          <a href="/register">ثبت‌نام مراکز</a>
-          <a href="/terms">شرایط استفاده</a>
-          <a href="/privacy">حریم خصوصی</a>
+        <nav class="footer-col" aria-label="خدمات و امکانات">
+          <h3 class="footer-heading">خدمات و امکانات</h3>
+          <ul>
+            <li><a href="/book">رزرو نوبت آنلاین</a></li>
+            <li><a href="/specialties">تخصص‌های پزشکی</a></li>
+            <li><a href="/magazine">مجله سلامت نوبتیار</a></li>
+            <li><a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">یادآور نوبت و دارو (ربات بله)</a></li>
+            <li><a href="/cancellation">سیاست لغو و تغییر نوبت</a></li>
+          </ul>
         </nav>
-        <nav class="footer-col" aria-label="پیوندهای مراکز درمانی">
-          <h3>ویژه مراکز درمانی</h3>
-          <a href="/partners">همکاری با مراکز</a>
-          <a href="/register/office">ثبت‌نام مطب و پزشک</a>
-          <a href="/register/clinic">ثبت‌نام درمانگاه</a>
-          <a href="/clinic/login">ورود مراکز</a>
+        <nav class="footer-col" aria-label="پیوندهای مهم و قوانین">
+          <h3 class="footer-heading">پیوندهای مهم</h3>
+          <ul>
+            <li><a href="/about">دربارهٔ نوبتیار</a></li>
+            <li><a href="/faq">پرسش‌های متداول</a></li>
+            <li><a href="/partners">همکاری پزشکان و مراکز</a></li>
+            <li><a href="/register">ثبت‌نام مراکز درمانی</a></li>
+            <li><a href="/complaints">ثبت و پیگیری شکایت</a></li>
+          </ul>
         </nav>
         <div class="footer-col" aria-label="راه‌های ارتباطی و شبکه‌های اجتماعی">
-          <h3>ارتباط با نوبتیار</h3>
-          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 20l1-4.9a8.4 8.4 0 1 1 17-3.6Z"/></svg> ربات رسمی بله</a>
-          <a href="mailto:shiraznobatyar@gmail.com" aria-label="ایمیل رسمی نوبتیار"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg> shiraznobatyar@gmail.com</a>
-          <a href="/contact">تماس با ما</a>
-          <a href="https://shirazhealthtour.ir" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg> shirazhealthtour.ir</a>
-          <div class="social-row" role="group" aria-label="شبکه‌های اجتماعی نوبتیار">
-          <a class="social-item" href="https://t.me/shiraznobatyar" aria-label="تلگرام نوبتیار" title="تلگرام نوبتیار" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 3-9.5 9.5"/><path d="M22 3 15 21l-2.5-8.5L4 10Z"/></svg><span>تلگرام</span></a>
-          <a class="social-item" href="https://eitaa.com/shiraznobatyar" aria-label="ایتای نوبتیار" title="ایتای نوبتیار" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 20l1-4.9a8.4 8.4 0 1 1 17-3.6Z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg><span>ایتا</span></a>
-          <a class="social-item" href="https://rubika.ir/shiraznobatyar" aria-label="روبیکای نوبتیار" title="روبیکای نوبتیار" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12"/><path d="m3 7 9 5 9-5"/></svg><span>روبیکا</span></a>
-          <a class="social-item" href="https://youtube.com/@nobatyar" aria-label="یوتیوب نوبتیار" title="یوتیوب نوبتیار" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4"/><path d="m10 9 5 3-5 3V9Z"/></svg><span>یوتیوب</span></a>
-          <a class="social-item" href="https://www.aparat.com/ShirazNobatyar/short-videos" aria-label="آپارات نوبتیار" title="آپارات نوبتیار" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m10 8.5 6 3.5-6 3.5v-7Z"/></svg><span>آپارات</span></a>
-          <a class="social-item" href="mailto:shiraznobatyar@gmail.com" aria-label="ایمیل رسمی نوبتیار" title="ایمیل رسمی نوبتیار"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg><span>ایمیل</span></a>
+          <h3 class="footer-heading">راه‌های ارتباطی</h3>
+          <ul class="footer-contact-grid">
+            <li><a class="contact-card" href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">
+              <img src="/static/img/bale-logo.png" alt="لوگوی رسمی پیام‌رسان بله" loading="lazy">
+              <span class="cc-text"><b>ربات رسمی بله</b><span dir="ltr">@nobatyarshirazbot</span></span>
+            </a></li>
+            <li><a class="contact-card" href="mailto:shiraznobatyar@gmail.com">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg></span>
+              <span class="cc-text"><b>ایمیل رسمی</b><span dir="ltr">shiraznobatyar@gmail.com</span></span>
+            </a></li>
+            <li><a class="contact-card" href="https://shirazhealthtour.ir">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg></span>
+              <span class="cc-text"><b>وب‌سایت رسمی</b><span dir="ltr">shirazhealthtour.ir</span></span>
+            </a></li>
+            <li><a class="contact-card" href="/contact">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+              <span class="cc-text"><b>تماس با ما</b><span>فرم تماس و راه‌های ارتباطی</span></span>
+            </a></li>
+          </ul>
+          <div class="social-block">
+            <h3>شبکه‌های اجتماعی نوبتیار</h3>
+            <div class="social-cards">
+              <a class="social-card sc-telegram" href="https://t.me/shiraznobatyar" target="_blank" rel="noopener">
+                <img src="/static/img/social/telegram.svg" alt="لوگوی رسمی تلگرام" loading="lazy">
+                <span class="sc-name">تلگرام<span class="sc-sub" dir="ltr">@shiraznobatyar</span></span>
+              </a>
+              <a class="social-card sc-eitaa" href="https://eitaa.com/shiraznobatyar" target="_blank" rel="noopener">
+                <img src="/static/img/social/eitaa.png" alt="لوگوی رسمی ایتا" loading="lazy">
+                <span class="sc-name">ایتا<span class="sc-sub" dir="ltr">shiraznobatyar</span></span>
+              </a>
+              <a class="social-card sc-rubika" href="https://rubika.ir/shiraznobatyar" target="_blank" rel="noopener">
+                <img src="/static/img/social/rubika.svg" alt="لوگوی رسمی روبیکا" loading="lazy">
+                <span class="sc-name">روبیکا<span class="sc-sub" dir="ltr">shiraznobatyar</span></span>
+              </a>
+              <a class="social-card sc-youtube" href="https://youtube.com/@nobatyar" target="_blank" rel="noopener">
+                <img src="/static/img/social/youtube.svg" alt="لوگوی رسمی یوتیوب" loading="lazy">
+                <span class="sc-name">یوتیوب<span class="sc-sub" dir="ltr">@nobatyar</span></span>
+              </a>
+              <a class="social-card sc-aparat" href="https://www.aparat.com/ShirazNobatyar/short-videos" target="_blank" rel="noopener">
+                <img src="/static/img/social/aparat.png" alt="لوگوی رسمی آپارات" loading="lazy">
+                <span class="sc-name">آپارات<span class="sc-sub" dir="ltr">ShirazNobatyar</span></span>
+              </a>
+            </div>
           </div>
-          <span class="social-pending">لینکدین — پس از تأیید صفحهٔ رسمی فعال می‌شود</span>
         </div>
       </div>
-      <div class="footer-bottom">
-        <span>© نوبتیار — نوبت بگیرید، راحت‌تر زندگی کنید</span>
-        <span class="foot-links">
-          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
-          <a href="/">خانه</a>
-          <a href="/book">رزرو نوبت</a>
-          <a href="/contact">تماس با ما</a>
-        </span>
+      <div class="footer-legal">
+        <p class="footer-copyright"><b>© ۱۴۰۵ نوبتیار</b> — کلیه حقوق محفوظ است. هرگونه کپی‌برداری، بازنشر یا استفاده از محتوای این وب‌سایت بدون ذکر منبع و کسب مجوز ممنوع است.</p>
+        <nav class="footer-legal-links" aria-label="قوانین و سیاست‌ها">
+          <a href="/terms">قوانین و شرایط استفاده</a>
+          <a href="/privacy">حریم خصوصی</a>
+          <a href="/complaints">ثبت و پیگیری شکایت</a>
+          <a href="/cancellation">سیاست لغو نوبت</a>
+        </nav>
       </div>
     </div>
   </footer>

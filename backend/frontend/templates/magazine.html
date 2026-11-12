@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}مجله سلامت نوبتیار | اخبار پزشکی و سلامت شیراز{% endblock %}
+{% block meta_desc %}مجله سلامت نوبتیار — آخرین اخبار پزشکی، سلامت عمومی، بیمارستان‌ها و مراکز درمانی، رویدادهای پزشکی شیراز و آزمایشگاه‌ها و فناوری سلامت؛ با ارجاع به منبع اصلی.{% endblock %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "مجله سلامت نوبتیار",
+  "description": "آخرین اخبار پزشکی، سلامت و خدمات درمانی شیراز",
+  "url": "https://shirazhealthtour.ir/magazine",
+  "inLanguage": "fa-IR",
+  "publisher": {"@type": "Organization", "name": "نوبتیار",
+                "url": "https://shirazhealthtour.ir",
+                "logo": {"@type": "ImageObject", "url": "https://shirazhealthtour.ir/static/img/nobatyar-logo.png"}}
+}
+</script>
+{% endblock %}
+{% block content %}
+<div class="mag-hero">
+  <img src="/static/img/v14-magazine-hero.webp" alt="" loading="eager" width="1344" height="768">
+  <div class="mag-hero-overlay">
+    <h1>مجله سلامت نوبتیار</h1>
+    <p>آخرین اخبار پزشکی، سلامت و خدمات درمانی شیراز</p>
+  </div>
+</div>
+
+<nav class="mag-cats" aria-label="دسته‌بندی مطالب مجله">
+  <a class="mag-cat {% if not cat %}is-active{% endif %}" href="/magazine{% if q %}?q={{ q }}{% endif %}">همه</a>
+  {% for c in categories %}
+  <a class="mag-cat {% if cat == c.slug %}is-active{% endif %}" href="/magazine?cat={{ c.slug }}{% if q %}&amp;q={{ q }}{% endif %}">{{ c.name }}</a>
+  {% endfor %}
+</nav>
+
+<form class="mag-search" method="get" action="/magazine" role="search">
+  <label for="magQ" class="sr-only">جست‌وجو در مطالب مجله</label>
+  <input type="search" id="magQ" name="q" value="{{ q }}" placeholder="جست‌وجو در عنوان و خلاصهٔ مطالب…">
+  <button type="submit">جست‌وجو</button>
+</form>
+
+{% if q %}<p class="section-sub">{{ total }} نتیجه برای «{{ q }}»{% if cat %} در دستهٔ {{ (categories | selectattr('slug', 'equalto', cat) | list | first).name }}{% endif %} یافت شد.</p>{% endif %}
+
+{% if articles %}
+<div class="mag-grid">
+  {% for a in articles %}
+  <a class="mag-card" href="/magazine/article/{{ a.slug }}">
+    <img class="mag-card-img" src="{{ a.cover }}" alt="" loading="lazy" width="1344" height="768">
+    <span class="mag-card-body">
+      <span class="mag-card-cat">{{ a.category_name }}</span>
+      <h3>{{ a.title }}</h3>
+      <p>{{ a.summary }}</p>
+      <span class="mag-card-meta"><span>{{ a.published_at }}</span></span>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% if total > per_page %}
+<nav class="mag-pagination" aria-label="صفحه‌بندی مطالب">
+  {% set pages = ((total + per_page - 1) // per_page) %}
+  {% for p in range(1, pages + 1) %}
+  <a class="{% if p == page %}is-active{% endif %}" href="/magazine?page={{ p }}{% if cat %}&amp;cat={{ cat }}{% endif %}{% if q %}&amp;q={{ q }}{% endif %}">{{ p }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+{% else %}
+<div class="mag-empty">
+  <h2>هنوز مطلبی در این بخش منتشر نشده است</h2>
+  <p>مطالب مجله فقط از مسیر تأیید مدیر و با ارجاع به منبع واقعی منتشر می‌شود؛ به‌زودی اخبار و آموزش‌های تازه اضافه می‌شود.</p>
+</div>
+{% endif %}
+{% endblock %}

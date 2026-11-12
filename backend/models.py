@@ -765,3 +765,97 @@ class ComplaintHistory(Base):
     __table_args__ = (
         Index("ix_complaint_history_comp_time", "complaint_id", "created_at"),
     )
+
+
+# ==================== v0.14.0 — مجله سلامت و جایگاه تبلیغات ====================
+
+class ArticleStatus(str, enum.Enum):
+    draft = "draft"
+    published = "published"
+
+
+class Article(Base):
+    """مقاله/خبر مجله سلامت نوبتیار — محتوای واقعی؛ فقط از پنل مدیریت منتشر می‌شود."""
+    __tablename__ = "magazine_articles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(160), unique=True, nullable=False, index=True)
+    title = Column(String(220), nullable=False)
+    summary = Column(Text, nullable=False, default="")
+    body = Column(Text, nullable=False, default="")
+    category = Column(String(40), nullable=False, default="guide", index=True)
+    cover_image = Column(String(300), nullable=True)
+    author = Column(String(80), nullable=True)
+    status = Column(SAEnum(ArticleStatus), default=ArticleStatus.published,
+                    nullable=False, index=True)
+    views = Column(Integer, nullable=False, default=0)
+    published_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_articles_status_pub", "status", "published_at"),
+    )
+
+
+class NewsSource(Base):
+    """منبع خبری ثبت‌شده — فقط منابعی که اتصال واقعی‌شان آزموده شده «فعال» می‌شوند."""
+    __tablename__ = "magazine_sources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    site_url = Column(String(300), nullable=True)
+    rss_url = Column(String(400), unique=True, nullable=False)
+    category = Column(String(40), nullable=False, default="news")
+    is_active = Column(Boolean, nullable=False, default=False)
+    note = Column(String(300), nullable=True)
+    last_fetched_at = Column(DateTime, nullable=True)
+    last_error = Column(String(300), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class NewsItem(Base):
+    """خبر دریافتی از منبع — «در انتظار تأیید»؛ فقط با تأیید مدیر عمومی می‌شود.
+
+    هرگز متن کامل خبر منبع کپی نمی‌شود: فقط عنوان + خلاصهٔ اختصاصی کوتاه + لینک اصلی.
+    url یکتاست (ضد تکرار در سطح دیتابیس)."""
+    __tablename__ = "magazine_news_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("magazine_sources.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    title = Column(String(300), nullable=False)
+    url = Column(String(500), nullable=False)
+    summary = Column(Text, nullable=False, default="")
+    published_at_source = Column(DateTime, nullable=True)
+    status = Column(String(12), nullable=False, default="pending", index=True)  # pending|published|rejected
+    published_article_id = Column(Integer, ForeignKey("magazine_articles.id",
+                                                      ondelete="SET NULL"), nullable=True)
+    fetched_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    source = relationship("NewsSource")
+
+    __table_args__ = (
+        UniqueConstraint("url", name="uq_news_item_url"),
+        Index("ix_news_status_fetched", "status", "fetched_at"),
+    )
+
+
+class AdSlot(Base):
+    """جایگاه تبلیغاتی مستقل — کاملاً جدا از هویت برند.
+
+    position مانند billboard-home یکتاست؛ وقتی is_active=False باشد
+    فرانت‌اند «جای تبلیغات برند شما» (نمونهٔ طراحی‌شده) نشان می‌دهد؛
+    هیچ اسپانسر جعلی هرگز نمایش داده نمی‌شود."""
+    __tablename__ = "ad_slots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    position = Column(String(60), unique=True, nullable=False)
+    title = Column(String(200), nullable=False, default="")
+    subtitle = Column(String(300), nullable=False, default="")
+    body = Column(Text, nullable=False, default="")
+    image_url = Column(String(300), nullable=True)
+    link_url = Column(String(400), nullable=True)
+    link_text = Column(String(120), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

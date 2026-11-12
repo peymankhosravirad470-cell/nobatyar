@@ -7,8 +7,8 @@
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
-  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0111" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/style.css?v=0111">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0140" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0140">
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -20,15 +20,45 @@
   </script>
 </head>
 <body>
-  <header class="site-header">
-    <div class="container">
-      <div class="brand-inline"><picture><source type="image/webp" srcset="/static/img/nobatyar-mark.webp"><img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark"></picture><span class="brand-text"><b>نوبتیار</b><small><h1>ادمین</h1></small></span></div>
-      <nav><a href="/">خانه</a></nav>
+  <header class="site-header site-header-v3">
+    <div class="brand-band">
+      <div class="container brand-band-inner">
+        <a href="/" class="brand-lockup" aria-label="نوبتیار — صفحهٔ اصلی">
+          <picture>
+            <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
+            <img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark" width="62" height="40">
+          </picture>
+          <span class="brand-lockup-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+        </a>
+        <div class="brand-band-cta">
+          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="btn-ghost">ربات بله</a>
+          <a href="/book" class="btn-grad">رزرو نوبت آنلاین</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-band">
+      <div class="container">
+        <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+          <span></span><span></span><span></span>
+          <span class="sr-only">باز و بسته کردن منو</span>
+        </button>
+        <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+        <a href="/">خانه</a>
+        <a href="/specialties">تخصص‌ها</a>
+        <a href="/book">رزرو نوبت</a>
+        <a href="/magazine">مجله سلامت</a>
+        <a href="/complaints">شکایات و پیگیری</a>
+        <a href="/partners">ویژه پزشکان و درمانگاه‌ها</a>
+        <a href="/contact">تماس با ما</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <a href="/register" class="nav-cta">ثبت‌نام مراکز</a>
+        </nav>
+      </div>
     </div>
   </header>
   <main class="container">
     <div class="card" style="max-width: 400px; margin: 2rem auto;">
-      <h2>ورود ادمین</h2>
+      <h1>ورود ادمین</h1>
       <div id="msg"></div>
       <form id="loginForm">
         <label for="adminUser">نام کاربری</label>
