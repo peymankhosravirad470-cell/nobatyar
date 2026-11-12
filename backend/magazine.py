@@ -73,7 +73,7 @@ class ArticleIn(BaseModel):
     category: str = Field("guide", max_length=40)
     cover_image: Optional[str] = Field(None, max_length=300)
     author: Optional[str] = Field(None, max_length=80)
-    status: str = Field("published", max_length=12)
+    status: str = Field("published", max_length=10)  # = VARCHAR(10) مهاجرت 0012
     published_at: Optional[datetime] = None
 
     @field_validator("slug")

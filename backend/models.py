@@ -786,11 +786,14 @@ class Article(Base):
     category = Column(String(40), nullable=False, default="guide", index=True)
     cover_image = Column(String(300), nullable=True)
     author = Column(String(80), nullable=True)
-    # سازگار با ستون VARCHAR(10) مهاجرت 0012: بدون ENUM بومی PostgreSQL
-    # (نوع بومی articlestatus هرگز ساخته نشده و مسیر insertmanyvalues به
-    #  «type articlestatus does not exist» می‌شکست)؛ length=12 با
-    # ArticleAdminIn.status (max_length=12) هم‌خوان است.
-    status = Column(SAEnum(ArticleStatus, native_enum=False, length=12),
+    # قرارداد دقیقاً همسان با دیتابیس: Migration 0012 ستون
+    # «magazine_articles.status» را VARCHAR(10) می‌سازد؛ طول مدل هم باید ۱۰ باشد
+    # تا هر دو مسیر ساخت شِما (0001_baseline → create_all از همین متادیتا، و
+    # 0012 → DDL صریح) ستون یکسان بسازند. بدون ENUM بومی PostgreSQL (نوع بومی
+    # articlestatus هرگز ساخته نشده و مسیر insertmanyvalues به
+    # «type articlestatus does not exist» می‌شکست). طول مقادیر Enum:
+    # draft=۵، published=۹ → هر دو در VARCHAR(10) می‌گنجند.
+    status = Column(SAEnum(ArticleStatus, native_enum=False, length=10),
                     default=ArticleStatus.published, nullable=False, index=True)
     views = Column(Integer, nullable=False, default=0)
     published_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

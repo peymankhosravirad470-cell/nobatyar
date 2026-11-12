@@ -209,14 +209,16 @@ check("مهاجرت 0012 idempotent (اجرای تکراری بدون خطا)", 
 # نقص اصلاح‌شده: SAEnum(ArticleStatus) بومی PostgreSQL به نوع بومی articlestatus وابسته
 # بود که مهاجرت 0012 هرگز نمی‌سازد؛ مسیر insertmanyvalues (درج دسته‌ای ≥۲ ردیف،
 # مثل seed استارتاپ) با «type articlestatus does not exist» می‌شکست و کل تراکنش
-# seed را برمی‌گرداند. فیکس: native_enum=False + length=12 (سازگار با VARCHAR(10/12)).
+# seed را برمی‌گرداند. فیکس: native_enum=False + length=10 — دقیقاً همسان با
+# ستون «magazine_articles.status VARCHAR(10)» مهاجرت 0012 (و بنابراین هر دو مسیر
+# ساخت شِما — create_all مدل و DDL مهاجرت — ستون یکسان می‌سازند).
 from models import Article, ArticleStatus  # noqa: E402
 
 _col = Article.__table__.columns["status"]
 check("Article.status: نوع Enum غیربومی است (native_enum=False — بدون وابستگی به CREATE TYPE)",
       getattr(_col.type, "native_enum", None) is False)
-check("Article.status: length=12 (هم‌خوان با ArticleAdminIn.status max_length=12)",
-      getattr(_col.type, "length", None) == 12)
+check("Article.status: length=10 (دقیقاً همسان با VARCHAR(10) مهاجرت 0012)",
+      getattr(_col.type, "length", None) == 10)
 
 # رفتار واقعی: درج دسته‌ای ۳ ردیف در یک تراکنش (مسیر insertmanyvalues) + گردش خواندن
 from datetime import datetime as _dt  # noqa: E402
