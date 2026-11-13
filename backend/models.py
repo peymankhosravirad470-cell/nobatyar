@@ -866,3 +866,55 @@ class AdSlot(Base):
     link_text = Column(String(120), nullable=True)
     is_active = Column(Boolean, nullable=False, default=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== v0.15.0 — بازطراحی: محتوای مدیر + کاتالوگ در دیتابیس + حسابرسی ====================
+
+class SiteContent(Base):
+    """متن‌های قابل ویرایش سایت (کلید/مقدار) — فقط کلیدهای سفیدفهرست از پنل مدیریت.
+
+    امنیت:
+      - هیچ کلیدی خارج از whitelist ساخته/به‌روزرسانی نمی‌شود (schemas.SiteContentUpdate).
+      - مقدارها فقط «متن» هستند؛ در قالب Jinja2 با autoescape رندر می‌شوند
+        (هیچ HTML خامی از این مسیر به صفحه نمی‌رسد — ضد XSS ساختاری).
+      - هر تغییر با نام مدیر در admin_audit ثبت می‌شود.
+    """
+    __tablename__ = "site_content"
+
+    content_key = Column(String(80), primary_key=True)
+    content_value = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, nullable=True)
+    updated_by = Column(String(50), nullable=True)
+
+
+class Specialty(Base):
+    """کاتالوگ تخصص‌ها در دیتابیس — seed از catalog_data.py در مهاجرت 0013.
+
+    - slug هرگز تغییر نمی‌کند (ثبات URL و سئو)؛ فقط name/category/is_active/sort_order از پنل.
+    - «غیرفعال» یعنی پنهان از فهرست عمومی سایت (با ثبت حسابرسی) — هیچ تخصصی حذف نمی‌شود.
+    - اگر جدول خالی باشد، کد از کاتالوگ مرجع (catalog_data.py) به‌عنوان fallback استفاده می‌کند.
+    """
+    __tablename__ = "specialties"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(80), unique=True, nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    category = Column(String(80), nullable=False, index=True)
+    sort_order = Column(Integer, nullable=False, default=0, index=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class AdminAudit(Base):
+    """سوابق عملیات مدیریتی — تاریخ + ساعت + مدیر + عملیات؛ بدون هیچ رمز یا توکنی.
+
+    مکمل SecurityEvent است (رویدادهای امنیتی ورود/قفل)؛ این جدول «عملیات محتوایی»
+    مدیر را ثبت می‌کند تا هر تغییر قابل پیگیری و بازگردانی باشد."""
+    __tablename__ = "admin_audit"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_username = Column(String(50), nullable=False)
+    action = Column(String(120), nullable=False)
+    target = Column(String(200), nullable=False, default="")
+    detail = Column(String(400), nullable=False, default="")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

@@ -200,7 +200,7 @@ r = client.put(f"/api/admin/ads/{slot_id}", headers=H,
 check("ادمین: به‌روزرسانی اسلات", r.status_code == 200)
 
 # ==================== ۸) نسخه و مهاجرت ====================
-check("APP_VERSION = 0.14.0", APP_VERSION == "0.14.0")
+check("APP_VERSION = 0.15.0", APP_VERSION == "0.15.0")
 from database import _run_alembic
 _run_alembic("upgrade", "head")   # idempotent — اجرای تکراری خطا نمی‌دهد
 check("مهاجرت 0012 idempotent (اجرای تکراری بدون خطا)", True)

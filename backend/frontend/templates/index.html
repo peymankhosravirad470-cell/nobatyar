@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="نوبتیار — سامانه هوشمند نوبت‌دهی مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌های شیراز؛ رزرو آنلاین نوبت، یادآور دارو و نوبت، همراه ربات بله.">
+  <link rel="canonical" href="https://shirazhealthtour.ir/">
+  <meta name="enamad" content="20958473" />
+  <title>نوبتیار | سامانه نوبت‌دهی آنلاین مطب و درمانگاه در شیراز</title>
+
+  <!-- Open Graph — اشتراک‌گذاری -->
+  <meta property="og:site_name" content="نوبتیار">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fa_IR">
+  <meta property="og:title" content="نوبتیار | سامانه نوبت‌دهی آنلاین مطب و درمانگاه در شیراز">
+  <meta property="og:description" content="رزرو آنلاین نوبت مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌های شیراز — از وب یا ربات بله، بدون تماس تلفنی و صف.">
+  <meta property="og:url" content="https://shirazhealthtour.ir/">
+  <meta property="og:image" content="https://shirazhealthtour.ir/static/img/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="لوگوی رسمی نوبتیار — سامانه نوبت‌دهی آنلاین شیراز">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+
+  <!-- فونت وزیرمتن self-host — پیش‌بارگذاری وزن‌های اصلی -->
+  <link rel="preload" href="/static/fonts/Vazirmatn-Black.woff2?v=0150" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0150" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/img/v0150/hero.webp" as="image" fetchpriority="high">
+  <link rel="stylesheet" href="/static/css/style.css?v=0150">
+
+  <!-- Google tag (gtag.js) — Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-NVWBWMF1E4');
+  </script>
+</head>
+<body>
+
+  <!-- ============ نوار بالایی — تاریخ شمسی + ساعت زندهٔ تهران (v0.15.0) ============ -->
+  <div class="v15-topbar" role="region" aria-label="اطلاعات زمان">
+    <div class="container v15-topbar-inner">
+      <div class="v15-topbar-time">
+        <span class="v15-chip" id="v15JalaliDate">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          در حال بارگذاری تاریخ…
+        </span>
+        <span class="v15-chip v15-clock" id="v15Clock">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <time>--:--:--</time>
+        </span>
+      </div>
+      <div class="v15-topbar-links">
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <span aria-hidden="true">|</span>
+        <a href="/admin/login">مدیریت سایت</a>
+      </div>
+    </div>
+  </div>
+
+  <header class="site-header site-header-v3">
+    <div class="brand-band">
+      <div class="container brand-band-inner">
+        <a href="/" class="brand-lockup" aria-label="نوبتیار — صفحهٔ اصلی">
+          <picture>
+            <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
+            <img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark" width="62" height="40">
+          </picture>
+          <span class="brand-lockup-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+        </a>
+        <div class="brand-band-cta">
+          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="btn-ghost">ربات بله</a>
+          <a href="/book" class="btn-grad">رزرو نوبت آنلاین</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-band">
+      <div class="container">
+        <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+          <span></span><span></span><span></span>
+          <span class="sr-only">باز و بسته کردن منو</span>
+        </button>
+        <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+        <a href="/" aria-current="page">خانه</a>
+        <a href="/specialties">تخصص‌ها</a>
+        <a href="/#doctors">پزشکان</a>
+        <a href="/#services">خدمات و مراکز</a>
+        <a href="/magazine">مجله سلامت</a>
+        <a href="/about">درباره نوبتیار</a>
+        <a href="/contact">تماس با ما</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content">
+
+    <!-- ============ هیرو v0.15.0 — تصویر واقعی پذیرش مرکز درمانی ============ -->
+    <section class="v15-hero" aria-label="معرفی نوبتیار">
+      <div class="container v15-hero-grid">
+        <div class="v15-hero-copy">
+          <span class="v15-kicker">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2.5 14 9l6.5 2-6.5 2-2 6.5-2-6.5L3.5 11 10 9l2-6.5Z"/></svg>
+            بدون تماس تلفنی، بدون صف
+          </span>
+          <h1 class="v15-hero-title">{{ content.heroTitle1 }} <span class="v15-grad-text">{{ content.heroTitle2 }}</span></h1>
+          <p class="v15-hero-lead">{{ content.heroLead }}</p>
+
+          <div class="hero-search v15-hero-search" role="search">
+            <label for="heroSearch" class="sr-only">جست‌وجوی پزشک، تخصص، علامت یا مرکز درمانی</label>
+            <input type="search" id="heroSearch" autocomplete="off"
+                   placeholder="نام پزشک، تخصص، علامت بیماری یا مرکز درمانی…">
+            <button type="button" id="heroSearchGo">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              جست‌وجو
+            </button>
+            <div class="search-results" id="heroSearchResults" hidden>
+              <p class="sr-only" role="status" aria-live="polite" id="heroSearchStatus"></p>
+              <div id="heroSearchItems"></div>
+            </div>
+            <p class="search-emergency" id="heroSearchEmergency" role="alert" hidden>
+              در موارد اورژانسی بلافاصله با <a href="tel:115">اورژانس ۱۱۵</a> تماس بگیرید.
+            </p>
+          </div>
+
+          <div class="v15-hero-actions">
+            <a href="/book" class="v15-btn v15-btn-primary">
+              رزرو نوبت آنلاین
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </a>
+            <a href="/register" class="v15-btn v15-btn-ghost">ثبت‌نام مطب یا درمانگاه</a>
+          </div>
+
+          <div class="v15-hero-chips" aria-label="تخصص‌های پرکاربرد">
+            <a class="v15-chip-link" href="/specialties/internal-medicine">داخلی</a>
+            <a class="v15-chip-link" href="/specialties/cardiology">قلب و عروق</a>
+            <a class="v15-chip-link" href="/specialties/dermatology">پوست</a>
+            <a class="v15-chip-link" href="/specialties/ophthalmology">چشم‌پزشکی</a>
+            <a class="v15-chip-link" href="/specialties/dentistry">دندانپزشکی</a>
+            <a class="v15-chip-link" href="/specialties/pediatrics">اطفال</a>
+            <a class="v15-chip-link" href="/specialties/obstetrics-gynecology">زنان و زایمان</a>
+            <a class="v15-chip-link v15-more" href="/specialties">همهٔ تخصص‌ها ←</a>
+          </div>
+        </div>
+        <div class="v15-hero-visual">
+          <picture>
+            <source type="image/webp" srcset="/static/img/v0150/hero.webp">
+            <img src="/static/img/v0150/hero.jpg" alt="فضای پذیرش مرکز درمانی — بیمارستان فوق تخصصی چشم پزشکی بینا" width="1600" height="1011" fetchpriority="high">
+          </picture>
+          <div class="float-card fc-1" aria-hidden="true">
+            <span class="fc-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <span>نوبت شما ثبت شد<small>بدون تماس و بدون صف</small></span>
+          </div>
+          <div class="float-card fc-2" aria-hidden="true">
+            <span class="fc-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a2.1 2.1 0 0 1 3-3l7 7a2.1 2.1 0 0 1-3 3Z"/><path d="m13 8 3-3a2.1 2.1 0 0 1 3 3l-3 3"/><path d="M4 20h4"/></svg></span>
+            <span>یادآور دارو<small>هر روز سر ساعت مقرر</small></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ بیلبورد تبلیغاتی — مستقل از هویت برند (طبق ترتیب تأییدشده) ============ -->
+    <div class="container">
+      <section class="ad-billboard" id="adBillboard" data-position="billboard-home" aria-label="جایگاه تبلیغات نوبتیار">
+        <div class="ad-inner">
+          <span class="ad-chip">فضای تبلیغاتی</span>
+          <img class="ad-media" id="adMedia" src="" alt="" loading="lazy" hidden>
+          <div class="ad-copy">
+            <h2 class="ad-title">جای تبلیغات برند شما</h2>
+            <p class="ad-sub">کسب‌وکار شما، در کنار سلامت مردم شیراز</p>
+            <p class="ad-body">برای معرفی مجموعه خود در نوبتیار با ما تماس بگیرید.</p>
+            <a class="ad-link" href="/contact" id="adLink">تماس با ما</a>
+            <p class="ad-note">نمایش تبلیغ فقط برای مجموعه‌های واقعی و تأییدشده انجام می‌شود و این جایگاه به‌طور مستقل از هویت نوبتیار از پنل مدیریت کنترل می‌گردد.</p>
+          </div>
+        </div>
+      </section>
+      <script>
+        (function () {
+          var el = document.getElementById('adBillboard');
+          if (!el) return;
+          fetch('/api/public/ads/' + el.dataset.position).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+            if (!d || !d.active) return;  // بدون اسپانسر واقعی → همان نمونهٔ طراحی‌شده می‌ماند
+            var t = el.querySelector('.ad-title'), s = el.querySelector('.ad-sub'),
+                b = el.querySelector('.ad-body'), l = document.getElementById('adLink'),
+                m = document.getElementById('adMedia');
+            if (t) t.textContent = d.title || '';
+            if (s) s.textContent = d.subtitle || '';
+            if (b) b.textContent = d.body || '';
+            if (l) { if (d.link_url) { l.href = d.link_url; l.textContent = d.link_text || 'مشاهده'; } else { l.hidden = true; } }
+            if (m && d.image_url) { m.src = d.image_url; m.hidden = false; }
+          }).catch(function () {});
+        })();
+      </script>
+    </div>
+
+    <!-- ============ نوار اعتماد ============ -->
+    <section class="trust-strip" aria-label="مزایای نوبتیار">
+      <div class="trust-item">
+        <span class="t-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg></span>
+        <span><b>رزرو در چند ثانیه</b><span>بدون تماس تلفنی و صف</span></span>
+      </div>
+      <div class="trust-item">
+        <span class="t-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span>
+        <span><b>یادآوری خودکار</b><span>نوبت و دارو، سر وقت</span></span>
+      </div>
+      <div class="trust-item">
+        <span class="t-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <span><b>اطلاعات محرمانه</b><span>احراز هویت امن و کد یک‌بارمصرف</span></span>
+      </div>
+      <div class="trust-item">
+        <span class="t-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 20l1-4.9a8.4 8.4 0 1 1 17-3.6Z"/></svg></span>
+        <span><b>پاسخ مستقیم مدیریت</b><span>پیشنهادات و انتقادات شما</span></span>
+      </div>
+    </section>
+
+    <!-- ============ تخصص‌های پزشکی v0.15.0 — کارت‌های تصویری + شمارش واقعی دیتابیس ============ -->
+    <section class="v15-section" id="specialties" aria-label="تخصص‌های پزشکی">
+      <div class="container">
+        <div class="v15-head">
+          <span class="v15-kicker-dark">بر اساس نیازتان مراجعه کنید</span>
+          <h2>{{ content.specialtiesTitle }}</h2>
+          <p>{{ content.specialtiesSub }}</p>
+        </div>
+        <div class="v15-cats">
+          {% for c in featured_cats %}
+          <a class="v15-cat-card" href="/specialties/{{ c.slug }}">
+            <span class="v15-cat-img">
+              <picture>
+                <source type="image/webp" srcset="/static/img/v0150/{{ c.img }}.webp">
+                <img src="/static/img/v0150/{{ c.img }}.jpg" alt="{{ c.alt }}" loading="lazy" width="640" height="{{ c.img_h }}">
+              </picture>
+            </span>
+            <b>{{ c.name }}</b>
+            <span class="v15-cat-count">{{ c.count_fa }} تخصص</span>
+          </a>
+          {% endfor %}
+        </div>
+        <div class="v15-center-cta">
+          <a class="v15-btn v15-btn-outline" href="/specialties">مشاهدهٔ همهٔ {{ stats.spec_count_fa }} تخصص</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ خدمات و مراکز درمانی شهر v0.15.0 ============ -->
+    <section class="v15-section v15-section-tint" id="services" aria-label="خدمات و مراکز درمانی">
+      <div class="container">
+        <div class="v15-head">
+          <span class="v15-kicker-dark">یک‌جا و منظم</span>
+          <h2>{{ content.servicesTitle }}</h2>
+          <p>{{ content.servicesSub }}</p>
+        </div>
+        <div class="v15-services">
+          <a class="v15-service" href="/book">
+            <span class="v15-service-img"><picture>
+              <source type="image/webp" srcset="/static/img/v0150/hero.webp">
+              <img src="/static/img/v0150/hero.jpg" alt="فضای پذیرش مطب و درمانگاه" loading="lazy" width="800" height="506">
+            </picture></span>
+            <b>مطب‌ها و درمانگاه‌ها</b>
+            <span>زمان‌های خالی واقعی تقویم هر مرکز، بدون تماس و صف</span>
+          </a>
+          <a class="v15-service" href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">
+            <span class="v15-service-img"><picture>
+              <source type="image/webp" srcset="/static/img/v0150/lab.webp">
+              <img src="/static/img/v0150/lab.jpg" alt="آزمایشگاه علوم پزشکی — خدمات آزمایشگاهی" loading="lazy" width="800" height="449">
+            </picture></span>
+            <b>آزمایشگاه‌ها</b>
+            <span>خدمات آزمایشگاهی شیراز با مسیر مشخص برای نمونه‌گیری</span>
+          </a>
+          <a class="v15-service" href="/book">
+            <span class="v15-service-img"><picture>
+              <source type="image/webp" srcset="/static/img/v0150/mri.webp">
+              <img src="/static/img/v0150/mri.jpg" alt="دستگاه MRI در محیط بیمارستانی" loading="lazy" width="800" height="534">
+            </picture></span>
+            <b>تصویربرداری پزشکی</b>
+            <span>MRI، CT، سونوگرافی و رادیولوژی در مراکز معتبر</span>
+          </a>
+          <a class="v15-service" href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">
+            <span class="v15-service-img"><picture>
+              <source type="image/webp" srcset="/static/img/v0150/pharmacy.webp">
+              <img src="/static/img/v0150/pharmacy.jpg" alt="داروخانهٔ شبانه‌روزی ایرانی" loading="lazy" width="800" height="600">
+            </picture></span>
+            <b>داروخانه‌ها</b>
+            <span>یافتن داروخانه‌ها و یادآور مصرف دارو با ربات بله</span>
+          </a>
+          <a class="v15-service" href="/specialties/physiotherapy">
+            <span class="v15-service-img"><picture>
+              <source type="image/webp" srcset="/static/img/v0150/physio.webp">
+              <img src="/static/img/v0150/physio.jpg" alt="تجهیزات فیزیوتراپی و توان‌بخشی" loading="lazy" width="640" height="427">
+            </picture></span>
+            <b>فیزیوتراپی و توانبخشی</b>
+            <span>مراکز فیزیوتراپی و کاردرمانی با برنامهٔ کاری شفاف</span>
+          </a>
+          <a class="v15-service" href="/specialties/hair-beauty">
+            <span class="v15-service-img"><picture>
+              <source type="image/webp" srcset="/static/img/v0150/beauty.webp">
+              <img src="/static/img/v0150/beauty.jpg" alt="کلینیک پوست، مو و زیبایی ایرانی" loading="lazy" width="640" height="443">
+            </picture></span>
+            <b>پوست، مو و زیبایی</b>
+            <span>خدمات پوست و مو در کلینیک‌های دارای مجوز</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ پنل‌های نوبتیار v0.15.0 ============ -->
+    <section class="v15-section" id="panels" aria-label="پنل‌های نوبتیار">
+      <div class="container">
+        <div class="v15-head">
+          <span class="v15-kicker-dark">هر نقش، پنل خودش</span>
+          <h2>{{ content.panelsTitle }}</h2>
+          <p>{{ content.panelsSub }}</p>
+        </div>
+        <div class="v15-panels">
+          <div class="v15-panel-card">
+            <span class="v15-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M9 15l2 2 4-4"/></svg></span>
+            <h3>پنل بیمار</h3>
+            <p>رزرو نوبت از زمان‌های خالی واقعی، پیگیری وضعیت نوبت و یادآور دارو و ویزیت.</p>
+            <a class="v15-btn v15-btn-primary" href="/book">شروع رزرو نوبت</a>
+          </div>
+          <div class="v15-panel-card">
+            <span class="v15-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <h3>پنل پزشک و مرکز درمانی</h3>
+            <p>تعریف ساعات کاری و اسلات‌ها، تأیید یا لغو نوبت‌ها و مدیریت کامل برنامهٔ درمانگاه.</p>
+            <a class="v15-btn v15-btn-outline" href="/clinic/login">ورود به پنل مرکز</a>
+          </div>
+          <div class="v15-panel-card">
+            <span class="v15-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <h3>مدیریت سایت</h3>
+            <p>ویرایش محتوای سایت، تخصص‌ها، مجله و تبلیغات — با حسابرسی کامل و حساب موجود.</p>
+            <a class="v15-btn v15-btn-outline" href="/admin/login">ورود مدیریت</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ پزشکان و مراکز v0.15.0 — دادهٔ زندهٔ واقعی ============ -->
+    <section class="v15-section" id="doctors" aria-label="پزشکان و مراکز درمانی">
+      <div class="container">
+        <div class="v15-head">
+          <span class="v15-kicker-dark">دادهٔ زنده از سامانه</span>
+          <h2>{{ content.doctorsTitle }}</h2>
+          <p>{{ content.doctorsSub }}</p>
+        </div>
+        <div class="center-cards" id="centerCards" aria-live="polite">
+          <p class="empty-state">در حال دریافت فهرست مراکز…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ رویکرد نوبتیار v0.15.0 — پزشک ایرانی واقعی ============ -->
+    <section class="v15-section v15-section-tint" id="approach" aria-label="معرفی رویکرد نوبتیار">
+      <div class="container v15-split">
+        <div>
+          <span class="v15-kicker-dark">رویکرد نوبتیار</span>
+          <h2>{{ content.approachTitle }}</h2>
+          <p class="v15-approach-text">{{ content.approachText }}</p>
+          <div class="v15-stats">
+            <div class="v15-stat"><b>{{ stats.spec_count_fa }}</b><span>تخصص فعال</span></div>
+            <div class="v15-stat"><b>{{ stats.cat_count_fa }}</b><span>دستهٔ درمانی</span></div>
+            <div class="v15-stat"><b>۱۰۰٪</b><span>دادهٔ واقعی</span></div>
+          </div>
+          <a class="v15-btn v15-btn-primary" href="/book">شروع رزرو نوبت</a>
+        </div>
+        <div class="v15-split-img">
+          <picture>
+            <source type="image/webp" srcset="/static/img/v0150/staff.webp">
+            <img src="/static/img/v0150/staff.jpg" alt="پزشک ایرانی در محیط درمانی — معاینهٔ چشم‌پزشکی" loading="lazy" width="1200" height="900">
+          </picture>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ شیراز v0.15.0 — بیمارستان واقعی نمازی (با انتساب CC BY-SA 3.0) ============ -->
+    <section class="v15-section" id="shiraz" aria-label="نوبتیار و هویت شیراز">
+      <div class="container v15-split v15-split-rev">
+        <div class="v15-split-img">
+          <picture>
+            <source type="image/webp" srcset="/static/img/v0150/shiraz.webp">
+            <img src="/static/img/v0150/shiraz.jpg" alt="ورودی بیمارستان نمازی شیراز" loading="lazy" width="1200" height="900">
+          </picture>
+          <span class="v15-credit">تصویر: بیمارستان نمازی شیراز — Ahura21، CC BY-SA 3.0 (ویکی‌مدیا کامانز)</span>
+        </div>
+        <div>
+          <span class="v15-kicker-dark">ساخته‌شده برای شیراز</span>
+          <h2>{{ content.shirazTitle }}</h2>
+          <p class="v15-approach-text">{{ content.shirazText }}</p>
+          <a class="v15-btn v15-btn-outline" href="/magazine">مجله سلامت شیراز ←</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ مجله سلامت v0.15.0 — مقالات واقعی منتشرشده ============ -->
+    <section class="v15-section v15-section-tint" id="magazine" aria-label="مجله سلامت شیراز">
+      <div class="container">
+        <div class="v15-head v15-head-row">
+          <div>
+            <span class="v15-kicker-dark">مجله سلامت نوبتیار</span>
+            <h2>{{ content.magazineTitle }}</h2>
+            <p>{{ content.magazineSub }}</p>
+          </div>
+          <a class="v15-btn v15-btn-outline" href="/magazine">همهٔ مقالات ←</a>
+        </div>
+        {% if articles %}
+        <div class="v15-mag-grid">
+          {% for a in articles %}
+          <a class="v15-mag-card" href="/magazine/{{ a.slug }}">
+            <span class="v15-mag-img"><picture>
+              <source type="image/webp" srcset="{{ a.cover_webp }}">
+              <img src="{{ a.cover_jpg }}" alt="{{ a.title }}" loading="lazy" width="800" height="560">
+            </picture></span>
+            <span class="v15-mag-cat">{{ a.category_fa }}</span>
+            <b>{{ a.title }}</b>
+            <p>{{ a.summary }}</p>
+            <span class="v15-mag-date">{{ a.date_fa }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">مقالات پس از تأیید مدیر در همین بخش نمایش داده می‌شوند.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- ============ سوالات متداول ============ -->
+    <section class="section" aria-label="سوالات متداول">
+      <div class="section-head">
+        <span class="kicker">سوالات متداول</span>
+        <h2>هرچه باید بدانید</h2>
+      </div>
+      <div class="faq">
+        <details open>
+          <summary>رزرو نوبت در نوبتیار چطور انجام می‌شود؟</summary>
+          <p>از صفحهٔ «رزرو نوبت» یا ربات بله، تخصص یا مرکز مورد نظر را انتخاب می‌کنید، از میان زمان‌های خالی یک زمان را برمی‌دارید و با وارد کردن اطلاعات بیمار، نوبت با کد پیگیری ثبت می‌شود.</p>
+        </details>
+        <details>
+          <summary>نوبت من چگونه تأیید می‌شود؟</summary>
+          <p>پس از ثبت، نوبت با کد پیگیری در وضعیت «در انتظار تأیید» قرار می‌گیرد. مرکز درمانی از پنل اختصاصی خود، نوبت را تأیید یا در صورت نیاز لغو می‌کند؛ زمان لغوشده بلافاصله در سیستم آزاد می‌شود.</p>
+        </details>
+        <details>
+          <summary>آیا استفاده از ربات بله اجباری است؟</summary>
+          <p>خیر؛ رزرو از وب هم کامل است. اما ربات بله امکانات بیشتری دارد: یادآور دارو، یادآوری خودکار نوبت، دعوت دوستان و پاسخ مستقیم مدیریت.</p>
+        </details>
+        <details>
+          <summary>اطلاعات من چگونه محفوظ می‌ماند؟</summary>
+          <p>اتصال ادمین‌ها فقط از مسیر کد یک‌بارمصرف (OTP) انجام می‌شود، رمز عبور هرگز در چت رد و بدل نمی‌شود و اطلاعات هویتی بیماران فقط برای مدیریت نوبت استفاده می‌شود؛ ارتباط سایت نیز با HTTPS امن است.</p>
+        </details>
+        <details>
+          <summary>مطب یا درمانگاه ما چگونه ثبت‌نام می‌کند؟</summary>
+          <p>از صفحهٔ <a href="/register">ثبت‌نام مراکز</a> فرم مربوطه را پر کنید؛ پس از بررسی و تأیید تیم نوبتیار، پنل اختصاصی شما فعال می‌شود تا ساعات کاری و اسلات‌ها را تعریف و نوبت‌ها را مدیریت کنید. جزئیات در <a href="/partners">صفحهٔ ویژه پزشکان و درمانگاه‌ها</a> آمده است.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============ بنر CTA ============ -->
+    <section class="cta-banner" aria-label="شروع کنید">
+      <p class="cta-title">همین حالا نوبت خود را بگیرید</p>
+      <p>نوبت بگیرید، راحت‌تر زندگی کنید — نوبتیار کنار شماست</p>
+      <a href="/book" class="btn-white">رزرو نوبت</a>
+      <a href="https://ble.ir/{{ content.baleBot }}" class="btn-ghost" target="_blank" rel="noopener">ورود به ربات بله</a>
+    </section>
+
+  </main>
+
+  <footer class="site-footer-v2">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand footer-intro">
+          <picture>
+            <source type="image/webp" srcset="/static/img/nobatyar-badge.webp">
+            <img src="/static/img/nobatyar-badge.png" alt="لوگوی رسمی نوبتیار" width="200" height="200" loading="lazy">
+          </picture>
+          <h2 class="footer-heading">معرفی نوبتیار</h2>
+          <p>{{ content.footerAbout }}</p>
+          <p>نوبتیار اطلاعات مراکز را پیش از انتشار بررسی می‌کند، هیچ دادهٔ نمایشی یا ساختگی منتشر نمی‌کند و هر قابلیت را فقط وقتی فعال اعلام می‌کند که واقعاً کار کند.</p>
+          <a href="/about" class="footer-more">ادامهٔ معرفی نوبتیار ←</a>
+        </div>
+        <nav class="footer-col" aria-label="خدمات و امکانات">
+          <h3 class="footer-heading">خدمات و امکانات</h3>
+          <ul>
+            <li><a href="/book">رزرو نوبت آنلاین</a></li>
+            <li><a href="/specialties">تخصص‌های پزشکی</a></li>
+            <li><a href="/magazine">مجله سلامت نوبتیار</a></li>
+            <li><a href="https://ble.ir/{{ content.baleBot }}" target="_blank" rel="noopener">یادآور نوبت و دارو (ربات بله)</a></li>
+            <li><a href="/cancellation">سیاست لغو و تغییر نوبت</a></li>
+          </ul>
+        </nav>
+        <nav class="footer-col" aria-label="پیوندهای مهم و قوانین">
+          <h3 class="footer-heading">پیوندهای مهم</h3>
+          <ul>
+            <li><a href="/about">دربارهٔ نوبتیار</a></li>
+            <li><a href="/faq">پرسش‌های متداول</a></li>
+            <li><a href="/partners">همکاری پزشکان و مراکز</a></li>
+            <li><a href="/register">ثبت‌نام مراکز درمانی</a></li>
+            <li><a href="/complaints">ثبت و پیگیری شکایت</a></li>
+          </ul>
+        </nav>
+        <div class="footer-col" aria-label="راه‌های ارتباطی و شبکه‌های اجتماعی">
+          <h3 class="footer-heading">راه‌های ارتباطی</h3>
+          <ul class="footer-contact-grid">
+            <li><a class="contact-card" href="https://ble.ir/{{ content.baleBot }}" target="_blank" rel="noopener">
+              <img src="/static/img/bale-logo.png" alt="لوگوی رسمی پیام‌رسان بله" loading="lazy">
+              <span class="cc-text"><b>ربات رسمی بله</b><span dir="ltr">@{{ content.baleBot }}</span></span>
+            </a></li>
+            <li><a class="contact-card" href="mailto:{{ content.email }}">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg></span>
+              <span class="cc-text"><b>ایمیل رسمی</b><span dir="ltr">{{ content.email }}</span></span>
+            </a></li>
+            <li><a class="contact-card" href="https://shirazhealthtour.ir">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg></span>
+              <span class="cc-text"><b>وب‌سایت رسمی</b><span dir="ltr">shirazhealthtour.ir</span></span>
+            </a></li>
+            <li><a class="contact-card" href="tel:{{ content.phone }}">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg></span>
+              <span class="cc-text"><b>تلفن تماس</b><span dir="ltr">{{ content.phone }}</span></span>
+            </a></li>
+            <li><a class="contact-card" href="/contact">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+              <span class="cc-text"><b>تماس با ما</b><span>فرم تماس و راه‌های ارتباطی</span></span>
+            </a></li>
+          </ul>
+          <div class="social-block">
+            <h3>شبکه‌های اجتماعی نوبتیار</h3>
+            <div class="social-cards">
+              <a class="social-card sc-telegram" href="https://t.me/{{ content.telegram }}" target="_blank" rel="noopener">
+                <img src="/static/img/social/telegram.svg" alt="لوگوی رسمی تلگرام" loading="lazy">
+                <span class="sc-name">تلگرام<span class="sc-sub" dir="ltr">@{{ content.telegram }}</span></span>
+              </a>
+              <a class="social-card sc-eitaa" href="https://eitaa.com/{{ content.telegram }}" target="_blank" rel="noopener">
+                <img src="/static/img/social/eitaa.png" alt="لوگوی رسمی ایتا" loading="lazy">
+                <span class="sc-name">ایتا<span class="sc-sub" dir="ltr">{{ content.telegram }}</span></span>
+              </a>
+              <a class="social-card sc-rubika" href="https://rubika.ir/{{ content.telegram }}" target="_blank" rel="noopener">
+                <img src="/static/img/social/rubika.svg" alt="لوگوی رسمی روبیکا" loading="lazy">
+                <span class="sc-name">روبیکا<span class="sc-sub" dir="ltr">{{ content.telegram }}</span></span>
+              </a>
+              <a class="social-card sc-youtube" href="https://youtube.com/@nobatyar" target="_blank" rel="noopener">
+                <img src="/static/img/social/youtube.svg" alt="لوگوی رسمی یوتیوب" loading="lazy">
+                <span class="sc-name">یوتیوب<span class="sc-sub" dir="ltr">@nobatyar</span></span>
+              </a>
+              <a class="social-card sc-aparat" href="https://www.aparat.com/ShirazNobatyar/short-videos" target="_blank" rel="noopener">
+                <img src="/static/img/social/aparat.png" alt="لوگوی رسمی آپارات" loading="lazy">
+                <span class="sc-name">آپارات<span class="sc-sub" dir="ltr">ShirazNobatyar</span></span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-legal">
+        <p class="footer-copyright"><b>{{ content.copyright }}</b></p>
+        <p class="footer-credits">اعتبار تصاویر: تصاویر این صفحه واقعی و دارای مجوز آزاد هستند — فهرست کامل پدیدآورنده و مجوز هر تصویر: <a href="/static/img/v0150/ATTRIBUTIONS.txt" rel="noopener">اعتبارنامهٔ تصاویر نوبتیار</a>.</p>
+        <nav class="footer-legal-links" aria-label="قوانین و سیاست‌ها">
+          <a href="/terms">قوانین و شرایط استفاده</a>
+          <a href="/privacy">حریم خصوصی</a>
+          <a href="/complaints">ثبت و پیگیری شکایت</a>
+          <a href="/cancellation">سیاست لغو نوبت</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // منوی موبایل — دکمهٔ واقعی با aria-expanded
+    (function () {
+      var btn = document.querySelector('.nav-burger');
+      var nav = document.getElementById('mainnav');
+      if (btn && nav) {
+        btn.addEventListener('click', function () {
+          var open = nav.classList.toggle('nav-open');
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+    })();
+
+    // ---------- تاریخ شمسی + ساعت زندهٔ تهران — در نوار بالایی هدر (v0.15.0) ----------
+    (function () {
+      var TZ = 'Asia/Tehran';
+      var dateEl = document.getElementById('v15JalaliDate');
+      var clockEl = document.getElementById('v15Clock');
+      try {
+        if (dateEl) {
+          dateEl.innerHTML = dateEl.querySelector('svg') ? dateEl.querySelector('svg').outerHTML : '';
+          dateEl.insertAdjacentHTML('beforeend',
+            new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ
+            }).format(new Date()));
+        }
+        if (clockEl) {
+          var t = clockEl.querySelector('time');
+          var fmt = new Intl.DateTimeFormat('fa-IR', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: TZ
+          });
+          var tick = function () { if (t) t.textContent = fmt.format(new Date()); };
+          tick();
+          setInterval(tick, 1000);
+        }
+      } catch (e) { /* نمایش ساعت/تاریخ هرگز نباید صفحه را بشکند */ }
+    })();
+
+    // ---------- جست‌وجوی زندهٔ برجسته (متصل به Backend — بخش ۵ PRD) ----------
+    (function () {
+      var input = document.getElementById('heroSearch');
+      var box = document.getElementById('heroSearchResults');
+      var itemsEl = document.getElementById('heroSearchItems');
+      var statusEl = document.getElementById('heroSearchStatus');
+      var emergencyEl = document.getElementById('heroSearchEmergency');
+      var goBtn = document.getElementById('heroSearchGo');
+      if (!input || !box || !itemsEl) return;
+
+      var esc = function (s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
+      var timer = null;
+
+      function close() {
+        box.hidden = true;
+        // اصلاح AXE (aria-allowed-attr): aria-expanded روی input مجاز نیست؛
+        // اعلام نتیجه‌ها از طریق ناحیهٔ زندهٔ #heroSearchStatus انجام می‌شود
+      }
+
+      function render(data) {
+        var html = '';
+        var count = 0;
+        (data.symptoms || []).forEach(function (s) {
+          count++;
+          var links = (s.specialties || []).map(function (sp) {
+            return '<a href="' + esc(sp.url) + '">' + esc(sp.name) + '</a>';
+          }).join('، ');
+          html += '<div class="sr-item sr-symptom"><b>' + esc(s.title) + '</b>' +
+            (s.urgent ? ' <span class="sr-urgent">اورژانسی</span>' : '') +
+            '<span>تخصص مرتبط: ' + links + '</span></div>';
+        });
+        (data.items || []).forEach(function (c) {
+          count++;
+          var docs = (c.matched_doctors || []).map(function (d) {
+            return '<a href="' + esc(d.url || ('/doctors/' + d.id)) + '">' + esc(d.full_name) + ' — ' + esc(d.specialty) + '</a>';
+          }).join('، ');
+          html += '<div class="sr-item"><a class="sr-main" href="' + esc(c.url || ('/centers/' + c.id)) + '">' +
+            esc(c.name) + '<small>' + esc(c.specialty || '') + ' — ' + esc(c.address || '') + '</small></a>' +
+            (docs ? '<span>پزشکان: ' + docs + '</span>' : '') + '</div>';
+        });
+        if (!count) {
+          html = '<div class="sr-empty">نتیجه‌ای یافت نشد؛ می‌توانید از <a href="/specialties">فهرست تخصص‌ها</a> یا <a href="/book">صفحهٔ رزرو</a> استفاده کنید.</div>';
+        }
+        itemsEl.innerHTML = html;
+        if (statusEl) statusEl.textContent = count ? (count + ' نتیجهٔ پیشنهادی نمایش داده شد') : 'نتیجه‌ای یافت نشد';
+        if (emergencyEl) emergencyEl.hidden = !data.emergency_notice;
+        box.hidden = false;
+        // اصلاح AXE: اعلام بازشدن نتایج با aria-live همان کافی است
+      }
+
+      function search() {
+        var q = (input.value || '').trim();
+        if (q.length < 2) { close(); return; }
+        fetch('/api/public/search?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) { if (d) render(d); })
+          .catch(function () { close(); });
+      }
+
+      input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(search, 300);
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') close();
+        if (e.key === 'Enter') {
+          var q = (input.value || '').trim();
+          if (q) location.href = '/specialties?q=' + encodeURIComponent(q);
+        }
+      });
+      if (goBtn) goBtn.addEventListener('click', function () {
+        var q = (input.value || '').trim();
+        if (q) location.href = '/specialties?q=' + encodeURIComponent(q);
+      });
+      document.addEventListener('click', function (e) {
+        if (!box.contains(e.target) && e.target !== input) close();
+      });
+    })();
+
+    // ---------- فهرست زندهٔ مراکز واقعی (بخش ۸ PRD) ----------
+    (function () {
+      var wrap = document.getElementById('centerCards');
+      if (!wrap) return;
+      var esc = function (s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
+      fetch('/api/clinics/public')
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (list) {
+          if (!Array.isArray(list) || !list.length) {
+            wrap.innerHTML = '<p class="empty-state">هنوز مرکزی فعال نشده است؛ مراکز پس از بررسی و تأیید مدارک به‌تدریج اضافه می‌شوند. برای ثبت‌نام مرکز از <a href="/register">صفحهٔ ثبت‌نام</a> استفاده کنید.</p>';
+            return;
+          }
+          var html = '';
+          list.slice(0, 12).forEach(function (c) {
+            var typeLabel = c.type === 'office' ? 'مطب' : 'درمانگاه';
+            html += '<article class="center-card">' +
+              '<div class="cc-head"><b>' + esc(c.name) + '</b><span class="cc-type">' + typeLabel + '</span></div>' +
+              '<span class="cc-spec">' + esc(c.specialty || '') + '</span>' +
+              '<span class="cc-addr">' + esc(c.address || '') + '</span>' +
+              '<div class="cc-actions">' +
+              '<a class="btn btn-sm" href="/centers/' + c.id + '">پروفایل مرکز</a>' +
+              '<a class="btn btn-outline btn-sm" href="/book#clinic-' + c.id + '">رزرو نوبت</a>' +
+              '</div></article>';
+          });
+          wrap.innerHTML = html;
+        })
+        .catch(function () {
+          wrap.innerHTML = '<p class="empty-state">دریافت فهرست مراکز ناموفق بود؛ لطفاً صفحه را دوباره بارگذاری کنید.</p>';
+        });
+    })();
+  </script>
+</body>
+</html>
+

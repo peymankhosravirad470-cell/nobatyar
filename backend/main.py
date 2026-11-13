@@ -52,8 +52,10 @@ import catalog as catalog_mod  # noqa: F401 — v0.12.0: کاتالوگ عموم
 from centers import router as centers_router
 from complaints import router as complaints_router
 from catalog import router as catalog_router
+import site_content as site_content_mod  # v0.15.0: محتوای مدیر + کاتالوگ دیتابیسی + حسابرسی
+from site_content import router as site_router, admin_router as site_admin_router
 
-APP_VERSION = "0.14.0"
+APP_VERSION = "0.15.0"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
@@ -147,6 +149,10 @@ import models as magazine_models  # noqa: E402 — دسترسی کوتاه به 
 app.include_router(magazine_router)
 app.include_router(magazine_admin_router)
 app.include_router(magazine_ads_router)
+
+# v0.15.0: محتوای قابل‌ویرایش مدیر + کاتالوگ تخصص‌های دیتابیسی + حسابرسی مدیریتی
+app.include_router(site_router)
+app.include_router(site_admin_router)
 
 
 # ---------- ریدایرکت www → دامنه اصلی (v0.11.0 — SEO یکپارچه) ----------
@@ -352,8 +358,64 @@ def _html(name: str):
 # ==================== صفحات وب (HTML) ====================
 
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return _html("index.html")
+def home(request: _Request, db: Session = Depends(get_db)):
+    """صفحهٔ اصلی بازطراحی 0.15.0 — سرو-رندر با محتوای مدیر (site_content)،
+    کاتالوگ تخصص‌های دیتابیسی و مقالات واقعی منتشرشدهٔ مجله (سئو + اعمال فوری تغییرات)."""
+    content = site_content_mod.get_site_content(db)
+    counts = site_content_mod.db_category_counts(db)
+
+    # ---------- ۸ دستهٔ ویژهٔ صفحهٔ اصلی — تصویر واقعی هر دسته (گالری دارای مجوز) ----------
+    _CATS = [
+        ("دندانپزشکی", "dentistry", "dental", "اتاق درمان دندانپزشکی با یونیت واقعی", 427),
+        ("قلب و عروق", "cardiology", "cardio", "دستگاه ECG در محیط درمانی", 427),
+        ("زنان و زایمان", "obstetrics-gynecology", "women", "دستگاه سونوگرافی تشخیصی", 853),
+        ("کودکان", "pediatrics", "pediatrics", "فضای بخش اطفال بیمارستان", 845),
+        ("پوست و مو", "dermatology", "beauty", "کلینیک پوست، مو و زیبایی", 443),
+        ("چشم", "ophthalmology", "eye", "معاینهٔ چشم‌پزشکی با اسلیت‌لمپ", 809),
+        ("ارتوپدی و فیزیوتراپی", "orthopedics", "physio", "تجهیزات فیزیوتراپی و توان‌بخشی", 427),
+        ("مغز و اعصاب و سلامت روان", "neurology", "staff", "پزشک در محیط درمانی", 480),
+    ]
+    from fa_utils import fa_digits  # noqa: E402
+    featured_cats = [{
+        "name": name, "slug": slug, "img": img, "alt": alt, "img_h": img_h,
+        "count_fa": fa_digits(counts.get(name, 0)),
+    } for name, slug, img, alt, img_h in _CATS]
+    spec_count = sum(counts.values())
+    stats = {
+        "spec_count_fa": fa_digits(spec_count),
+        "cat_count_fa": fa_digits(len(counts)),
+    }
+
+    # ---------- مقالات واقعی منتشرشدهٔ مجله (۳ مورد آخر) ----------
+    from bale_bot import gregorian_to_jalali  # noqa: E402 — الگوریتم رسمی پروژه
+    from magazine import category_name as mag_cat_name, category_cover as mag_cat_cover  # noqa: E402
+    _JMONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+                "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
+    try:
+        art_rows = db.query(magazine_models.Article).filter(
+            magazine_models.Article.status == magazine_models.ArticleStatus.published,
+        ).order_by(magazine_models.Article.published_at.desc()).limit(3).all()
+    except Exception:
+        art_rows = []
+    articles = []
+    for a in art_rows:
+        cover = (a.cover_image or mag_cat_cover(a.category)) or ""
+        jy, jm, jd = gregorian_to_jalali(a.published_at.year, a.published_at.month, a.published_at.day)
+        articles.append({
+            "slug": a.slug,
+            "title": a.title,
+            "summary": a.summary[:180],
+            "category_fa": mag_cat_name(a.category),
+            "cover_jpg": cover,
+            "cover_webp": cover,  # کاورهای دیتابیسی ممکن است webp نداشته باشند — مرورگر خودش انتخاب می‌کند
+            "date_fa": f"{fa_digits(jd)} {_JMONTHS[jm - 1]} {fa_digits(jy)}",
+        })
+
+    return templates.TemplateResponse(
+        request=request, name="index.html",
+        context={"content": content, "featured_cats": featured_cats,
+                 "stats": stats, "articles": articles},
+    )
 
 
 # ---------- v0.14.0: مجله سلامت نوبتیار (سرو-رندر برای SEO) ----------
@@ -1163,6 +1225,8 @@ def admin_restore(
                 rows.append(out)
             ignored_columns[t] = sorted(skipped_cols)
             plan[t] = rows
+        # v0.15.0: جدول‌های دارای ستون id — برای بازتنظیم Sequence؛ site_content کلید متنی دارد
+        tables_with_id = {t for t in insert_order if "id" in {c["name"] for c in insp.get_columns(t, **_schema)}}
 
         # ---------- پاک‌سازی (در همان تراکنش — اتمیک) ----------
         db.expunge_all()
@@ -1192,6 +1256,10 @@ def admin_restore(
         sequences_reset = {}
         if IS_POSTGRES:
             for t in insert_order:
+                # v0.15.0: فقط جدول‌های دارای ستون id (pg_get_serial_sequence برای
+                # جدول بدون ستون id خطای UndefinedColumn می‌دهد و تراکنش را abort می‌کند)
+                if t not in tables_with_id:
+                    continue
                 seq = conn.execute(_text(
                     "SELECT pg_get_serial_sequence(:t, 'id')"), {"t": t}).scalar()
                 if seq:
@@ -1271,10 +1339,13 @@ def admin_restore(
         raise
     except (DBAPIError, RuntimeError) as e:
         db.rollback()
-        raise HTTPException(500, f"خطا در بازیابی (rollback کامل شد): {type(e).__name__}")
+        # v0.15.0: پیام واقعی خطا برای ادمین برگردانده می‌شود (اندپوینت فقط-ادمین؛
+        # در پیام هیچ رمز/توکنی وجود ندارد — فقط نام جدول/ستون/دلیل SQL).
+        _msg = str(getattr(e, "orig", None) or e)[:220]
+        raise HTTPException(500, f"خطا در بازیابی (rollback کامل شد): {type(e).__name__} — {_msg}")
     except Exception as e:  # noqa: BLE001
         db.rollback()
-        raise HTTPException(500, f"خطا در بازیابی: {type(e).__name__}")
+        raise HTTPException(500, f"خطا در بازیابی: {type(e).__name__} — {str(e)[:220]}")
 
 
 @app.get("/api/admin/clinics/pending", response_model=List[ClinicOut])

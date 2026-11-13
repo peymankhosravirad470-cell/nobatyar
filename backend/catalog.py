@@ -55,16 +55,46 @@ def _matched_specs_for_clinic(clinic: Clinic) -> List[str]:
     return out
 
 
+def _inactive_slugs(db: Session) -> set:
+    """v0.15.0 — اسلاگ تخصص‌هایی که مدیر از پنل غیرفعال کرده است.
+
+    هیچ تخصصی حذف نمی‌شود؛ فقط از فهرست عمومی پنهان می‌گردد (با ثبت حسابرسی).
+    اگر جدول specialties موجود نباشد یا خالی باشد → هیچ تخصصی پنهان نیست."""
+    try:
+        from models import Specialty
+        return {r.slug for r in db.query(Specialty).filter(
+            Specialty.is_active == False).all()}  # noqa: E712
+    except Exception:
+        return set()
+
+
+def _active_specialties(db: Session) -> List[dict]:
+    """کاتالوگ کد منهای غیرفعال‌های مدیر (دیتابیس). ترتیب دیتابیسی حفظ می‌شود."""
+    inactive = _inactive_slugs(db)
+    if not inactive:
+        return SPECIALTIES
+    try:
+        from models import Specialty
+        order = {r.slug: r.sort_order for r in db.query(Specialty).all()}
+    except Exception:
+        order = {}
+    rows = [sp for sp in SPECIALTIES if sp["slug"] not in inactive]
+    if order:
+        rows.sort(key=lambda s: order.get(s["slug"], 10 ** 6))
+    return rows
+
+
 @router.get("/specialties")
 def list_specialties(db: Session = Depends(get_db)):
-    """همهٔ تخصص‌ها با شمارش زندهٔ مراکز و پزشکان واقعی (بدون دادهٔ ساختگی)."""
+    """همهٔ تخصص‌ها با شمارش زندهٔ مراکز و پزشکان واقعی (بدون دادهٔ ساختگی).
+    v0.15.0: تخصص‌های غیرفعال‌شده از پنل مدیریت پنهان می‌شوند و ترتیب دیتابیسی رعایت می‌شود."""
     clinics = _approved_clinics(db)
     doctor_counts = {}
     for c in clinics:
         n = db.query(Doctor).filter(Doctor.clinic_id == c.id, Doctor.is_active == True).count()  # noqa: E712
         doctor_counts[c.id] = n
     items = []
-    for sp in SPECIALTIES:
+    for sp in _active_specialties(db):
         clinic_ids = [c.id for c in clinics if _clinic_matches_specialty(c, sp)]
         doctors = sum(doctor_counts.get(cid, 0) for cid in clinic_ids)
         items.append({

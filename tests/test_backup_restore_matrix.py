@@ -239,9 +239,10 @@ if v2 is not None:
     check("۵-ب. روابط FK پس از بازیابی: اسکن نقض = صفر", j.get("fk_violations") == [])
     check("۵-ج. جدول یتیم خارج از کد (admins_backup_20261109) هم بازیابی شد — "
           "پوشش پویا شامل ناشناخته‌ها", "admins_backup_20261109" in j.get("restored", {}))
-    check("۵-د. گزارش صادقانه: جدول‌های خارج از بکاپ = ۴ جدول مجله (خالی می‌مانند)",
-          j.get("not_in_backup") == ["ad_slots", "magazine_articles",
-                                     "magazine_news_items", "magazine_sources"],
+    check("۵-د. گزارش صادقانه: جدول‌های خارج از بکاپ = ۴ مجله + ۳ بازطراحی 0.15.0 (خالی می‌مانند)",
+          j.get("not_in_backup") == ["ad_slots", "admin_audit", "magazine_articles",
+                                     "magazine_news_items", "magazine_sources",
+                                     "site_content", "specialties"],
           str(j.get("not_in_backup")))
     check("۵-هـ. بدون قربانی پنهان CASCADE در بازیابی کامل",
           j.get("cascade_truncated") == [])
@@ -317,10 +318,10 @@ with client:
     r4 = client.get("/api/admin/backup/status", headers=H2)
     st = r4.json() if r4.status_code == 200 else {}
     check("۱۰. APIهای اصلی پس از بازیابی: health + کلینیک‌های عمومی + صفحهٔ مجله "
-          "+ داشبورد بکاپ ادمین (شمارش جدول واقعی = ۲۹)",
+          "+ داشبورد بکاپ ادمین (شمارش جدول واقعی = ۳۲ با بازطراحی 0.15.0)",
           r1.status_code == 200 and r2.status_code == 200
           and r3.status_code == 200 and r4.status_code == 200
-          and st.get("coverage", {}).get("total_tables") == 29,
+          and st.get("coverage", {}).get("total_tables") == 32,
           f"health={r1.status_code} clinics={r2.status_code} mag={r3.status_code} "
           f"status={r4.status_code} coverage={json.dumps(st.get('coverage'))}")
 

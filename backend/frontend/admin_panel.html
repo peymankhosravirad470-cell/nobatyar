@@ -257,6 +257,41 @@
       <div id="adsBox" style="margin-top:10px;max-width:640px;display:grid;gap:8px"></div>
       <p style="color:#666;font-size:0.85em">جایگاه تبلیغات مستقل از هویت برند است؛ تا زمان فعال‌سازی، «جای تبلیغات برند شما» نمایش داده می‌شود و هیچ اسپانسر جعلی منتشر نمی‌شود.</p>
     </div>
+
+    <div class="card">
+      <h2>📝 محتوای سایت — ویرایش بدون برنامه‌نویس (v0.15.0)</h2>
+      <p style="color:#666;font-size:0.85em">متن‌های صفحهٔ اصلی، اطلاعات تماس و فوتر را ویرایش و ذخیره کنید؛ تغییر بلافاصله در سایت اعمال و در سوابق مدیریتی ثبت می‌شود.</p>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+        <button class="btn-sm" onclick="loadSiteContent()">بارگذاری محتوای فعلی</button>
+        <button class="btn-sm btn-success" id="siteContentSaveBtn">ذخیرهٔ تغییرات</button>
+        <span id="siteContentMsg" style="font-size:.85em"></span>
+      </div>
+      <div id="siteContentBox" style="max-width:760px;display:grid;gap:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>🩺 تخصص‌ها — فعال/غیرفعال و ترتیب (v0.15.0)</h2>
+      <p style="color:#666;font-size:0.85em">هیچ تخصصی حذف نمی‌شود؛ فقط از فهرست عمومی پنهان می‌شود (با ثبت حسابرسی). اسلاگ هر تخصص ثابت است تا نشانی صفحه‌ها تغییر نکند.</p>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+        <button class="btn-sm" onclick="loadSpecAdmin()">بروزرسانی فهرست</button>
+        <input type="text" id="specSearch" placeholder="جست‌وجوی تخصص یا دسته" oninput="filterSpecRows()">
+        <span id="specMsg" style="font-size:.85em"></span>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>نام تخصص</th><th>دسته</th><th>ترتیب</th><th>فعال</th><th>عملیات</th></tr></thead>
+        <tbody id="specBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>🧾 سوابق عملیات مدیریتی — حسابرسی (v0.15.0)</h2>
+      <button class="btn-sm" onclick="loadAudit()">بروزرسانی</button>
+      <table>
+        <thead><tr><th>زمان</th><th>مدیر</th><th>عملیات</th><th>هدف</th><th>جزئیات</th></tr></thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+      <p style="color:#666;font-size:0.85em">هر عملیات با تاریخ/ساعت/مدیر ثبت می‌شود؛ در این جدول هرگز رمز یا توکنی نمایش داده نمی‌شود.</p>
+    </div>
   </main>
 
   <div id="approveModal" class="card hidden" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);max-width:400px;z-index:100;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
@@ -971,6 +1006,121 @@
         ? '<div class="alert alert-success">' + esc(j.message) + '</div>' : _errHtml(j);
     }
 
+    // ==================== v0.15.0: محتوای سایت + تخصص‌ها + حسابرسی ====================
+
+    const _SITE_LABELS = {
+      heroTitle1: 'تیتر اصلی — بخش ۱', heroTitle2: 'تیتر اصلی — بخش ۲ (رنگی)', heroLead: 'متن معرفی زیر تیتر',
+      specialtiesTitle: 'عنوان بخش تخصص‌ها', specialtiesSub: 'توضیح بخش تخصص‌ها',
+      servicesTitle: 'عنوان خدمات و مراکز', servicesSub: 'توضیح خدمات و مراکز',
+      panelsTitle: 'عنوان پنل‌ها', panelsSub: 'توضیح پنل‌ها',
+      doctorsTitle: 'عنوان پزشکان و مراکز', doctorsSub: 'توضیح پزشکان و مراکز',
+      approachTitle: 'عنوان رویکرد نوبتیار', approachText: 'متن معرفی نوبتیار',
+      shirazTitle: 'عنوان بخش شیراز', shirazText: 'متن بخش شیراز',
+      magazineTitle: 'عنوان مجله سلامت', magazineSub: 'توضیح مجله سلامت',
+      footerAbout: 'متن معرفی فوتر',
+      phone: 'تلفن تماس', email: 'ایمیل رسمی', address: 'نشانی',
+      telegram: 'تلگرام (بدون @)', baleBot: 'ربات بله (بدون @)', copyright: 'متن کپی‌رایت',
+    };
+    const _SITE_LONG = ['heroLead', 'specialtiesSub', 'servicesSub', 'panelsSub', 'doctorsSub',
+      'approachTitle', 'approachText', 'shirazTitle', 'shirazText', 'magazineSub', 'footerAbout', 'copyright'];
+
+    async function loadSiteContent() {
+      const res = await fetch('/api/admin/site-content', { headers });
+      const j = await res.json().catch(() => ({}));
+      const box = document.getElementById('siteContentBox');
+      if (!res.ok) { box.innerHTML = _errHtml(j); return; }
+      let html = '';
+      Object.keys(_SITE_LABELS).forEach((k) => {
+        const v = (j.content && j.content[k]) || '';
+        const long = _SITE_LONG.indexOf(k) >= 0;
+        const meta = j.meta && j.meta[k] && j.meta[k].updated_at
+          ? ` <small style="color:#94a3b8">(آخرین تغییر: ${esc(j.meta[k].updated_at.slice(0, 16).replace('T', ' '))}${j.meta[k].updated_by ? ' — ' + esc(j.meta[k].updated_by) : ''})</small>`
+          : '';
+        html += `<label>${esc(_SITE_LABELS[k])}${meta}</label>` +
+          (long ? `<textarea id="sc_${k}" rows="3" maxlength="${(j.limits && j.limits[k]) || 800}">${esc(v)}</textarea>`
+                : `<input type="text" id="sc_${k}" value="${esc(v)}" maxlength="${(j.limits && j.limits[k]) || 200}">`);
+      });
+      box.innerHTML = html;
+    }
+
+    async function saveSiteContent() {
+      const box = document.getElementById('siteContentBox');
+      const updates = {};
+      Object.keys(_SITE_LABELS).forEach((k) => {
+        const el = document.getElementById('sc_' + k);
+        if (el) updates[k] = el.value;
+      });
+      const res = await fetch('/api/admin/site-content', {
+        method: 'PUT', headers, body: JSON.stringify({ updates }),
+      });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('siteContentMsg').textContent = res.ok
+        ? '✔ ' + (j.message || 'ذخیره شد') : 'خطا در ذخیره';
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message || 'ذخیره شد') + '</div>' : _errHtml(j);
+      if (res.ok) loadAudit();
+    }
+    document.getElementById('siteContentSaveBtn').addEventListener('click', saveSiteContent);
+
+    let _specRows = [];
+    async function loadSpecAdmin() {
+      const res = await fetch('/api/admin/specialties', { headers });
+      const j = await res.json().catch(() => ({}));
+      const body = document.getElementById('specBody');
+      if (!res.ok) { body.innerHTML = `<tr><td colspan="6">${_errHtml(j)}</td></tr>`; return; }
+      _specRows = j.specialties || [];
+      renderSpecRows();
+    }
+    function renderSpecRows() {
+      const body = document.getElementById('specBody');
+      body.innerHTML = _specRows.map((s, i) => `
+        <tr class="spec-row" data-name="${esc(s.name + ' ' + s.category)}">
+          <td>${i + 1}</td>
+          <td>${esc(s.name)}<small style="color:#94a3b8;display:block" dir="ltr">${esc(s.slug)}</small></td>
+          <td>${esc(s.category)}</td>
+          <td><input type="number" id="so${s.id}" value="${s.sort_order}" min="0" max="9999" style="width:72px"></td>
+          <td><input type="checkbox" id="sa${s.id}" ${s.is_active ? 'checked' : ''} aria-label="فعال بودن ${esc(s.name)}"></td>
+          <td><button class="btn-sm" onclick="saveSpec(${s.id})">ذخیره</button></td>
+        </tr>`).join('');
+    }
+    function filterSpecRows() {
+      const q = (document.getElementById('specSearch').value || '').trim();
+      document.querySelectorAll('.spec-row').forEach((tr) => {
+        tr.style.display = (!q || tr.dataset.name.indexOf(q) >= 0) ? '' : 'none';
+      });
+    }
+    async function saveSpec(id) {
+      const res = await fetch('/api/admin/specialties/' + id, {
+        method: 'PUT', headers,
+        body: JSON.stringify({
+          name: _specRows.find((s) => s.id === id).name,
+          sort_order: Number(document.getElementById('so' + id).value || 0),
+          is_active: document.getElementById('sa' + id).checked,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      document.getElementById('specMsg').textContent = res.ok ? '✔ ذخیره شد' : 'خطا';
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">' + esc(j.message || 'به‌روزرسانی شد') + '</div>' : _errHtml(j);
+      if (res.ok) loadAudit();
+    }
+
+    async function loadAudit() {
+      const res = await fetch('/api/admin/audit?limit=20', { headers });
+      const j = await res.json().catch(() => ({}));
+      const body = document.getElementById('auditBody');
+      if (!res.ok) { body.innerHTML = `<tr><td colspan="5">${_errHtml(j)}</td></tr>`; return; }
+      const rows = j.audit || [];
+      body.innerHTML = rows.length ? rows.map((a) => `
+        <tr>
+          <td style="white-space:nowrap">${esc((a.created_at || '').slice(0, 16).replace('T', ' '))}</td>
+          <td>${esc(a.admin)}</td>
+          <td><b>${esc(a.action)}</b></td>
+          <td>${esc(a.target)}</td>
+          <td style="max-width:260px">${esc(a.detail)}</td>
+        </tr>`).join('') : '<tr><td colspan="5">هنوز عملیاتی ثبت نشده است.</td></tr>';
+    }
+
     loadPending();
     loadRegistrations('pending');
     loadCompanions();
@@ -981,6 +1131,9 @@
     loadSources();
     loadNewsItems();
     loadAds();
+    loadSiteContent();
+    loadSpecAdmin();
+    loadAudit();
   </script>
 </body>
 </html>

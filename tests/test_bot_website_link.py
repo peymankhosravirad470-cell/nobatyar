@@ -92,7 +92,7 @@ check("دکمهٔ وب‌سایت حتی با دیتابیس خالی در من�
 
 # ==================== ۵) ارتباط متقابل: سایت به ربات لینک دارد ====================
 def _read(name):
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "frontend", name)
+    path = os.path.join(os.path.dirname(__file__), "..", "backend", "frontend", "templates", name)
     with open(path, encoding="utf-8") as f:
         return f.read()
 

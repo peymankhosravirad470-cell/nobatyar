@@ -1439,3 +1439,389 @@ a.feature-badge:hover { background: var(--teal-text); color: #fff; }
   .mag-hero-overlay h1 { font-size: 1.45rem; }
   .mag-hero img { height: 200px; }
 }
+
+/* ================================================================
+   v0.15.0 — بازطراحی تأییدشدهٔ کارفرما (پیش‌نمایش 0.15.1 → پیاده‌سازی واقعی)
+   پالت برند همان متغیرهای موجود: سرمه‌ای (--primary/--navy-900) + فیروزه‌ای (--teal)
+   تصاویر واقعی دارای مجوز: /static/img/v0150/ (اعتبارنامه در همان پوشه)
+   ================================================================ */
+
+/* ---------- نوار بالایی: تاریخ شمسی + ساعت زندهٔ تهران ---------- */
+.v15-topbar {
+  background: var(--navy-900);
+  color: #fff;
+  font-size: .8rem;
+}
+.v15-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  padding-top: .45rem;
+  padding-bottom: .45rem;
+  flex-wrap: wrap;
+}
+.v15-topbar-time { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.v15-topbar-links { display: flex; align-items: center; gap: .55rem; color: rgba(255,255,255,.75); }
+.v15-topbar-links a { color: rgba(255,255,255,.85); font-weight: 600; text-decoration: none; }
+.v15-topbar-links a:hover { color: #fff; text-decoration: underline; }
+.v15-topbar-links [aria-hidden] { color: rgba(255,255,255,.35); }
+.v15-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: rgba(255,255,255,.12);
+  border-radius: 999px;
+  padding: .28rem .75rem;
+  font-weight: 600;
+  font-size: .78rem;
+  color: #fff;
+  white-space: nowrap;
+}
+.v15-chip svg { flex: 0 0 auto; opacity: .9; }
+
+/* ---------- هیرو v0.15.0 ---------- */
+.v15-hero {
+  background:
+    radial-gradient(1100px 480px at 12% -10%, rgba(8,145,178,.28), transparent 60%),
+    radial-gradient(900px 420px at 92% 110%, rgba(37,99,235,.25), transparent 55%),
+    linear-gradient(160deg, var(--navy-900) 0%, var(--primary) 72%, #1a4478 100%);
+  color: #fff;
+  padding: 3.2rem 0 3.6rem;
+  position: relative;
+  overflow: hidden;
+}
+.v15-hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr .95fr;
+  gap: 2.6rem;
+  align-items: center;
+}
+.v15-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.22);
+  color: #e8f3fb;
+  border-radius: 999px;
+  padding: .35rem .95rem;
+  font-size: .82rem;
+  font-weight: 700;
+}
+.v15-hero-title {
+  margin: 1rem 0 .8rem;
+  font-size: clamp(1.7rem, 3.4vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1.55;
+}
+.v15-grad-text {
+  background: linear-gradient(90deg, #7dd3fc, #67e8f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.v15-hero-lead {
+  color: rgba(255,255,255,.86);
+  font-size: 1.02rem;
+  line-height: 2;
+  max-width: 34rem;
+}
+.v15-hero-search { max-width: 34rem; }
+.v15-hero-search input[type="search"] {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.96);
+  color: var(--navy-900);
+  padding: .9rem 1.1rem;
+  font-size: .95rem;
+  font-family: inherit;
+}
+.v15-hero-search input[type="search"]:focus-visible {
+  outline: 3px solid #67e8f9;
+  outline-offset: 2px;
+}
+.v15-hero-search button {
+  margin-top: .6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: #fff;
+  border: 0;
+  border-radius: 12px;
+  padding: .65rem 1.3rem;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: .9rem;
+  cursor: pointer;
+}
+.v15-hero-search button:hover { filter: brightness(1.08); }
+.v15-hero-actions { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1.4rem; }
+.v15-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border-radius: 12px;
+  padding: .78rem 1.6rem;
+  font-weight: 800;
+  font-size: .92rem;
+  text-decoration: none;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.v15-btn:hover { transform: translateY(-2px); }
+.v15-btn-primary { background: linear-gradient(135deg, #2563eb, #0891b2); color: #fff; box-shadow: 0 10px 26px rgba(8,145,178,.35); }
+.v15-btn-primary:hover { box-shadow: 0 14px 30px rgba(8,145,178,.45); }
+.v15-btn-ghost { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.35); }
+.v15-btn-ghost:hover { background: rgba(255,255,255,.2); }
+.v15-btn-outline { background: transparent; color: var(--primary); border-color: #bcd3ef; }
+.v15-btn-outline:hover { background: #eef4fc; }
+.v15-hero-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.3rem; }
+.v15-chip-link {
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.24);
+  color: #eaf4fc;
+  border-radius: 999px;
+  padding: .34rem .9rem;
+  font-size: .8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.v15-chip-link:hover { background: rgba(255,255,255,.2); color: #fff; }
+.v15-chip-link.v15-more { background: linear-gradient(135deg, rgba(37,99,235,.5), rgba(8,145,178,.5)); }
+.v15-hero-visual { position: relative; }
+.v15-hero-visual picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.25);
+  box-shadow: 0 26px 60px rgba(2,10,30,.45);
+  aspect-ratio: 16 / 11;
+}
+.v15-hero-visual .float-card {
+  position: absolute;
+  background: #fff;
+  color: var(--navy-900);
+  border-radius: 14px;
+  padding: .6rem .95rem;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: .8rem;
+  font-weight: 800;
+  box-shadow: 0 14px 34px rgba(2,10,30,.3);
+}
+.v15-hero-visual .float-card small { display: block; font-weight: 600; color: var(--muted); font-size: .72rem; }
+.v15-hero-visual .float-card .fc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: #fff;
+  flex: 0 0 auto;
+}
+.v15-hero-visual .fc-1 { top: auto; left: auto; bottom: -14px; right: 18px; }
+.v15-hero-visual .fc-2 { bottom: auto; right: auto; top: -14px; left: 18px; }
+
+/* ---------- بخش‌های عمومی v0.15.0 ---------- */
+.v15-section { padding: 3.4rem 0; }
+.v15-section-tint { background: #f6fafd; }
+.v15-head { max-width: 46rem; margin-bottom: 2.2rem; }
+.v15-head h2 {
+  color: var(--primary);
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  font-weight: 900;
+  margin: .5rem 0 .6rem;
+}
+.v15-head p { color: var(--muted); line-height: 2; font-size: .95rem; }
+.v15-kicker-dark {
+  color: var(--teal-text);
+  font-weight: 800;
+  font-size: .85rem;
+}
+.v15-head-row {
+  max-width: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+}
+.v15-head-row > div { max-width: 42rem; }
+.v15-center-cta { text-align: center; margin-top: 1.8rem; }
+
+/* ---------- کارت‌های تصویری تخصص‌ها ---------- */
+.v15-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 1.15rem;
+}
+.v15-cat-card {
+  background: #fff;
+  border: 1px solid #e3ecf7;
+  border-radius: 18px;
+  overflow: hidden;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(20,53,95,.06);
+  transition: transform .18s ease, box-shadow .18s ease;
+  display: flex;
+  flex-direction: column;
+}
+.v15-cat-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(20,53,95,.14); }
+.v15-cat-img { display: block; overflow: hidden; }
+.v15-cat-img img { width: 100%; display: block; object-fit: cover; aspect-ratio: 4 / 3; }
+.v15-cat-card b { color: var(--primary); font-size: .95rem; padding: .75rem 1rem .2rem; }
+.v15-cat-count {
+  color: var(--teal-text);
+  font-size: .78rem;
+  font-weight: 700;
+  padding: 0 1rem .85rem;
+}
+
+/* ---------- کارت‌های خدمات و مراکز ---------- */
+.v15-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.3rem;
+}
+.v15-service {
+  background: #fff;
+  border: 1px solid #e3ecf7;
+  border-radius: 18px;
+  overflow: hidden;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 14px rgba(20,53,95,.06);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.v15-service:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(20,53,95,.14); }
+.v15-service-img img { width: 100%; display: block; object-fit: cover; aspect-ratio: 16 / 10; }
+.v15-service b { color: var(--primary); font-size: .98rem; padding: .85rem 1.1rem .25rem; }
+.v15-service > span:not(.v15-service-img) { color: var(--muted); font-size: .82rem; line-height: 1.9; padding: 0 1.1rem 1rem; }
+
+/* ---------- پنل‌ها ---------- */
+.v15-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.3rem;
+}
+.v15-panel-card {
+  background: #fff;
+  border: 1px solid #e3ecf7;
+  border-radius: 20px;
+  padding: 1.7rem 1.5rem;
+  box-shadow: 0 4px 14px rgba(20,53,95,.06);
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.v15-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(37,99,235,.12), rgba(8,145,178,.14));
+  color: var(--primary);
+}
+.v15-panel-card h3 { color: var(--primary); font-size: 1.05rem; font-weight: 900; }
+.v15-panel-card p { color: var(--muted); font-size: .86rem; line-height: 2; flex: 1; }
+.v15-panel-card .v15-btn { align-self: flex-start; margin-top: .5rem; }
+
+/* ---------- تقسیم دو ستونی (رویکرد/شیراز) ---------- */
+.v15-split {
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 2.4rem;
+  align-items: center;
+}
+.v15-split h2 { color: var(--primary); font-size: clamp(1.3rem, 2.4vw, 1.8rem); font-weight: 900; margin: .5rem 0 .8rem; }
+.v15-approach-text { color: #3d5270; line-height: 2.2; font-size: .95rem; margin-bottom: 1.2rem; }
+.v15-split-img img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 1px solid #e3ecf7;
+  box-shadow: 0 18px 44px rgba(20,53,95,.12);
+  aspect-ratio: 4 / 3;
+}
+.v15-credit {
+  display: block;
+  margin-top: .5rem;
+  color: var(--muted);
+  font-size: .72rem;
+}
+.v15-stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.v15-stat {
+  background: #fff;
+  border: 1px solid #e3ecf7;
+  border-radius: 14px;
+  padding: .8rem 1.4rem;
+  text-align: center;
+  min-width: 110px;
+}
+.v15-stat b { display: block; color: var(--teal-text); font-size: 1.45rem; font-weight: 900; }
+.v15-stat span { color: var(--muted); font-size: .76rem; font-weight: 700; }
+
+/* ---------- مجله در صفحهٔ اصلی ---------- */
+.v15-mag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.3rem;
+}
+.v15-mag-card {
+  background: #fff;
+  border: 1px solid #e3ecf7;
+  border-radius: 18px;
+  overflow: hidden;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 14px rgba(20,53,95,.06);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.v15-mag-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(20,53,95,.14); }
+.v15-mag-img img { width: 100%; display: block; object-fit: cover; aspect-ratio: 10 / 7; }
+.v15-mag-cat {
+  margin: .85rem 1.1rem .2rem;
+  align-self: flex-start;
+  background: #eef4fc;
+  color: var(--teal-text);
+  border-radius: 999px;
+  padding: .2rem .8rem;
+  font-size: .72rem;
+  font-weight: 800;
+}
+.v15-mag-card b { color: var(--primary); font-size: .95rem; line-height: 1.9; padding: .2rem 1.1rem 0; }
+.v15-mag-card p { color: var(--muted); font-size: .8rem; line-height: 1.95; padding: .35rem 1.1rem .5rem; margin: 0; }
+.v15-mag-date { color: #8ea3bb; font-size: .74rem; padding: 0 1.1rem 1rem; margin-top: auto; }
+
+/* ---------- فوتر: خط اعتبارنامهٔ تصاویر ---------- */
+.footer-credits { color: #94a7bd; font-size: .74rem; margin-top: .4rem; }
+.footer-credits a { color: #bcd7ee; text-decoration: underline; }
+
+/* ---------- واکنش‌گرایی v0.15.0 ---------- */
+@media (max-width: 980px) {
+  .v15-hero-grid, .v15-split { grid-template-columns: 1fr; }
+  .v15-split-rev .v15-split-img { order: -1; }
+  .v15-hero-visual { margin-top: .6rem; }
+}
+@media (max-width: 640px) {
+  .v15-topbar-inner { justify-content: center; }
+  .v15-topbar-links { display: none; }
+  .v15-hero { padding: 2.4rem 0 2.8rem; }
+  .v15-section { padding: 2.5rem 0; }
+  .v15-hero-visual .fc-1 { top: auto; left: auto; right: 8px; }
+  .v15-hero-visual .fc-2 { bottom: auto; right: auto; left: 8px; }
+}

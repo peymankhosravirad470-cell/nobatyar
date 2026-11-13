@@ -46,13 +46,13 @@ info = backup_svc.run_backup_now()
 check("۲. فایل بکاپ ساخته شد", os.path.isfile(os.path.join(BDIR, info["file"])), str(info))
 check("۳. فایل رمزنگاری‌شده است (بدون متن آشکار JSON)",
       b'"data"' not in open(os.path.join(BDIR, info["file"]), "rb").read())
-check("۴. پوشش کامل پویا: ۲۸ جدول مدل پوشش داده شد",
-      info.get("tables") == 28, f"tables={info.get('tables')}")
+check("۴. پوشش کامل پویا: ۳۱ جدول مدل پوشش داده شد",
+      info.get("tables") == 31, f"tables={info.get('tables')}")
 check("۵. متادیتا در بکاپ: نسخهٔ برنامه + نسخهٔ شِما",
       info.get("format") == "nobatyar-backup-v2")
 v = backup_svc.verify_last_backup()
 check("۶. متادیتای داخل فایل: schema_version ثبت شده",
-      v.get("schema_version") == "0012_brand_magazine", str(v.get("schema_version")))
+      v.get("schema_version") == "0013_sitecontent_specialties", str(v.get("schema_version")))
 check("۷. کنار فایل، sidecar SHA256 ذخیره شده",
       os.path.isfile(os.path.join(BDIR, info["file"] + ".sha256")))
 check("۸. راستی‌آزمایی بازیابی و ساختار موفق",
@@ -109,8 +109,8 @@ os.environ["NOBATYAR_ALLOW_RESTORE"] = "1"
 r = client.post("/api/admin/restore", json=payload, headers={**h, **CONF})
 check("۱۴. بازیابی کامل از فایل بکاپ (مسیر رسمی ادمین)", r.status_code == 200, r.text[:200])
 j = r.json() if r.status_code == 200 else {}
-check("۱۵. پوشش بازیابی = کامل و ۲۸ جدول",
-      j.get("coverage") == "full" and len(j.get("restored", {})) == 28,
+check("۱۵. پوشش بازیابی = کامل و ۳۱ جدول",
+      j.get("coverage") == "full" and len(j.get("restored", {})) == 31,
       json.dumps({k: j.get(k) for k in ("coverage",)}, ensure_ascii=False))
 check("۱۶. تعداد رکوردها پس از بازیابی درست",
       j.get("restored", {}).get("clinics") == 1 and j.get("restored", {}).get("admins") == 1)

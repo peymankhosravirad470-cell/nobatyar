@@ -108,6 +108,23 @@ class AdSlotIn(BaseModel):
     link_text: Optional[str] = Field(None, max_length=120)
     is_active: bool = False
 
+    @field_validator("image_url", "link_url")
+    @classmethod
+    def _safe_url(cls, v: Optional[str]) -> Optional[str]:
+        """سخت‌سازی امنیتی v0.15.0 — فقط http/https مطلق یا مسیر نسبی داخل خود سایت.
+        javascript:/data:/vbscript: و هر scheme دیگر → 422 (ضد تزریق URL)."""
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            return None
+        low = v.lower()
+        if low.startswith(("https://", "http://", "/")):
+            if "javascript:" in low or "data:" in low or "vbscript:" in low:
+                raise ValueError("این نشانی مجاز نیست")
+            return v
+        raise ValueError("نشانی باید http/https یا مسیر نسبی داخل سایت باشد")
+
 
 class NewsSourceIn(BaseModel):
     name: str = Field(..., min_length=2, max_length=120)
@@ -335,6 +352,10 @@ def admin_ad_update(slot_id: int, data: AdSlotIn, db: Session = Depends(get_db),
     s.title, s.subtitle, s.body = data.title, data.subtitle, data.body
     s.image_url, s.link_url, s.link_text = data.image_url, data.link_url, data.link_text
     s.is_active = bool(data.is_active)
+    # v0.15.0: هر تغییر جایگاه تبلیغ در حسابرسی مدیریتی ثبت می‌شود (بدون هیچ رمزی)
+    from site_content import _audit
+    _audit(db, admin, "ویرایش جایگاه تبلیغات", f"ads/{s.position}",
+           f"فعال={s.is_active}")
     db.commit()
     return {"message": "جایگاه تبلیغاتی به‌روزرسانی شد", "id": s.id,
             "active": bool(s.is_active)}

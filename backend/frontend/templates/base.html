@@ -18,13 +18,33 @@
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
-  <link rel="preload" href="/static/fonts/Vazirmatn-Black.woff2?v=0140" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0140" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/style.css?v=0140">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Black.woff2?v=0150" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0150" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0150">
   {% block head_extra %}{% endblock %}
 </head>
 <body>
   <a href="#main-content" class="sr-only">رفتن به محتوای اصلی</a>
+  <!-- نوار بالایی — تاریخ شمسی + ساعت زندهٔ تهران (v0.15.0) -->
+  <div class="v15-topbar" role="region" aria-label="اطلاعات زمان">
+    <div class="container v15-topbar-inner">
+      <div class="v15-topbar-time">
+        <span class="v15-chip" id="v15JalaliDate">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          در حال بارگذاری تاریخ…
+        </span>
+        <span class="v15-chip v15-clock" id="v15Clock">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <time>--:--:--</time>
+        </span>
+      </div>
+      <div class="v15-topbar-links">
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <span aria-hidden="true">|</span>
+        <a href="/admin/login">مدیریت سایت</a>
+      </div>
+    </div>
+  </div>
   <header class="site-header site-header-v3">
     <div class="brand-band">
       <div class="container brand-band-inner">
@@ -173,6 +193,27 @@
           y.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date());
         } catch (e) { /* بی‌خطر */ }
       }
+      // تاریخ شمسی + ساعت زندهٔ نوار بالایی (v0.15.0)
+      var dateEl = document.getElementById('v15JalaliDate');
+      var clockEl = document.getElementById('v15Clock');
+      try {
+        if (dateEl) {
+          dateEl.innerHTML = dateEl.querySelector('svg') ? dateEl.querySelector('svg').outerHTML : '';
+          dateEl.insertAdjacentHTML('beforeend',
+            new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Tehran'
+            }).format(new Date()));
+        }
+        if (clockEl) {
+          var t = clockEl.querySelector('time');
+          var fmt = new Intl.DateTimeFormat('fa-IR', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Tehran'
+          });
+          var tick = function () { if (t) t.textContent = fmt.format(new Date()); };
+          tick();
+          setInterval(tick, 1000);
+        }
+      } catch (e) { /* بی‌خطر */ }
     })();
     {% block page_script %}{% endblock %}
   </script>
