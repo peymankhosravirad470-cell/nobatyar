@@ -52,7 +52,7 @@ check("۵. متادیتا در بکاپ: نسخهٔ برنامه + نسخهٔ ش
       info.get("format") == "nobatyar-backup-v2")
 v = backup_svc.verify_last_backup()
 check("۶. متادیتای داخل فایل: schema_version ثبت شده",
-      v.get("schema_version") == "0013_sitecontent_specialties", str(v.get("schema_version")))
+      v.get("schema_version") == "0014_seed_article_covers", str(v.get("schema_version")))
 check("۷. کنار فایل، sidecar SHA256 ذخیره شده",
       os.path.isfile(os.path.join(BDIR, info["file"] + ".sha256")))
 check("۸. راستی‌آزمایی بازیابی و ساختار موفق",

@@ -1,22 +1,76 @@
-اعتبارنامهٔ تصاویر نسخهٔ 0.15.0 نوبتیار
-======================================
-منبع جست‌وجو: برسام + Openverse + Wikimedia Commons
-مجوز، پدیدآورنده و شرایط استفادهٔ هر تصویر از متادیتای رسمی منبع استخراج شده است.
+اعتبارنامهٔ تصاویر نوبتیار (نسخهٔ 0.15.0 — دور بازبینی کامل تصاویر)
+======================================================================
+اصل حاکم: فقط تصاویر واقعی دارای مجوز آزاد؛ بدون تصویر تولیدی هوش مصنوعی؛
+بدون چهرهٔ غیرایرانی در نقش پزشک/کادر درمان؛ اولویت با مراکز درمانی ایران و شیراز.
+برای تخصص‌هایی که تصویر ایرانیِ دارای مجوز در دسترس نبود، طبق دستور کارفرما از
+تصویر حرفه‌ای تجهیزات/فضای درمانی «بدون چهره» استفاده شده است.
+منبع جست‌وجو: Wikimedia Commons (متادیتای رسمی هر فایل) + راستی‌آزمایی بصری تک‌تک.
 
-1. تصویر اصلی صفحه (هیرو) — «File:پذیرش بیمارستان چشم بینا.jpg» پدیدآورنده: بیمارستان فوق تخصصی چشم پزشکی بینا مشهد — مجوز: CC0 (http://creativecommons.org/publicdomain/zero/1.0/deed.en) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:%D9%BE%D8%B0%DB%8C%D8%B1%D8%B4_%D8%A8%DB%8C%D9%85%D8%A7%D8%B1%D8%B3%D8%AA%D8%A7%D9%86_%DA%86%D8%B4%D9%85_%D8%A8%DB%8C%D9%86%D8%A7.jpg
-2. معرفی پزشکان / رویکرد — «File:چشم پزشکی.jpg» پدیدآورنده: Reyhane.hassani — مجوز: CC0 (http://creativecommons.org/publicdomain/zero/1.0/deed.en) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:%DA%86%D8%B4%D9%85_%D9%BE%D8%B2%D8%B4%DA%A9%DB%8C.jpg
-3. بخش شیراز — «File:Shznamazi.jpg» پدیدآورنده: Ahura21 — مجوز: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Shznamazi.jpg
-4. دستهٔ دندانپزشکی — «File:Dentist office and equipment (49899000186).jpg» پدیدآورنده: Nenad Stojkovic — مجوز: CC BY 2.0 (https://creativecommons.org/licenses/by/2.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Dentist_office_and_equipment_(49899000186).jpg
-5. دستهٔ قلب و عروق — «File:Pristroj BTL-08 S ECG.jpg» پدیدآورنده: Kychot — مجوز: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Pristroj_BTL-08_S_ECG.jpg
-6. دستهٔ زنان و زایمان — «File:Hitachi, Ultrasound Diagnostic Scanner, Noblus,.jpg» پدیدآورنده: Mj-bird — مجوز: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Hitachi,_Ultrasound_Diagnostic_Scanner,_Noblus,.jpg
-7. خدمات آزمایشگاه — «File:آزمایشگاه دانشکده پزشکی و پیراپزشکی.jpg» پدیدآورنده: Kamranmoradi1379 — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:%D8%A2%D8%B2%D9%85%D8%A7%DB%8C%D8%B4%DA%AF%D8%A7%D9%87_%D8%AF%D8%A7%D9%86%D8%B4%DA%A9%D8%AF%D9%87_%D9%BE%D8%B2%D8%B4%DA%A9%DB%8C_%D9%88_%D9%BE%DB%8C%D8%B1%D8%A7%D9%BE%D8%B2%D8%B4%DA%A9%DB%8C.jpg
-8. خدمات تصویربرداری — «File:MRI Scanner at Narayana Multispeciality Hospital, Jaipur.jpg» پدیدآورنده: GeorgeWilliams21 — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:MRI_Scanner_at_Narayana_Multispeciality_Hospital,_Jaipur.jpg
-9. دستهٔ کودکان — «File:Radio Lollipop, Pediatrics Ward Block B at Gold Coast University Hospital.jpg» پدیدآورنده: Kgbo — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Radio_Lollipop,_Pediatrics_Ward_Block_B_at_Gold_Coast_University_Hospital.jpg
-10. دستهٔ ارتوپدی و فیزیوتراپی — «File:Appareils de Rééducation - Kinésithérapie Hopital Laquinitinie Cameroun 02.jpg» پدیدآورنده: Happi Raphael — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Appareils_de_R%C3%A9%C3%A9ducation_-_Kin%C3%A9sith%C3%A9rapie_Hopital_Laquinitinie_Cameroun_02.jpg
-11. خدمات داروخانه — «File:Dr Nabavi Pharmacy - داروخانه شبانه روزی دکتر نبوی 03.jpg» پدیدآورنده: RohamRasouliPour — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Dr_Nabavi_Pharmacy_-_%D8%AF%D8%A7%D8%B1%D9%88%D8%AE%D8%A7%D9%86%D9%87_%D8%B4%D8%A8%D8%A7%D9%86%D9%87_%D8%B1%D9%88%D8%B2%DB%8C_%D8%AF%DA%A9%D8%AA%D8%B1_%D9%86%D8%A8%D9%88%DB%8C_03.jpg
-12. دستهٔ پوست و مو — «File:کلینیک زیبایی لاله.jpg» پدیدآورنده: 76 sahar tehrani — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:%DA%A9%D9%84%DB%8C%D9%86%DB%8C%DA%A9_%D8%B2%DB%8C%D8%A8%D8%A7%DB%8C%DB%8C_%D9%84%D8%A7%D9%84%D9%87.jpg
-13. دستهٔ چشم — «File:Slit lamp Eye examination by Ophthalmologist.jpg» پدیدآورنده: Rakesh Ahuja, MD — مجوز: CC BY-SA 3.0 (http://creativecommons.org/licenses/by-sa/3.0/) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Slit_lamp_Eye_examination_by_Ophthalmologist.jpg
-14. کاور مقالهٔ تغذیه — «File:Fruits and Vegetables in Boquete, Panama.jpg» پدیدآورنده: FranHogan — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Fruits_and_Vegetables_in_Boquete,_Panama.jpg
-15. کاور مقالهٔ دندان کودکان — «File:Dentist’s office in Zabrze, Poland, Januray 2022.jpg» پدیدآورنده: MichalPL — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Dentist%E2%80%99s_office_in_Zabrze,_Poland,_Januray_2022.jpg
-16. کاور مقالهٔ سلامت زنان — «File:Pregnancy ultrasound 110302114249 1145551.jpg» پدیدآورنده: Nevit Dilmen (talk) — مجوز: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Pregnancy_ultrasound_110302114249_1145551.jpg
-17. کاور مقالهٔ آزمایش خون — «File:Venipuncture using a BD Vacutainer.JPG» پدیدآورنده: MatthewLammers — مجوز: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) — صفحهٔ اصلی فایل: https://commons.wikimedia.org/wiki/File:Venipuncture_using_a_BD_Vacutainer.JPG
+■ تصاویر جدید/جایگزین‌شده در این دور
+----------------------------------------------------------------------
+1. v0150/mri — «An MRI scanner.JPG» پدیدآورنده: Walter Davies — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:An_MRI_scanner.JPG
+2. v0150/cardio — «Herzkatheterlabor modern.jpeg» پدیدآورنده: Neoflash — مجوز: CC BY-SA 3.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Herzkatheterlabor_modern.jpeg
+3. v0150/eye — «جراحی چشم.jpg» پدیدآورنده: Reyhane.hassani — مجوز: CC0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:جراحی_چشم.jpg
+4. v0150/pediatrics — «Neonatologia sekcio de hospitalo en Maŝhado (Irano) 001.jpg» پدیدآورنده: Petr Adam Dohnálek — مجوز: CC BY-SA 3.0 cz
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Neonatologia_sekcio_de_hospitalo_en_Maŝhado_(Irano)_001.jpg
+5. v0150/physio — «Physiotherapy room of Clinic of KarRC 2009.jpg» پدیدآورنده: Igor Georgievskiy — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Physiotherapy_room_of_Clinic_of_KarRC_2009.jpg
+6. v0150/dental — «Dental treatment room featuring equipment and a chair in a modern clinic.jpg» پدیدآورنده: Shixart1985 — مجوز: CC BY 2.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Dental_treatment_room_featuring_equipment_and_a_chair_in_a_modern_clinic.jpg
+7. v0150/women — «Medical examination room with ultrasound equipment.jpg» پدیدآورنده: Shixart1985 — مجوز: CC BY 2.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Medical_examination_room_with_ultrasound_equipment.jpg
+8. v0150/mag1 — «Fruit shop in Arak market.jpg» پدیدآورنده: Mahziyarmehdipor — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Fruit_shop_in_Arak_market.jpg
+9. v0150/clinic-waiting — «Social Distanced Waiting Room, LSU Healthcare, New Orleans, Sept 2022 01.jpg» پدیدآورنده: Infrogmation of New Orleans — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Social_Distanced_Waiting_Room,_LSU_Healthcare,_New_Orleans,_Sept_2022_01.jpg
+10. v0150/physio-clinic — «MEDIMAX Physiotherapy Clinic Tel Aviv.jpg» پدیدآورنده: Hilahalumit — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:MEDIMAX_Physiotherapy_Clinic_Tel_Aviv.jpg
+11. v0150/beauty-clinic — «YHI Spa treatment room at Paradisus by Meliá Bali.jpg» پدیدآورنده: Paradisus Bali — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:YHI_Spa_treatment_room_at_Paradisus_by_Meli%C3%A1_Bali.jpg
+12. v14-mag-cover-news — «Corridor of the West Campus, National Taiwan University Hospital 06 20260920.jpg» پدیدآورنده: 阿道 — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Corridor_of_the_West_Campus,_National_Taiwan_University_Hospital_06_20260920.jpg
+13. v14-mag-cover-health — «Blood pressure check.jpg» پدیدآورنده: Delael — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Blood_pressure_check.jpg
+14. v14-mag-cover-hospitals — «ورودی ساختمان اصلی بیمارستان پهلوی (امام خمینی کنونی).jpg» پدیدآورنده: Mostafamirchouli — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:ورودی_ساختمان_اصلی_بیمارستان_پهلوی_(امام_خمینی_کنونی).jpg
+15. v14-mag-cover-labtech — «CSIRO ScienceImage 3633 Preparing samples for analysis Floreat Laboratory WA.jpg» پدیدآورنده: David McClenaghan, CSIRO — مجوز: CC BY 3.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:CSIRO_ScienceImage_3633_Preparing_samples_for_analysis_Floreat_Laboratory_WA.jpg
+16. v14-mag-cover-guide — «Books in Library St. LLSMU.jpg» پدیدآورنده: Sputnik-RU — مجوز: CC BY 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Books_in_Library_St._LLSMU.jpg
+17. v14-mag-cover-events — «دکتر سید حسام هاشمیان سی و پنجمین کنگره سالیانه چشم پزشکی ایران 01.jpg» پدیدآورنده: Kanonzibaee — مجوز: CC0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:دکتر_سید_حسام_هاشمیان_سی_و_پنجمین_کنگره_سالیانه_چشم_پزشکی_ایران_01.jpg
+18. v14-magazine-hero — «جراح چشم پزشک.jpg» پدیدآورنده: Reyhane.hassani — مجوز: CC0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:جراح_چشم_پزشک.jpg
+19. img-reception-new — «Reception desk for Clinical Physiology - NÄL hospital 1.jpg» پدیدآورنده: W.carter — مجوز: CC0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Reception_desk_for_Clinical_Physiology_-_NÄL_hospital_1.jpg
+
+■ تصاویر ایرانی تأییدشدهٔ دور قبل (حفظ‌شده)
+----------------------------------------------------------------------
+20. hero — پذیرش بیمارستان چشم بینا (مشهد، ایران) — پدیدآورنده: بیمارستان فوق تخصصی چشم پزشکی بینا مشهد — مجوز: CC0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:%D9%BE%D8%B0%DB%8C%D8%B1%D8%B4_%D8%A8%DB%8C%D9%85%D8%A7%D8%B1%D8%B3%D8%AA%D8%A7%D9%86_%DA%86%D8%B4%D9%85_%D8%A8%DB%8C%D9%86%D8%A7.jpg
+21. staff — پزشک ایرانی در محیط درمانی — پدیدآورنده: Reyhane.hassani — مجوز: CC0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:%DA%86%D8%B4%D9%85_%D9%BE%D8%B2%D8%B4%DA%A9%DB%8C.jpg
+22. shiraz — ورودی بیمارستان نمازی شیراز — پدیدآورنده: Ahura21 — مجوز: CC BY-SA 3.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Shznamazi.jpg
+23. lab — آزمایشگاه دانشکدهٔ پزشکی و پیراپزشکی ایران — پدیدآورنده: Kamranmoradi1379 — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:%D8%A2%D8%B2%D9%85%D8%A7%DB%8C%D8%B4%DA%AF%D8%A7%D9%87_%D8%AF%D8%A7%D9%86%D8%B4%DA%A9%D8%AF%D9%87_%D9%BE%D8%B2%D8%B4%DA%A9%DB%8C_%D9%88_%D9%BE%DB%8C%D8%B1%D8%A7%D9%BE%D8%B4%DA%A9%DB%8C.jpg
+24. pharmacy — داروخانهٔ شبانه‌روزی دکتر نبوی (ایران) — پدیدآورنده: RohamRasouliPour — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Dr_Nabavi_Pharmacy_-_%D8%AF%D8%A7%D8%B1%D9%88%D8%AE%D8%A7%D9%86%D9%87_%D8%B4%D8%A8%D8%A7%D9%86%D9%87_%D8%B1%D9%88%D8%B2%DB%8C_%D8%AF%DA%A9%D8%AA%D8%B1_%D9%86%D8%A8%D9%88%DB%8C_03.jpg
+25. beauty — کلینیک زیبایی لاله (ایران) — پدیدآورنده: 76 sahar tehrani — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:%DA%A9%D9%84%DB%8C%D9%86%DB%8C%DA%A9_%D8%B2%DB%8C%D8%A8%D8%A7%DB%8C%DB%8C_%D9%84%D8%A7%D9%84%D9%87.jpg
+26. mag2 — اتاق دندانپزشکی (تجهیزات، بدون چهره) — پدیدآورنده: MichalPL — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Dentist%E2%80%99s_office_in_Zabrze,_Poland,_Januray_2022.jpg
+27. mag3 — سونوگرافی بارداری (تصویر دستگاه) — پدیدآورنده: Nevit Dilmen — مجوز: CC BY-SA 3.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Pregnancy_ultrasound_110302114249_1145551.jpg
+28. mag4 — نمونه‌گیری خون (دست با دستکش، بدون چهره) — پدیدآورنده: MatthewLammers — مجوز: CC BY-SA 4.0
+   صفحهٔ فایل: https://commons.wikimedia.org/wiki/File:Venipuncture_using_a_BD_Vacutainer.JPG
+
+■ شروط انتساب
+----------------------------------------------------------------------
+CC0 / Public domain: بدون الزام انتساب؛ با این حال منبع ذکر می‌شود.
+CC BY: انتساب به پدیدآورنده الزامی است — همین فایل، مرجع انتساب صفحه است.
+CC BY-SA: انتساب + انتشار مشتقات با همان مجوز؛ ویرایش ما فقط برش/تغییر اندازه بود.
+پیوند این فایل در فوتر صفحهٔ اصلی درج شده است.

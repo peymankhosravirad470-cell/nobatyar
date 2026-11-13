@@ -571,6 +571,7 @@ def admin_news_reject(item_id: int, db: Session = Depends(get_db),
 
 _SEED_ARTICLES = [
     {
+        "cover_image": "/static/img/v14-mag-cover-hospitals.webp",
         "slug": "magazine-launch",
         "title": "مجله سلامت نوبتیار آغاز به کار کرد؛ مرجع اخبار و آموزش سلامت شیراز",
         "summary": ("بخش «مجله سلامت نوبتیار» با هدف پوشش اخبار پزشکی، سلامت عمومی و خدمات درمانی "
@@ -602,6 +603,7 @@ _SEED_ARTICLES = [
         "status": "published",
     },
     {
+        "cover_image": "/static/img/img-reception-new.png",
         "slug": "visit-preparation-guide",
         "title": "راهنمای آماده‌سازی برای ویزیت پزشک؛ ۸ نکتهٔ کاربردی برای بیماران",
         "summary": ("آماده‌شدن درست برای ویزیت پزشک، هم زمان شما و هم پزشک را بهینه می‌کند. در این "
@@ -635,6 +637,7 @@ _SEED_ARTICLES = [
         "status": "published",
     },
     {
+        "cover_image": "/static/img/v14-mag-cover-news.webp",
         "slug": "online-booking-guide",
         "title": "چگونه از نوبتیار نوبت آنلاین بگیریم؟ گام‌به‌گام",
         "summary": ("رزرو نوبت در نوبتیار از وب‌سایت یا ربات بله انجام می‌شود؛ بدون تماس تلفنی و بدون صف. "
