@@ -47,18 +47,25 @@ if not PG_URI:
     print("SKIP: NOBATYAR_TEST_PG_URI تنظیم نشده — ماتریس PostgreSQL اجرا نشد")
     sys.exit(3)
 
-PG_BIN = "/home/z/my-project/pg18/bin"
+# v0.14.0 fix: مسیر باینری‌ها دیگر هاردکد نیست (محیط‌محور بود و در محیط‌های
+# دیگر با «createdb: not found» می‌شکست). ساخت/حذف دیتابیس ایزوله مستقیماً با
+# SQLAlchemy روی همان URI ادمینِ NOBATYAR_TEST_PG_URI انجام می‌شود — همان الگوی
+# test_v060_pg_migration.py؛ بدون وابستگی به باینری client یا TCP 127.0.0.1.
 DB = "nobatyar_br_matrix"
-DBURL = f"postgresql://postgres@127.0.0.1:5432/{DB}"
 
-# ---------- دیتابیس ایزوله تازه ----------
-subprocess.run(f"{PG_BIN}/dropdb -h 127.0.0.1 -U postgres --if-exists {DB}",
-               shell=True, capture_output=True)
-r = subprocess.run(f"{PG_BIN}/createdb -h 127.0.0.1 -U postgres {DB}",
-                   shell=True, capture_output=True, text=True)
-if r.returncode != 0:
-    print("FAIL createdb: " + r.stderr)
-    sys.exit(1)
+from urllib.parse import urlsplit, urlunsplit  # noqa: E402
+
+_sp = urlsplit(PG_URI)
+_admin_uri = urlunsplit((_sp.scheme, _sp.netloc, "/postgres", _sp.query, _sp.fragment))
+DBURL = urlunsplit((_sp.scheme, _sp.netloc, "/" + DB, _sp.query, _sp.fragment))
+
+import sqlalchemy as _sa_matrix  # noqa: E402
+
+_admin_engine = _sa_matrix.create_engine(_admin_uri, isolation_level="AUTOCOMMIT")
+with _admin_engine.connect() as _c:
+    _c.exec_driver_sql(f'DROP DATABASE IF EXISTS "{DB}" WITH (FORCE)')
+    _c.exec_driver_sql(f'CREATE DATABASE "{DB}"')
+_admin_engine.dispose()
 
 # ---------- شِمای 0012 از مسیر رسمی مهاجرت ----------
 BE = os.path.join(os.path.dirname(__file__), "..", "backend")
@@ -91,6 +98,14 @@ from database import SessionLocal  # noqa: E402
 from sqlalchemy import create_engine as _ce, inspect as _insp, text as _text  # noqa: E402
 
 CONF = {"X-Confirm-Restore": "REPLACE-ALL-DATA"}
+
+# v0.14.0 fix: مدل‌های لازم آزمون ۱۱ (کلیک پس از بازیابی) — پیش‌تر Clinic بدون
+# import استفاده می‌شد و فایل با NameError در میانهٔ اجرا می‌شکست.
+from models import Clinic as _Clinic, ClinicStatus as _ClinicStatus, \
+    SubscriptionStatus as _SubStatus  # noqa: E402
+Clinic = _Clinic
+ClinicStatus = _ClinicStatus
+SubscriptionStatus = _SubStatus
 
 
 def canon(v):
@@ -310,7 +325,10 @@ with client:
           f"status={r4.status_code} coverage={json.dumps(st.get('coverage'))}")
 
 # ==================== آزمون ۱۱: بکاپ/بازیابی پس از تغییر داده ====================
+# v0.14.0 fix: تعداد کلینیک‌های مبنا دیگر هاردکد (۴ از مسیر Production) نیست؛
+# در محیط بدون آرتیفکت، مبنا همان شمارش واقعی دیتابیس ایزوله است — انتظار = مبنا + ۱.
 db = SessionLocal()
+n_cl_before = db.query(Clinic).count()  # مبنا: هر مقداری که بکاپ از آنجا شروع می‌شود
 c1 = Clinic(name="کلینیک جدید پس از بازیابی", specialty="قلب", address="شیراز",
             phone="09121111111", status=ClinicStatus.approved,
             subscription_status=SubscriptionStatus.active)
@@ -327,7 +345,7 @@ pl = json.loads(gzip.decompress(backup_svc._decrypt(
     open(os.path.join(os.environ["NOBATYAR_BACKUP_DIR"], info["file"]), "rb").read(),
     os.environ["NOBATYAR_BACKUP_KEY"])).decode("utf-8"))
 check("۱۱-الف. بکاپ v2 پس از تغییر داده: ردیف جدید داخل بکاپ است",
-      pl["counts"]["clinics"] == 4 and cid in
+      pl["counts"]["clinics"] == n_cl_before + 1 and cid in
       [row["id"] for row in pl["data"]["clinics"]])
 tok3 = create_access_token({"sub": 1, "role": "admin"})
 t0 = time.perf_counter()
@@ -335,7 +353,7 @@ r = client.post("/api/admin/restore", json=pl,
                 headers={"Authorization": f"Bearer {tok3}", **CONF})
 TIMES["restore_changed_v2_ms"] = int((time.perf_counter() - t0) * 1000)
 check("۱۱-ب. بازیابی بکاپ پس از تغییر: کلینیک جدید دقیقاً برگشت",
-      r.status_code == 200 and r.json().get("restored", {}).get("clinics") == 4
+      r.status_code == 200 and r.json().get("restored", {}).get("clinics") == n_cl_before + 1
       and cid in [row["id"] for row in pl["data"]["clinics"]], r.text[:150])
 tok7 = create_access_token({"sub": 1, "role": "admin"})
 st2 = client.get("/api/admin/backup/status",
@@ -394,7 +412,7 @@ n_ad = db.query(_Adm).count()
 n_cs = db.execute(_text("SELECT COUNT(*) FROM clinic_staff")).scalar()
 db.close()
 check("۱۲-د. قطع عملیات میانی (نقض FK) → 500 + rollback کامل + دادهٔ سالم دست‌نخورده",
-      r.status_code == 500 and n_cl == 4 and n_ad == 1 and n_cs == 0,
+      r.status_code == 500 and n_cl == n_cl_before + 1 and n_ad == 1 and n_cs == 0,
       f"rc={r.status_code} clinics={n_cl} admins={n_ad} staff={n_cs}")
 
 # ==================== آزمون ۱۳: جلوگیری از Restore ناخواسته/مخرب ====================
