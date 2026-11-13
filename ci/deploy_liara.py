@@ -190,6 +190,33 @@ def selftest():
     return 0
 
 
+def build_archive(repo="/home/z/my-project/nobatyar"):
+    """ساخت آرشیو سورس backend برای آپلود (اصلاح: اسکریپت قبلاً آرشیو را نمی‌ساخت
+    و آپلود با فایل غایب همیشه با rc=0 خالی شکست می‌خورد).
+
+    - محتوای backend/ در ریشهٔ آرشیو (لیارا فایل‌ها را flat در /usr/src/app باز می‌کند)
+    - حذف __pycache__/.pytest_cache/*.pyc — هیچ چیز حساسی (env/کلید) در مخزن نیست؛
+      گارد اضافه: هر فایل .env* یا *.key/*.pem اگر روزی در مخزن بیاید، اینجا هم رد می‌شود.
+    """
+    import tarfile
+    src = os.path.join(repo, "backend")
+    if not os.path.isdir(src):
+        raise RuntimeError(f"پوشهٔ backend یافت نشد: {src}")
+    n = 0
+    with tarfile.open(ARCHIVE, "w:gz") as tar:
+        for root, dirs, files in os.walk(src):
+            dirs[:] = [d for d in dirs if d not in ("__pycache__", ".pytest_cache", ".git")]
+            for f in sorted(files):
+                if f.endswith((".pyc", ".pyo")) or f.startswith(".env") \
+                        or f.endswith((".key", ".pem")):
+                    continue
+                full = os.path.join(root, f)
+                tar.add(full, arcname=os.path.relpath(full, src))
+                n += 1
+    size = os.path.getsize(ARCHIVE)
+    return n, size
+
+
 def main():
     if "--selftest" in sys.argv:
         return selftest()
@@ -213,6 +240,13 @@ def main():
     repo = os.environ.get("DEPLOY_REPO", "/home/z/my-project/nobatyar")
     info = git_info(repo)
     log(f"git_info.commit={info.get('commit')} branch={info.get('branch')}")
+    # ---- ساخت آرشیو سورس (پیش از هر انتظار پنجره — fail-fast) ----
+    try:
+        n_files, size = build_archive(repo)
+        log(f"source archive built: {n_files} files, {size} bytes -> {ARCHIVE}")
+    except Exception as e:  # noqa: BLE001
+        log(f"FAILED: build_archive: {type(e).__name__}: {e}")
+        return 6
     # F3 — دیسک‌ها پیش از هر آپلودی محاسبه می‌شوند (fail-fast؛ انتشار نیمیافتهٔ بی‌دیسک ممنوع)
     disks = disks_for_release()
     log(f"release disks: {json.dumps(disks, ensure_ascii=False)}")
