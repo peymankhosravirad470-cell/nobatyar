@@ -99,7 +99,7 @@ REMINDER_SCAN_CYCLE = 3           # هر ۳ دور polling (~۱ دقیقه) یا
 BOT_USERNAME = "nobatyarshirazbot"       # نام کاربری رسمی ربات در بله
 BOT_URL = f"https://ble.ir/{BOT_USERNAME}"   # لینک مستقیم (در بله باز می‌شود)
 # آخرین نسخهٔ APK تأییدشدهٔ اپ موبایل — فقط لینک؛ نصب/انتشار کاری از این فایل نیست
-APK_URL = "https://github.com/peymankhosravirad470-cell/nobatyar/releases/download/mobile-v0.3.0-debug/nobatyar-mobile-v0.3.0-debug.apk"
+APK_URL = "https://github.com/peymankhosravirad470-cell/nobatyar/releases/download/mobile-v0.4.0-debug/nobatyar-mobile-v0.4.0-debug.apk"
 MEDS_MAX_PER_CHAT = meds_svc.MAX_MEDS_PER_CHAT
 
 _client: httpx.AsyncClient | None = None
