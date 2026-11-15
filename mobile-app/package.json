@@ -1,12 +1,12 @@
 {
   "name": "nobatyar-mobile",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "نوبتیار — پوستهٔ اپ موبایل (Capacitor) دور سایت زندهٔ shirazhealthtour.ir",
   "scripts": {
     "cap:sync": "npx cap sync",
     "assets": "npx @capacitor/assets generate --android --ios",
-    "android:debug": "cd android && ./gradlew assembleDebug",
+    "android:debug": "python3 scripts/trim_splash.py && cd android && ./gradlew assembleDebug",
     "android:open": "npx cap open android",
     "ios:open": "npx cap open ios"
   },

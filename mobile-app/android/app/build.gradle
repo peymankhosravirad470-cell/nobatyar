@@ -7,8 +7,8 @@ android {
         applicationId "ir.nobatyar.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "0.3.0"
+        versionCode 4
+        versionName "0.4.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,32 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Fixed signing key committed to the repo (android/debug.keystore).
+    // Every build in every environment uses the SAME key, so APK updates can
+    // install over previous versions without uninstall (fingerprint
+    // AB:D9:E6:3E:...:D3 — identical to all released versions v0.1.0..v0.4.0).
+    signingConfigs {
+        nobatyar {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+            // Explicitly enable every scheme: Android < 7.0 only parses v1 (JAR)
+            // signatures, Android >= 11 rejects v1-only packages, v3 enables
+            // future key rotation. All three verified for every release.
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.nobatyar
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.nobatyar
         }
     }
 }
