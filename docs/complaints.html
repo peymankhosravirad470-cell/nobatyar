@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head><meta name="robots" content="noindex, nofollow"><script>
+(function () {
+  var DATA = {"/api/clinics/public": [], "/api/public/specialties": {"items": [{"slug": "internal-medicine", "name": "داخلی", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/internal-medicine"}, {"slug": "general-practice", "name": "پزشکی عمومی", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/general-practice"}, {"slug": "family-medicine", "name": "طب خانواده", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/family-medicine"}, {"slug": "emergency-medicine", "name": "طب اورژانس", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/emergency-medicine"}, {"slug": "geriatrics", "name": "طب سالمندی", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/geriatrics"}, {"slug": "occupational-medicine", "name": "طب کار", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/occupational-medicine"}, {"slug": "cardiology", "name": "قلب و عروق", "category": "قلب و عروق", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/cardiology"}, {"slug": "echocardiography", "name": "اکوکاردیوگرافی", "category": "قلب و عروق", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/echocardiography"}, {"slug": "vascular-surgery", "name": "جراحی عروق", "category": "قلب و عروق", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/vascular-surgery"}, {"slug": "gastroenterology", "name": "گوارش و کبد", "category": "گوارش و کبد", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/gastroenterology"}, {"slug": "endoscopy", "name": "آندوسکوپی", "category": "گوارش و کبد", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/endoscopy"}, {"slug": "neurology", "name": "مغز و اعصاب", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/neurology"}, {"slug": "psychiatry", "name": "روانپزشکی", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/psychiatry"}, {"slug": "psychology", "name": "روانشناسی", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/psychology"}, {"slug": "speech-therapy", "name": "گفتاردرمانی", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/speech-therapy"}, {"slug": "orthopedics", "name": "ارتوپدی", "category": "ارتوپدی و فیزیوتراپی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/orthopedics"}, {"slug": "physiotherapy", "name": "فیزیوتراپی", "category": "ارتوپدی و فیزیوتراپی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/physiotherapy"}, {"slug": "spine", "name": "ستون فقرات", "category": "ارتوپدی و فیزیوتراپی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/spine"}, {"slug": "obstetrics-gynecology", "name": "زنان و زایمان", "category": "زنان و زایمان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/obstetrics-gynecology"}, {"slug": "infertility-ivf", "name": "نازایی و IVF", "category": "زنان و زایمان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/infertility-ivf"}, {"slug": "ultrasound", "name": "سونوگرافی", "category": "زنان و زایمان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/ultrasound"}, {"slug": "pediatrics", "name": "اطفال", "category": "کودکان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/pediatrics"}, {"slug": "neonatology", "name": "نوزادان", "category": "کودکان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/neonatology"}, {"slug": "dermatology", "name": "پوست", "category": "پوست و مو", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dermatology"}, {"slug": "hair-beauty", "name": "مو و زیبایی", "category": "پوست و مو", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/hair-beauty"}, {"slug": "laser", "name": "لیزر", "category": "پوست و مو", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/laser"}, {"slug": "ophthalmology", "name": "چشم‌پزشکی", "category": "چشم", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/ophthalmology"}, {"slug": "optometry", "name": "اپتومتری", "category": "چشم", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/optometry"}, {"slug": "ent", "name": "گوش و حلق و بینی", "category": "گوش و حلق و بینی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/ent"}, {"slug": "audiology", "name": "شنوایی‌سنجی", "category": "گوش و حلق و بینی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/audiology"}, {"slug": "dentistry", "name": "دندانپزشکی عمومی", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dentistry"}, {"slug": "orthodontics", "name": "ارتودنسی", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/orthodontics"}, {"slug": "dental-implant", "name": "ایمپلنت دندان", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dental-implant"}, {"slug": "prosthodontics", "name": "پروتزهای دندانی", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/prosthodontics"}, {"slug": "endodontics", "name": "اندودنتیکس", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/endodontics"}, {"slug": "pediatric-dentistry", "name": "دندانپزشکی کودکان", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/pediatric-dentistry"}, {"slug": "maxillofacial-surgery", "name": "جراحی فک و صورت", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/maxillofacial-surgery"}, {"slug": "urology", "name": "اورولوژی", "category": "کلیه و مجاری ادراری", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/urology"}, {"slug": "nephrology", "name": "کلیه (نفرولوژی)", "category": "کلیه و مجاری ادراری", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/nephrology"}, {"slug": "dialysis", "name": "دیالیز", "category": "کلیه و مجاری ادراری", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dialysis"}, {"slug": "endocrinology", "name": "غدد و متابولیسم", "category": "غدد و دیابت", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/endocrinology"}, {"slug": "diabetes", "name": "دیابت", "category": "غدد و دیابت", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/diabetes"}, {"slug": "pulmonology", "name": "ریه و تنفس", "category": "ریه و تنفس", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/pulmonology"}, {"slug": "asthma-allergy", "name": "آسم و آلرژی", "category": "ریه و تنفس", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/asthma-allergy"}, {"slug": "hematology", "name": "خون (هماتولوژی)", "category": "خون و سرطان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/hematology"}, {"slug": "oncology", "name": "انکولوژی", "category": "خون و سرطان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/oncology"}, {"slug": "rheumatology", "name": "روماتولوژی", "category": "رماتیزم و ایمنی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/rheumatology"}, {"slug": "allergy-immunology", "name": "آلرژی و ایمونولوژی", "category": "رماتیزم و ایمنی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/allergy-immunology"}, {"slug": "infectious-diseases", "name": "عفونی", "category": "بیماری‌های عفونی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/infectious-diseases"}, {"slug": "occupational-therapy", "name": "کاردرمانی", "category": "پیراپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/occupational-therapy"}, {"slug": "nutrition", "name": "تغذیه", "category": "پیراپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/nutrition"}], "total": 51}, "/api/public/ads/billboard-home": {"active": false, "position": "billboard-home", "title": "جای تبلیغات برند شما", "subtitle": "کسب‌وکار شما، در کنار سلامت مردم شیراز", "body": "برای معرفی مجموعه خود در نوبتیار با ما تماس بگیرید.", "image_url": null, "link_url": null, "link_text": null}};
+  var origFetch = window.fetch ? window.fetch.bind(window) : null;
+  function resp(obj) {
+    return Promise.resolve(new Response(JSON.stringify(obj), {
+      status: 200, headers: { 'Content-Type': 'application/json' }
+    }));
+  }
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var path = url.split('?')[0];
+    if (Object.prototype.hasOwnProperty.call(DATA, path)) return resp(DATA[path]);
+    var keys = Object.keys(DATA);
+    for (var i = 0; i < keys.length; i++) {
+      if (path.indexOf(keys[i]) === 0) return resp(DATA[keys[i]]);
+    }
+    if (path.indexOf('/api/') === 0) return resp({});
+    return origFetch ? origFetch(input, init) : Promise.reject(new Error('offline'));
+  };
+  // نوار اعلان پیش‌نمایش آفلاین — هرگز در سایت واقعی وجود ندارد
+  document.addEventListener('DOMContentLoaded', function () {
+    if (document.getElementById('offlinePreviewBar')) return;
+    var b = document.createElement('div');
+    b.id = 'offlinePreviewBar';
+    b.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99999;background:#0d2149;color:#fff;' +
+      'font:700 12px/1.6 Vazirmatn,Tahoma,sans-serif;padding:7px 14px;border-radius:999px;' +
+      'box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer;direction:rtl;';
+    b.textContent = 'پیش‌نمایش آنلاین حذف تصاویر — v0.15.1 (برای بستن کلیک کنید)';
+    b.onclick = function () { b.remove(); };
+    document.body.appendChild(b);
+  });
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ثبت شکایت و پیگیری آنلاین در نوبتیار — با کد پیگیری اختصاصی و شمارهٔ تماس، وضعیت رسیدگی و پاسخ‌های ثبت‌شده را ببینید.">
+  <link rel="canonical" href="https://shirazhealthtour.ir/complaints">
+  <title>ثبت و پیگیری شکایت | نوبتیار</title>
+  <meta property="og:site_name" content="نوبتیار">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fa_IR">
+  <meta property="og:title" content="ثبت و پیگیری شکایت | نوبتیار">
+  <meta property="og:description" content="ثبت شکایت با کد پیگیری اختصاصی و پیگیری وضعیت رسیدگی.">
+  <meta property="og:url" content="https://shirazhealthtour.ir/complaints">
+  <meta property="og:image" content="https://shirazhealthtour.ir/static/img/og-image.jpg">
+  <link rel="icon" type="image/png" sizes="64x64" href="static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="static/img/apple-touch-icon.png">
+  <link rel="preload" href="static/fonts/Vazirmatn-Black.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="static/fonts/Vazirmatn-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="static/css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "خانه", "item": "https://shirazhealthtour.ir/"},
+      {"@type": "ListItem", "position": 2, "name": "ثبت و پیگیری شکایت"}
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="sr-only">رفتن به محتوای اصلی</a>
+  <header class="site-header site-header-v3">
+    <div class="brand-band">
+      <div class="container brand-band-inner">
+        <a href="/" class="brand-lockup" aria-label="نوبتیار — صفحهٔ اصلی">
+          <picture>
+            <source type="image/webp" srcset="static/img/nobatyar-mark.webp">
+            <img src="static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark" width="62" height="40">
+          </picture>
+          <span class="brand-lockup-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+        </a>
+        <div class="brand-band-cta">
+          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="btn-ghost">ربات بله</a>
+          <a href="book.html" class="btn-grad">رزرو نوبت آنلاین</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-band">
+      <div class="container">
+        <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+          <span></span><span></span><span></span>
+          <span class="sr-only">باز و بسته کردن منو</span>
+        </button>
+        <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+        <a href="/">خانه</a>
+        <a href="specialties.html">تخصص‌ها</a>
+        <a href="book.html">رزرو نوبت</a>
+        <a href="magazine.html">مجله سلامت</a>
+        <a href="complaints.html" aria-current="page">شکایات و پیگیری</a>
+        <a href="partners.html">ویژه پزشکان و درمانگاه‌ها</a>
+        <a href="contact.html">تماس با ما</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <a href="register.html" class="nav-cta">ثبت‌نام مراکز</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="main-content">
+    <nav class="crumbs" aria-label="مسیر صفحه">
+      <ol>
+        <li><a href="/">خانه</a></li>
+        <li aria-current="page">ثبت و پیگیری شکایت</li>
+      </ol>
+    </nav>
+
+    <section class="page-hero" aria-label="سامانه شکایات">
+      <span class="kicker">صدا و نظر شما، پیگیری‌شده</span>
+      <h1>سامانه شکایات و پیگیری نوبتیار</h1>
+      <p>هر شکایت با کد پیگیری اختصاصی ثبت می‌شود و توسط تیم رسیدگی نوبتیار بررسی می‌گردد. با «کد پیگیری + شمارهٔ تماس ثبت‌شده» می‌توانید هر لحظه وضعیت و پاسخ‌ها را ببینید. اطلاعات خصوصی شما فقط برای رسیدگی به همین پرونده استفاده می‌شود.</p>
+    </section>
+
+    <div class="complaint-grid">
+      <!-- ================= فرم ثبت شکایت ================= -->
+      <section class="form-card" aria-label="ثبت شکایت جدید">
+        <h2>ثبت شکایت جدید</h2>
+        <div class="form-msg" id="cResult" hidden></div>
+        <form id="complaintForm" novalidate>
+          <div class="field">
+            <label for="cSubject">موضوع شکایت <span class="req" aria-hidden="true">*</span></label>
+            <select id="cSubject" name="subject_index" required>
+              <option value="">— انتخاب موضوع —</option>
+              <option value="1">نوبت (ثبت، تأیید، لغو، تغییر)</option>
+              <option value="2">رفتار و برخورد کارکنان مرکز</option>
+              <option value="3">کیفیت خدمات درمانی</option>
+              <option value="4">اطلاعات نادرست در پروفایل مرکز یا پزشک</option>
+              <option value="5">مسائل مالی و پرداخت</option>
+              <option value="6">حریم خصوصی و داده‌ها</option>
+              <option value="7">سایت یا ربات بله (خطای فنی)</option>
+              <option value="8">سایر موارد</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cTargetClinic">مرکز یا پزشک مرتبط (اختیاری)</label>
+            <select id="cTargetClinic" name="clinic_id">
+              <option value="">— انتخاب مرکز (اختیاری) —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cTargetText">توضیح مرتبط (نام مرکز/پزشک اگر در فهرست نیست)</label>
+            <input type="text" id="cTargetText" name="target_text" maxlength="200"
+                   placeholder="مثلاً: دکتر … — مطب …">
+          </div>
+          <div class="field">
+            <label for="cDesc">شرح شکایت <span class="req" aria-hidden="true">*</span></label>
+            <textarea id="cDesc" name="description" required minlength="20" maxlength="3000"
+                      placeholder="لطفاً شرح دقیق، زمان و مرکز مرتبط را بنویسید (حداقل ۲۰ نویسه)"></textarea>
+            <span class="hint">حداقل ۲۰ و حداکثر ۳۰۰۰ نویسه</span>
+          </div>
+          <div class="field">
+            <label for="cName">نام و نام‌خانوادگی <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="cName" name="complainant_name" required autocomplete="name" maxlength="100">
+          </div>
+          <div class="field">
+            <label for="cPhone">شمارهٔ موبایل <span class="req" aria-hidden="true">*</span></label>
+            <input type="tel" id="cPhone" name="contact_phone" required autocomplete="tel"
+                   inputmode="tel" dir="ltr" style="text-align:right;" placeholder="09xxxxxxxxx">
+            <span class="hint">برای پیگیری، تطابق این شماره لازم است؛ نتیجهٔ پیگیری بدون آن نمایش داده نمی‌شود.</span>
+          </div>
+          <div class="field">
+            <label for="cEmail">ایمیل (اختیاری)</label>
+            <input type="email" id="cEmail" name="contact_email" maxlength="120" autocomplete="email" dir="ltr" style="text-align:right;">
+          </div>
+          <button type="submit" class="btn" id="cSubmit">ثبت شکایت و دریافت کد پیگیری</button>
+          <p class="hint" style="margin-top:.6rem;">با ثبت شکایت، شرح آن برای بررسی به تیم نوبتیار ارسال می‌شود. محدودیت ارسال: حداکثر ۶ شکایت در هر ساعت.</p>
+        </form>
+      </section>
+
+      <!-- ================= پیگیری ================= -->
+      <section class="form-card" aria-label="پیگیری شکایت">
+        <h2>پیگیری شکایت</h2>
+        <div id="trackResult" hidden>
+          <p><b>وضعیت فعلی:</b> <span class="status-badge" id="trackStatus"></span></p>
+          <p style="font-size:.82rem;color:var(--muted);">موضوع: <span id="trackSubject"></span></p>
+          <ol class="track-timeline" id="trackTimeline"></ol>
+        </div>
+        <form id="trackForm" novalidate>
+          <div class="field">
+            <label for="tCode">کد پیگیری <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="tCode" name="tracking_code" required dir="ltr" style="text-align:right;"
+                   placeholder="NB-XXXXX-XXXXX" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="tPhone">شمارهٔ موبایل ثبت‌شده <span class="req" aria-hidden="true">*</span></label>
+            <input type="tel" id="tPhone" name="contact_phone" required inputmode="tel" dir="ltr"
+                   style="text-align:right;" placeholder="09xxxxxxxxx" autocomplete="tel">
+          </div>
+          <button type="submit" class="btn btn-outline" id="tSubmit">مشاهدهٔ وضعیت و سوابق</button>
+          <p class="hint" style="margin-top:.6rem;">برای حفاظت از اطلاعات خصوصی، جزئیات پرونده فقط با تطبیق کد و شمارهٔ تماس نمایش داده می‌شود.</p>
+        </form>
+        <div class="form-msg err" id="trackError" hidden></div>
+      </section>
+    </div>
+
+    <section class="info-card" aria-label="فرایند رسیدگی" style="margin-top:1.4rem;">
+      <h2>فرایند رسیدگی به شکایت</h2>
+      <ul class="info-list">
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>ثبت‌شده:</b> شکایت با کد یکتا ثبت و در نوبت بررسی قرار می‌گیرد.</span></li>
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>در حال بررسی / ارجاع‌شده:</b> تیم رسیدگی بررسی می‌کند و در صورت نیاز به مسئول مربوط ارجاع می‌شود.</span></li>
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>نیازمند اطلاعات بیشتر:</b> پاسخ شما در بخش پیگیری درخواست می‌شود.</span></li>
+        <li><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>پاسخ داده‌شده / مختومه:</b> پاسخ رسمی در بخش پیگیری قابل مشاهده است و پرونده بسته می‌شود.</span></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer-v2">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand footer-intro">
+          <h2 class="footer-heading">معرفی نوبتیار</h2>
+          <p>نوبتیار یک سامانهٔ سلامت دیجیتال با محوریت شهر شیراز است که معرفی پزشکان و مراکز درمانی و نوبت‌دهی آنلاین را یک‌جا فراهم می‌کند؛ تا بیماران بدون تماس تلفنی و صف، با اطلاع از زمان‌های خالی واقعی، نوبت بگیرند و مراکز درمانی نیز برنامهٔ کاری خود را منظم و شفاف مدیریت کنند.</p>
+          <p>نوبتیار اطلاعات مراکز را پیش از انتشار بررسی می‌کند، هیچ دادهٔ نمایشی یا ساختگی منتشر نمی‌کند و هر قابلیت را فقط وقتی فعال اعلام می‌کند که واقعاً کار کند.</p>
+          <a href="about.html" class="footer-more">ادامهٔ معرفی نوبتیار ←</a>
+        </div>
+        <nav class="footer-col" aria-label="خدمات و امکانات">
+          <h3 class="footer-heading">خدمات و امکانات</h3>
+          <ul>
+            <li><a href="book.html">رزرو نوبت آنلاین</a></li>
+            <li><a href="specialties.html">تخصص‌های پزشکی</a></li>
+            <li><a href="magazine.html">مجله سلامت نوبتیار</a></li>
+            <li><a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">یادآور نوبت و دارو (ربات بله)</a></li>
+            <li><a href="cancellation.html">سیاست لغو و تغییر نوبت</a></li>
+          </ul>
+        </nav>
+        <nav class="footer-col" aria-label="پیوندهای مهم و قوانین">
+          <h3 class="footer-heading">پیوندهای مهم</h3>
+          <ul>
+            <li><a href="about.html">دربارهٔ نوبتیار</a></li>
+            <li><a href="faq.html">پرسش‌های متداول</a></li>
+            <li><a href="partners.html">همکاری پزشکان و مراکز</a></li>
+            <li><a href="register.html">ثبت‌نام مراکز درمانی</a></li>
+            <li><a href="complaints.html">ثبت و پیگیری شکایت</a></li>
+          </ul>
+        </nav>
+        <div class="footer-col" aria-label="راه‌های ارتباطی و شبکه‌های اجتماعی">
+          <h3 class="footer-heading">راه‌های ارتباطی</h3>
+          <ul class="footer-contact-grid">
+            <li><a class="contact-card" href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">
+              <img src="static/img/bale-logo.png" alt="لوگوی رسمی پیام‌رسان بله" loading="lazy">
+              <span class="cc-text"><b>ربات رسمی بله</b><span dir="ltr">@nobatyarshirazbot</span></span>
+            </a></li>
+            <li><a class="contact-card" href="mailto:shiraznobatyar@gmail.com">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg></span>
+              <span class="cc-text"><b>ایمیل رسمی</b><span dir="ltr">shiraznobatyar@gmail.com</span></span>
+            </a></li>
+            <li><a class="contact-card" href="https://shirazhealthtour.ir">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg></span>
+              <span class="cc-text"><b>وب‌سایت رسمی</b><span dir="ltr">shirazhealthtour.ir</span></span>
+            </a></li>
+            <li><a class="contact-card" href="contact.html">
+              <span class="cc-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+              <span class="cc-text"><b>تماس با ما</b><span>فرم تماس و راه‌های ارتباطی</span></span>
+            </a></li>
+          </ul>
+          <div class="social-block">
+            <h3>شبکه‌های اجتماعی نوبتیار</h3>
+            <div class="social-cards">
+              <a class="social-card sc-telegram" href="https://t.me/shiraznobatyar" target="_blank" rel="noopener">
+                <img src="static/img/social/telegram.svg" alt="لوگوی رسمی تلگرام" loading="lazy">
+                <span class="sc-name">تلگرام<span class="sc-sub" dir="ltr">@shiraznobatyar</span></span>
+              </a>
+              <a class="social-card sc-eitaa" href="https://eitaa.com/shiraznobatyar" target="_blank" rel="noopener">
+                <img src="static/img/social/eitaa.png" alt="لوگوی رسمی ایتا" loading="lazy">
+                <span class="sc-name">ایتا<span class="sc-sub" dir="ltr">shiraznobatyar</span></span>
+              </a>
+              <a class="social-card sc-rubika" href="https://rubika.ir/shiraznobatyar" target="_blank" rel="noopener">
+                <img src="static/img/social/rubika.svg" alt="لوگوی رسمی روبیکا" loading="lazy">
+                <span class="sc-name">روبیکا<span class="sc-sub" dir="ltr">shiraznobatyar</span></span>
+              </a>
+              <a class="social-card sc-youtube" href="https://youtube.com/@nobatyar" target="_blank" rel="noopener">
+                <img src="static/img/social/youtube.svg" alt="لوگوی رسمی یوتیوب" loading="lazy">
+                <span class="sc-name">یوتیوب<span class="sc-sub" dir="ltr">@nobatyar</span></span>
+              </a>
+              <a class="social-card sc-aparat" href="https://www.aparat.com/ShirazNobatyar/short-videos" target="_blank" rel="noopener">
+                <img src="static/img/social/aparat.png" alt="لوگوی رسمی آپارات" loading="lazy">
+                <span class="sc-name">آپارات<span class="sc-sub" dir="ltr">ShirazNobatyar</span></span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-legal">
+        <p class="footer-copyright"><b>© ۱۴۰۵ نوبتیار</b> — کلیه حقوق محفوظ است. هرگونه کپی‌برداری، بازنشر یا استفاده از محتوای این وب‌سایت بدون ذکر منبع و کسب مجوز ممنوع است.</p>
+        <nav class="footer-legal-links" aria-label="قوانین و سیاست‌ها">
+          <a href="terms.html">قوانین و شرایط استفاده</a>
+          <a href="privacy.html">حریم خصوصی</a>
+          <a href="complaints.html">ثبت و پیگیری شکایت</a>
+          <a href="cancellation.html">سیاست لغو نوبت</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var btn = document.querySelector('.nav-burger');
+      var nav = document.getElementById('mainnav');
+      if (btn && nav) btn.addEventListener('click', function () {
+        var open = nav.classList.toggle('nav-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      var y = document.querySelector('.footer-jalali-year');
+      if (y) {
+        try {
+          y.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date());
+        } catch (e) { /* بی‌خطر */ }
+      }
+    })();
+
+    var STATUS_LABELS = {
+      registered: 'ثبت‌شده', in_review: 'در حال بررسی', referred: 'ارجاع‌شده',
+      need_info: 'نیازمند اطلاعات بیشتر', answered: 'پاسخ داده‌شده', closed: 'مختومه'
+    };
+    var STATUS_CLASS = {
+      registered: 'st-registered', in_review: 'st-in_review', referred: 'st-referred',
+      need_info: 'st-need_info', answered: 'st-answered', closed: 'st-closed'
+    };
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function fmtDt(iso) {
+      try {
+        var d = new Date(iso);
+        return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+          year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
+          timeZone: 'Asia/Tehran'
+        }).format(d);
+      } catch (e) { return ''; }
+    }
+
+    // انتخابگر مراکز واقعی
+    (function () {
+      var sel = document.getElementById('cTargetClinic');
+      if (!sel) return;
+      fetch('/api/clinics/public')
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (list) {
+          (list || []).forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = c.id;
+            o.textContent = c.name + (c.specialty ? ' — ' + c.specialty : '');
+            sel.appendChild(o);
+          });
+        })
+        .catch(function () { /* فرم بدون فهرست مراکز هم کار می‌کند */ });
+    })();
+
+    // ثبت شکایت
+    (function () {
+      var form = document.getElementById('complaintForm');
+      var msg = document.getElementById('cResult');
+      if (!form) return;
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        msg.hidden = true;
+        var payload = {
+          subject_index: parseInt(document.getElementById('cSubject').value, 10) || 0,
+          target_text: document.getElementById('cTargetText').value.trim() || null,
+          clinic_id: document.getElementById('cTargetClinic').value ? parseInt(document.getElementById('cTargetClinic').value, 10) : null,
+          description: document.getElementById('cDesc').value.trim(),
+          complainant_name: document.getElementById('cName').value.trim(),
+          contact_phone: document.getElementById('cPhone').value.trim(),
+          contact_email: document.getElementById('cEmail').value.trim() || null
+        };
+        if (!payload.subject_index) { msg.className = 'form-msg err'; msg.textContent = 'موضوع شکایت را انتخاب کنید.'; msg.hidden = false; return; }
+        if (payload.description.length < 20) { msg.className = 'form-msg err'; msg.textContent = 'شرح شکایت باید حداقل ۲۰ نویسه باشد.'; msg.hidden = false; return; }
+        var btn = document.getElementById('cSubmit');
+        btn.disabled = true;
+        fetch('/api/complaints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            if (res.ok) {
+              form.reset();
+              msg.className = 'form-msg ok';
+              msg.innerHTML = 'شکایت شما با موفقیت ثبت شد.<br>کد پیگیری شما:' +
+                '<div class="code-box">' + esc(res.j.tracking_code) + '</div>' +
+                'این کد را نگه دارید؛ برای پیگیری به کد و شمارهٔ موبایل ثبت‌شده نیاز دارید. <a href="complaints.html" id="trackNow">پیگیری همین حالا ←</a>';
+              msg.hidden = false;
+              var tn = document.getElementById('trackNow');
+              if (tn) tn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                document.getElementById('tCode').value = res.j.tracking_code;
+                document.getElementById('tCode').closest('section').scrollIntoView({ behavior: 'smooth' });
+              });
+            } else {
+              msg.className = 'form-msg err';
+              msg.textContent = (res.j && res.j.detail) ? (typeof res.j.detail === 'string' ? res.j.detail : 'اطلاعات واردشده معتبر نیست؛ فیلدها را بررسی کنید.') : 'ثبت شکایت ناموفق بود؛ دوباره تلاش کنید.';
+              msg.hidden = false;
+            }
+          })
+          .catch(function () {
+            btn.disabled = false;
+            msg.className = 'form-msg err';
+            msg.textContent = 'ارتباط با سرور برقرار نشد؛ اتصال اینترنت را بررسی کنید.';
+            msg.hidden = false;
+          });
+      });
+    })();
+
+    // پیگیری
+    (function () {
+      var form = document.getElementById('trackForm');
+      var out = document.getElementById('trackResult');
+      var err = document.getElementById('trackError');
+      if (!form) return;
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        out.hidden = true; err.hidden = true;
+        var payload = {
+          tracking_code: document.getElementById('tCode').value.trim(),
+          contact_phone: document.getElementById('tPhone').value.trim()
+        };
+        var btn = document.getElementById('tSubmit');
+        btn.disabled = true;
+        fetch('/api/complaints/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            if (!res.ok) {
+              err.textContent = (res.j && res.j.detail) || 'یافتن پرونده ناموفق بود.';
+              err.hidden = false;
+              return;
+            }
+            var st = document.getElementById('trackStatus');
+            st.textContent = res.j.status_label || STATUS_LABELS[res.j.status] || res.j.status;
+            st.className = 'status-badge ' + (STATUS_CLASS[res.j.status] || 'st-registered');
+            document.getElementById('trackSubject').textContent = res.j.subject_category;
+            var tl = document.getElementById('trackTimeline');
+            tl.innerHTML = (res.j.history || []).map(function (h) {
+              return '<li class="tl-item"><div class="tl-head"><span>' + fmtDt(h.created_at) + '</span></div>' +
+                '<b>' + esc(h.action) + '</b>' +
+                (h.public_reply ? '<div class="tl-reply">' + esc(h.public_reply) + '</div>' : '') +
+                '</li>';
+            }).join('') || '<li class="tl-item">سابقه‌ای برای نمایش وجود ندارد.</li>';
+            out.hidden = false;
+          })
+          .catch(function () {
+            btn.disabled = false;
+            err.textContent = 'ارتباط با سرور برقرار نشد.';
+            err.hidden = false;
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

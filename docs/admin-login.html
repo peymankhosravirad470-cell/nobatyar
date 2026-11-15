@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head><meta name="robots" content="noindex, nofollow"><script>
+(function () {
+  var DATA = {"/api/clinics/public": [], "/api/public/specialties": {"items": [{"slug": "internal-medicine", "name": "داخلی", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/internal-medicine"}, {"slug": "general-practice", "name": "پزشکی عمومی", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/general-practice"}, {"slug": "family-medicine", "name": "طب خانواده", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/family-medicine"}, {"slug": "emergency-medicine", "name": "طب اورژانس", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/emergency-medicine"}, {"slug": "geriatrics", "name": "طب سالمندی", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/geriatrics"}, {"slug": "occupational-medicine", "name": "طب کار", "category": "داخلی و عمومی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/occupational-medicine"}, {"slug": "cardiology", "name": "قلب و عروق", "category": "قلب و عروق", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/cardiology"}, {"slug": "echocardiography", "name": "اکوکاردیوگرافی", "category": "قلب و عروق", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/echocardiography"}, {"slug": "vascular-surgery", "name": "جراحی عروق", "category": "قلب و عروق", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/vascular-surgery"}, {"slug": "gastroenterology", "name": "گوارش و کبد", "category": "گوارش و کبد", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/gastroenterology"}, {"slug": "endoscopy", "name": "آندوسکوپی", "category": "گوارش و کبد", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/endoscopy"}, {"slug": "neurology", "name": "مغز و اعصاب", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/neurology"}, {"slug": "psychiatry", "name": "روانپزشکی", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/psychiatry"}, {"slug": "psychology", "name": "روانشناسی", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/psychology"}, {"slug": "speech-therapy", "name": "گفتاردرمانی", "category": "مغز و اعصاب و سلامت روان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/speech-therapy"}, {"slug": "orthopedics", "name": "ارتوپدی", "category": "ارتوپدی و فیزیوتراپی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/orthopedics"}, {"slug": "physiotherapy", "name": "فیزیوتراپی", "category": "ارتوپدی و فیزیوتراپی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/physiotherapy"}, {"slug": "spine", "name": "ستون فقرات", "category": "ارتوپدی و فیزیوتراپی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/spine"}, {"slug": "obstetrics-gynecology", "name": "زنان و زایمان", "category": "زنان و زایمان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/obstetrics-gynecology"}, {"slug": "infertility-ivf", "name": "نازایی و IVF", "category": "زنان و زایمان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/infertility-ivf"}, {"slug": "ultrasound", "name": "سونوگرافی", "category": "زنان و زایمان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/ultrasound"}, {"slug": "pediatrics", "name": "اطفال", "category": "کودکان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/pediatrics"}, {"slug": "neonatology", "name": "نوزادان", "category": "کودکان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/neonatology"}, {"slug": "dermatology", "name": "پوست", "category": "پوست و مو", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dermatology"}, {"slug": "hair-beauty", "name": "مو و زیبایی", "category": "پوست و مو", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/hair-beauty"}, {"slug": "laser", "name": "لیزر", "category": "پوست و مو", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/laser"}, {"slug": "ophthalmology", "name": "چشم‌پزشکی", "category": "چشم", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/ophthalmology"}, {"slug": "optometry", "name": "اپتومتری", "category": "چشم", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/optometry"}, {"slug": "ent", "name": "گوش و حلق و بینی", "category": "گوش و حلق و بینی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/ent"}, {"slug": "audiology", "name": "شنوایی‌سنجی", "category": "گوش و حلق و بینی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/audiology"}, {"slug": "dentistry", "name": "دندانپزشکی عمومی", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dentistry"}, {"slug": "orthodontics", "name": "ارتودنسی", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/orthodontics"}, {"slug": "dental-implant", "name": "ایمپلنت دندان", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dental-implant"}, {"slug": "prosthodontics", "name": "پروتزهای دندانی", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/prosthodontics"}, {"slug": "endodontics", "name": "اندودنتیکس", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/endodontics"}, {"slug": "pediatric-dentistry", "name": "دندانپزشکی کودکان", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/pediatric-dentistry"}, {"slug": "maxillofacial-surgery", "name": "جراحی فک و صورت", "category": "دندانپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/maxillofacial-surgery"}, {"slug": "urology", "name": "اورولوژی", "category": "کلیه و مجاری ادراری", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/urology"}, {"slug": "nephrology", "name": "کلیه (نفرولوژی)", "category": "کلیه و مجاری ادراری", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/nephrology"}, {"slug": "dialysis", "name": "دیالیز", "category": "کلیه و مجاری ادراری", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/dialysis"}, {"slug": "endocrinology", "name": "غدد و متابولیسم", "category": "غدد و دیابت", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/endocrinology"}, {"slug": "diabetes", "name": "دیابت", "category": "غدد و دیابت", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/diabetes"}, {"slug": "pulmonology", "name": "ریه و تنفس", "category": "ریه و تنفس", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/pulmonology"}, {"slug": "asthma-allergy", "name": "آسم و آلرژی", "category": "ریه و تنفس", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/asthma-allergy"}, {"slug": "hematology", "name": "خون (هماتولوژی)", "category": "خون و سرطان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/hematology"}, {"slug": "oncology", "name": "انکولوژی", "category": "خون و سرطان", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/oncology"}, {"slug": "rheumatology", "name": "روماتولوژی", "category": "رماتیزم و ایمنی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/rheumatology"}, {"slug": "allergy-immunology", "name": "آلرژی و ایمونولوژی", "category": "رماتیزم و ایمنی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/allergy-immunology"}, {"slug": "infectious-diseases", "name": "عفونی", "category": "بیماری‌های عفونی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/infectious-diseases"}, {"slug": "occupational-therapy", "name": "کاردرمانی", "category": "پیراپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/occupational-therapy"}, {"slug": "nutrition", "name": "تغذیه", "category": "پیراپزشکی", "clinics_count": 0, "doctors_count": 0, "url": "/specialties/nutrition"}], "total": 51}, "/api/public/ads/billboard-home": {"active": false, "position": "billboard-home", "title": "جای تبلیغات برند شما", "subtitle": "کسب‌وکار شما، در کنار سلامت مردم شیراز", "body": "برای معرفی مجموعه خود در نوبتیار با ما تماس بگیرید.", "image_url": null, "link_url": null, "link_text": null}};
+  var origFetch = window.fetch ? window.fetch.bind(window) : null;
+  function resp(obj) {
+    return Promise.resolve(new Response(JSON.stringify(obj), {
+      status: 200, headers: { 'Content-Type': 'application/json' }
+    }));
+  }
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var path = url.split('?')[0];
+    if (Object.prototype.hasOwnProperty.call(DATA, path)) return resp(DATA[path]);
+    var keys = Object.keys(DATA);
+    for (var i = 0; i < keys.length; i++) {
+      if (path.indexOf(keys[i]) === 0) return resp(DATA[keys[i]]);
+    }
+    if (path.indexOf('/api/') === 0) return resp({});
+    return origFetch ? origFetch(input, init) : Promise.reject(new Error('offline'));
+  };
+  // نوار اعلان پیش‌نمایش آفلاین — هرگز در سایت واقعی وجود ندارد
+  document.addEventListener('DOMContentLoaded', function () {
+    if (document.getElementById('offlinePreviewBar')) return;
+    var b = document.createElement('div');
+    b.id = 'offlinePreviewBar';
+    b.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99999;background:#0d2149;color:#fff;' +
+      'font:700 12px/1.6 Vazirmatn,Tahoma,sans-serif;padding:7px 14px;border-radius:999px;' +
+      'box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer;direction:rtl;';
+    b.textContent = 'پیش‌نمایش آنلاین حذف تصاویر — v0.15.1 (برای بستن کلیک کنید)';
+    b.onclick = function () { b.remove(); };
+    document.body.appendChild(b);
+  });
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود ادمین | نوبتیار</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="static/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="static/img/favicon-256.png">
+  <link rel="apple-touch-icon" href="static/img/apple-touch-icon.png">
+  <link rel="preload" href="static/fonts/Vazirmatn-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="static/css/style.css">
+
+  <!-- Google tag (gtag.js) — Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-NVWBWMF1E4');
+  </script>
+</head>
+<body>
+  <header class="site-header site-header-v3">
+    <div class="brand-band">
+      <div class="container brand-band-inner">
+        <a href="/" class="brand-lockup" aria-label="نوبتیار — صفحهٔ اصلی">
+          <picture>
+            <source type="image/webp" srcset="static/img/nobatyar-mark.webp">
+            <img src="static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark" width="62" height="40">
+          </picture>
+          <span class="brand-lockup-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
+        </a>
+        <div class="brand-band-cta">
+          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="btn-ghost">ربات بله</a>
+          <a href="book.html" class="btn-grad">رزرو نوبت آنلاین</a>
+        </div>
+      </div>
+    </div>
+    <div class="nav-band">
+      <div class="container">
+        <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
+          <span></span><span></span><span></span>
+          <span class="sr-only">باز و بسته کردن منو</span>
+        </button>
+        <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
+        <a href="/">خانه</a>
+        <a href="specialties.html">تخصص‌ها</a>
+        <a href="book.html">رزرو نوبت</a>
+        <a href="magazine.html">مجله سلامت</a>
+        <a href="complaints.html">شکایات و پیگیری</a>
+        <a href="partners.html">ویژه پزشکان و درمانگاه‌ها</a>
+        <a href="contact.html">تماس با ما</a>
+        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
+        <a href="register.html" class="nav-cta">ثبت‌نام مراکز</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    <div class="card" style="max-width: 400px; margin: 2rem auto;">
+      <h1>ورود ادمین</h1>
+      <div id="msg"></div>
+      <form id="loginForm">
+        <label for="adminUser">نام کاربری</label>
+        <input type="text" id="adminUser" name="username" required value="admin">
+        <label for="adminPass">رمز عبور</label>
+        <input type="password" id="adminPass" name="password" required>
+        <button type="submit">ورود</button>
+      </form>
+    </div>
+  </main>
+  <script>
+    // ضد XSS: جزئیات خطا هرگز مستقیم innerHTML نمی‌شود (v0.9.2)
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.username.value, password: form.password.value })
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const t = (json && Array.isArray(json.detail)) ? 'مقادیر ارسالی نامعتبر است'
+          : esc((json && json.detail) || 'خطا');
+        document.getElementById('msg').innerHTML = `<div class="alert alert-error">${t}</div>`;
+        return;
+      }
+      localStorage.setItem('admin_token', json.access_token);
+      // بازیابی امن: پس از ورود با رمز موقت، پنل مودال اجباری تغییر رمز را نشان می‌دهد
+      if (json.must_change_password) {
+        window.location.href = '/admin/panel#must-change';
+      } else {
+        window.location.href = 'index.html';
+      }
+    });
+  </script>
+  <footer class="mini-footer">
+    <div class="container">
+      <span>نوبتیار — سامانه نوبت‌دهی آنلاین شیراز</span>
+      <span class="mini-links">
+        <a href="https://shirazhealthtour.ir" dir="ltr">shirazhealthtour.ir</a>
+        <a href="mailto:shiraznobatyar@gmail.com">ایمیل رسمی</a>
+        <a href="https://t.me/shiraznobatyar" target="_blank" rel="noopener">تلگرام</a>
+        <a href="https://eitaa.com/shiraznobatyar" target="_blank" rel="noopener">ایتا</a>
+        <a href="https://rubika.ir/shiraznobatyar" target="_blank" rel="noopener">روبیکا</a>
+        <a href="contact.html">تماس با ما</a>
+      </span>
+    </div>
+  </footer>
+</body>
+</html>
