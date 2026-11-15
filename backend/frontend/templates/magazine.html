@@ -18,7 +18,8 @@
 {% endblock %}
 {% block content %}
 <div class="mag-hero">
-  <img src="/static/img/v14-magazine-hero.webp" alt="" loading="eager" width="1344" height="768">
+  <!-- v0.15.1: تصویر هیرو مجله حذف شد — پس‌زمینهٔ گرادیان برند + آیکون خطی استاندارد -->
+  <div class="mag-hero-ph" aria-hidden="true">{{ ph_icon("menu_book") }}</div>
   <div class="mag-hero-overlay">
     <h1>مجله سلامت نوبتیار</h1>
     <p>آخرین اخبار پزشکی، سلامت و خدمات درمانی شیراز</p>
@@ -44,7 +45,11 @@
 <div class="mag-grid">
   {% for a in articles %}
   <a class="mag-card" href="/magazine/article/{{ a.slug }}">
-    <img class="mag-card-img" src="{{ a.cover }}" alt="" loading="lazy" width="1344" height="768">
+    <!-- v0.15.1: کاور حذف شد — بلوک رنگی با نام دسته (بدون عکس) -->
+    <span class="imgph imgph-cover mag-card-img {{ 'ic-b' if loop.index0 % 2 else 'ic-a' }}">
+      <span class="imgph-ic">{{ ph_icon("article") }}</span>
+      <b class="imgph-label">{{ a.category_name }}</b>
+    </span>
     <span class="mag-card-body">
       <span class="mag-card-cat">{{ a.category_name }}</span>
       <h3>{{ a.title }}</h3>

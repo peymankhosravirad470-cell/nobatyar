@@ -55,7 +55,7 @@ from catalog import router as catalog_router
 import site_content as site_content_mod  # v0.15.0: محتوای مدیر + کاتالوگ دیتابیسی + حسابرسی
 from site_content import router as site_router, admin_router as site_admin_router
 
-APP_VERSION = "0.15.0"
+APP_VERSION = "0.15.1"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
@@ -207,6 +207,11 @@ from fastapi.templating import Jinja2Templates  # noqa: E402
 from fastapi import Request as _Request  # noqa: E402
 TEMPLATES_DIR = os.path.join(FRONTEND_DIR, "templates")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+# v0.15.1: حذف همهٔ تصاویر طبق دستور کارفرما — جایگزین: بلوک رنگی برند +
+# آیکون‌های خطی استاندارد Material Symbols (بدون عکس واقعی/AI/کارتونی).
+import img_ph as _img_ph  # noqa: E402
+templates.env.globals["ph_icon"] = _img_ph.icon
 
 
 def _not_found(request, message: str = "صفحه مورد نظر یافت نشد"):
@@ -364,7 +369,14 @@ def home(request: _Request, db: Session = Depends(get_db)):
     content = site_content_mod.get_site_content(db)
     counts = site_content_mod.db_category_counts(db)
 
-    # ---------- ۸ دستهٔ ویژهٔ صفحهٔ اصلی — تصویر واقعی هر دسته (گالری دارای مجوز) ----------
+    # ---------- ۸ دستهٔ ویژهٔ صفحهٔ اصلی — بلوک رنگی برند + آیکون خطی استاندارد
+    # (v0.15.1 — دستور کارفرما: حذف کامل تصاویر، بدون عکس واقعی/AI/کارتونی) ----------
+    _PH_ICON_BY_SLUG = {
+        "dentistry": "dentistry", "cardiology": "ecg_heart",
+        "obstetrics-gynecology": "pregnant_woman", "pediatrics": "child_care",
+        "dermatology": "dermatology", "ophthalmology": "visibility",
+        "orthopedics": "accessibility_new", "neurology": "neurology",
+    }
     _CATS = [
         ("دندانپزشکی", "dentistry", "dental", "اتاق درمان دندانپزشکی با یونیت واقعی", 427),
         ("قلب و عروق", "cardiology", "cardio", "اتاق آنژیوگرافی — محیط واقعی تشخیص و درمان قلب و عروق", 427),
@@ -377,7 +389,7 @@ def home(request: _Request, db: Session = Depends(get_db)):
     ]
     from fa_utils import fa_digits  # noqa: E402
     featured_cats = [{
-        "name": name, "slug": slug, "img": img, "alt": alt, "img_h": img_h,
+        "name": name, "slug": slug, "icon_name": _PH_ICON_BY_SLUG.get(slug, "medical_services"),
         "count_fa": fa_digits(counts.get(name, 0)),
     } for name, slug, img, alt, img_h in _CATS]
     spec_count = sum(counts.values())

@@ -28,8 +28,7 @@
   <!-- فونت وزیرمتن self-host — پیش‌بارگذاری وزن‌های اصلی -->
   <link rel="preload" href="/static/fonts/Vazirmatn-Black.woff2?v=0150" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0150" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/static/img/v0150/hero.webp" as="image" fetchpriority="high">
-  <link rel="stylesheet" href="/static/css/style.css?v=0150">
+  <link rel="stylesheet" href="/static/css/style.css?v=0160">
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -148,10 +147,12 @@
           </div>
         </div>
         <div class="v15-hero-visual">
-          <picture>
-            <source type="image/webp" srcset="/static/img/v0150/hero.webp">
-            <img src="/static/img/v0150/hero.jpg" alt="فضای پذیرش مرکز درمانی — بیمارستان فوق تخصصی چشم پزشکی بینا" width="1600" height="1011" fetchpriority="high">
-          </picture>
+          <!-- v0.15.1: تصویر هیرو حذف شد (دستور کارفرما — هیچ عکس واقعی/AI) -->
+          <div class="imgph imgph-navy" role="img" aria-label="نماد رزرو آنلاین نوبت">
+            <span class="imgph-ic">{{ ph_icon("event_available") }}</span>
+            <b class="imgph-label">رزرو آنلاین نوبت</b>
+            <small>مطب‌ها، درمانگاه‌ها، آزمایشگاه‌ها و داروخانه‌های شیراز</small>
+          </div>
           <div class="float-card fc-1" aria-hidden="true">
             <span class="fc-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
             <span>نوبت شما ثبت شد<small>بدون تماس و بدون صف</small></span>
@@ -230,10 +231,10 @@
           {% for c in featured_cats %}
           <a class="v15-cat-card" href="/specialties/{{ c.slug }}">
             <span class="v15-cat-img">
-              <picture>
-                <source type="image/webp" srcset="/static/img/v0150/{{ c.img }}.webp">
-                <img src="/static/img/v0150/{{ c.img }}.jpg" alt="{{ c.alt }}" loading="lazy" width="640" height="{{ c.img_h }}">
-              </picture>
+              <!-- v0.15.1: بلوک رنگی برند + آیکون خطی استاندارد (بدون عکس) -->
+              <span class="imgph imgph-cat imgph-tint-{{ 'b' if loop.index0 % 2 else 'a' }}">
+                <span class="imgph-ic">{{ ph_icon(c.icon_name) }}</span>
+              </span>
             </span>
             <b>{{ c.name }}</b>
             <span class="v15-cat-count">{{ c.count_fa }} تخصص</span>
@@ -256,50 +257,57 @@
         </div>
         <div class="v15-services">
           <a class="v15-service" href="/book">
-            <span class="v15-service-img"><picture>
-              <source type="image/webp" srcset="/static/img/v0150/clinic-waiting.webp">
-              <img src="/static/img/v0150/clinic-waiting.jpg" alt="فضای انتظار مطب و درمانگاه" loading="lazy" width="800" height="506">
-            </picture></span>
+            <span class="v15-service-img">
+              <!-- v0.15.1: بلوک رنگی برند + آیکون خطی استاندارد (بدون عکس) -->
+              <span class="imgph imgph-service imgph-tint-a">
+                <span class="imgph-ic">{{ ph_icon("medical_services") }}</span>
+              </span>
+            </span>
             <b>مطب‌ها و درمانگاه‌ها</b>
             <span>زمان‌های خالی واقعی تقویم هر مرکز، بدون تماس و صف</span>
           </a>
           <a class="v15-service" href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">
-            <span class="v15-service-img"><picture>
-              <source type="image/webp" srcset="/static/img/v0150/lab.webp">
-              <img src="/static/img/v0150/lab.jpg" alt="آزمایشگاه علوم پزشکی — خدمات آزمایشگاهی" loading="lazy" width="800" height="449">
-            </picture></span>
+            <span class="v15-service-img">
+              <span class="imgph imgph-service imgph-tint-b">
+                <span class="imgph-ic">{{ ph_icon("science") }}</span>
+              </span>
+            </span>
             <b>آزمایشگاه‌ها</b>
             <span>خدمات آزمایشگاهی شیراز با مسیر مشخص برای نمونه‌گیری</span>
           </a>
           <a class="v15-service" href="/book">
-            <span class="v15-service-img"><picture>
-              <source type="image/webp" srcset="/static/img/v0150/mri.webp">
-              <img src="/static/img/v0150/mri.jpg" alt="دستگاه MRI در محیط بیمارستانی" loading="lazy" width="800" height="534">
-            </picture></span>
+            <span class="v15-service-img">
+              <span class="imgph imgph-service imgph-tint-a">
+                <span class="imgph-ic">{{ ph_icon("monitor_heart") }}</span>
+              </span>
+            </span>
             <b>تصویربرداری پزشکی</b>
             <span>MRI، CT، سونوگرافی و رادیولوژی در مراکز معتبر</span>
           </a>
           <a class="v15-service" href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">
-            <span class="v15-service-img"><picture>
-              <source type="image/webp" srcset="/static/img/v0150/pharmacy.webp">
-              <img src="/static/img/v0150/pharmacy.jpg" alt="داروخانهٔ شبانه‌روزی ایرانی" loading="lazy" width="800" height="600">
-            </picture></span>
+            <span class="v15-service-img">
+              <span class="imgph imgph-service imgph-tint-b">
+                <span class="imgph-ic">{{ ph_icon("local_pharmacy") }}</span>
+              </span>
+            </span>
             <b>داروخانه‌ها</b>
             <span>یافتن داروخانه‌ها و یادآور مصرف دارو با ربات بله</span>
           </a>
           <a class="v15-service" href="/specialties/physiotherapy">
-            <span class="v15-service-img"><picture>
-              <source type="image/webp" srcset="/static/img/v0150/physio-clinic.webp">
-              <img src="/static/img/v0150/physio-clinic.jpg" alt="فضای کلینیک فیزیوتراپی و توان‌بخشی" loading="lazy" width="640" height="427">
-            </picture></span>
+            <span class="v15-service-img">
+              <span class="imgph imgph-service imgph-tint-a">
+                <span class="imgph-ic">{{ ph_icon("accessibility_new") }}</span>
+              </span>
+            </span>
             <b>فیزیوتراپی و توانبخشی</b>
             <span>مراکز فیزیوتراپی و کاردرمانی با برنامهٔ کاری شفاف</span>
           </a>
           <a class="v15-service" href="/specialties/hair-beauty">
-            <span class="v15-service-img"><picture>
-              <source type="image/webp" srcset="/static/img/v0150/beauty-clinic.webp">
-              <img src="/static/img/v0150/beauty-clinic.jpg" alt="اتاق خدمات پوست، مو و زیبایی" loading="lazy" width="640" height="443">
-            </picture></span>
+            <span class="v15-service-img">
+              <span class="imgph imgph-service imgph-tint-b">
+                <span class="imgph-ic">{{ ph_icon("spa") }}</span>
+              </span>
+            </span>
             <b>پوست، مو و زیبایی</b>
             <span>خدمات پوست و مو در کلینیک‌های دارای مجوز</span>
           </a>
@@ -367,23 +375,26 @@
           <a class="v15-btn v15-btn-primary" href="/book">شروع رزرو نوبت</a>
         </div>
         <div class="v15-split-img">
-          <picture>
-            <source type="image/webp" srcset="/static/img/v0150/staff.webp">
-            <img src="/static/img/v0150/staff.jpg" alt="پزشک ایرانی در محیط درمانی — معاینهٔ چشم‌پزشکی" loading="lazy" width="1200" height="900">
-          </picture>
+          <!-- v0.15.1: عکس پزشک حذف شد — بلوک رنگی برند + آیکون خطی استاندارد -->
+          <div class="imgph imgph-navy">
+            <span class="imgph-ic">{{ ph_icon("handshake") }}</span>
+            <b class="imgph-label">همراه مطب‌ها و مراکز درمانی شیراز</b>
+            <small>ثبت‌نام، تعریف نوبت و پنل اختصاصی مدیریت</small>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- ============ شیراز v0.15.0 — بیمارستان واقعی نمازی (با انتساب CC BY-SA 3.0) ============ -->
+    <!-- ============ شیراز v0.15.1 — بلوک رنگی برند (بدون عکس بیمارستان) ============ -->
     <section class="v15-section" id="shiraz" aria-label="نوبتیار و هویت شیراز">
       <div class="container v15-split v15-split-rev">
         <div class="v15-split-img">
-          <picture>
-            <source type="image/webp" srcset="/static/img/v0150/shiraz.webp">
-            <img src="/static/img/v0150/shiraz.jpg" alt="ورودی بیمارستان نمازی شیراز" loading="lazy" width="1200" height="900">
-          </picture>
-          <span class="v15-credit">تصویر: بیمارستان نمازی شیراز — Ahura21، CC BY-SA 3.0 (ویکی‌مدیا کامانز)</span>
+          <!-- v0.15.1: عکس بیمارستان حذف شد — بلوک رنگی برند + آیکون خطی استاندارد -->
+          <div class="imgph imgph-navy">
+            <span class="imgph-ic">{{ ph_icon("location_city") }}</span>
+            <b class="imgph-label">شیراز</b>
+            <small>سامانهٔ نوبت‌دهی آنلاین شهر</small>
+          </div>
         </div>
         <div>
           <span class="v15-kicker-dark">ساخته‌شده برای شیراز</span>
@@ -409,10 +420,13 @@
         <div class="v15-mag-grid">
           {% for a in articles %}
           <a class="v15-mag-card" href="/magazine/{{ a.slug }}">
-            <span class="v15-mag-img"><picture>
-              <source type="image/webp" srcset="{{ a.cover_webp }}">
-              <img src="{{ a.cover_jpg }}" alt="{{ a.title }}" loading="lazy" width="800" height="560">
-            </picture></span>
+            <span class="v15-mag-img">
+              <!-- v0.15.1: کاور مقاله حذف شد — بلوک رنگی با نام دسته (بدون عکس) -->
+              <span class="imgph imgph-cover {{ 'ic-b' if loop.index0 % 2 else 'ic-a' }}">
+                <span class="imgph-ic">{{ ph_icon("article") }}</span>
+                <b class="imgph-label">{{ a.category_fa }}</b>
+              </span>
+            </span>
             <span class="v15-mag-cat">{{ a.category_fa }}</span>
             <b>{{ a.title }}</b>
             <p>{{ a.summary }}</p>
@@ -548,7 +562,7 @@
       </div>
       <div class="footer-legal">
         <p class="footer-copyright"><b>{{ content.copyright }}</b></p>
-        <p class="footer-credits">اعتبار تصاویر: تصاویر این صفحه واقعی و دارای مجوز آزاد هستند — فهرست کامل پدیدآورنده و مجوز هر تصویر: <a href="/static/img/v0150/ATTRIBUTIONS.txt" rel="noopener">اعتبارنامهٔ تصاویر نوبتیار</a>.</p>
+        <p class="footer-credits">طبق دستور مرحلهٔ فعلی، همهٔ تصاویر محتوایی حذف و با بلوک‌های رنگی برند و آیکون‌های خطی استاندارد Material Symbols (Apache 2.0) جایگزین شده‌اند؛ تصاویر حرفه‌ای نهایی بعداً توسط طراح گرافیک از پنل «مدیریت تصاویر» جایگزین خواهد شد.</p>
         <nav class="footer-legal-links" aria-label="قوانین و سیاست‌ها">
           <a href="/terms">قوانین و شرایط استفاده</a>
           <a href="/privacy">حریم خصوصی</a>

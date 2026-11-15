@@ -6,7 +6,7 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="{{ a.title }}">
 <meta property="og:description" content="{{ a.summary[:158] }}">
-<meta property="og:image" content="https://shirazhealthtour.ir{{ a.cover }}">
+<meta property="og:image" content="https://shirazhealthtour.ir/static/img/nobatyar-logo.png">
 <meta property="article:published_time" content="{{ a.published_iso }}">
 <meta property="article:section" content="{{ a.category_name }}">
 <script type="application/ld+json">
@@ -15,7 +15,7 @@
   "@type": "NewsArticle",
   "headline": {{ a.title | tojson }},
   "description": {{ a.summary | tojson }},
-  "image": ["https://shirazhealthtour.ir{{ a.cover }}"],
+  "image": ["https://shirazhealthtour.ir/static/img/nobatyar-logo.png"],
   "datePublished": "{{ a.published_iso }}",
   "dateModified": "{{ a.published_iso }}",
   "inLanguage": "fa-IR",
@@ -44,7 +44,11 @@
     <a href="/magazine">مجله سلامت</a> <span aria-hidden="true">←</span>
     <span class="mag-card-cat">{{ a.category_name }}</span>
   </nav>
-  <img class="mag-article-cover" src="{{ a.cover }}" alt="" loading="eager" width="1344" height="768">
+  <!-- v0.15.1: کاور حذف شد — بلوک رنگی با نام دسته (بدون عکس) -->
+  <div class="imgph imgph-cover mag-article-cover ic-a">
+    <span class="imgph-ic">{{ ph_icon("article") }}</span>
+    <b class="imgph-label">{{ a.category_name }}</b>
+  </div>
   <h1>{{ a.title }}</h1>
   <div class="mag-article-meta">
     <span>{{ a.published_at }}</span>
@@ -63,7 +67,10 @@
   <div class="mag-grid">
     {% for r in related %}
     <a class="mag-card" href="/magazine/article/{{ r.slug }}">
-      <img class="mag-card-img" src="{{ r.cover }}" alt="" loading="lazy" width="1344" height="768">
+      <span class="imgph imgph-cover mag-card-img {{ 'ic-b' if loop.index0 % 2 else 'ic-a' }}">
+        <span class="imgph-ic">{{ ph_icon("article") }}</span>
+        <b class="imgph-label">{{ r.category_name }}</b>
+      </span>
       <span class="mag-card-body">
         <span class="mag-card-cat">{{ r.category_name }}</span>
         <h3>{{ r.title }}</h3>

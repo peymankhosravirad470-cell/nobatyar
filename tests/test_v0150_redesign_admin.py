@@ -44,9 +44,9 @@ def check(name, cond, detail=""):
 
 
 # ==================== ۰) نسخه و مهاجرت ====================
-check("APP_VERSION = 0.15.0", APP_VERSION == "0.15.0")
+check("APP_VERSION = 0.15.1", APP_VERSION == "0.15.1")
 r = client.get("/api/health")
-check("health نسخهٔ 0.15.0 را اعلام می‌کند", r.status_code == 200 and r.json().get("version") == "0.15.0")
+check("health نسخهٔ 0.15.1 را اعلام می‌کند", r.status_code == 200 and r.json().get("version") == "0.15.1")
 check("health: PostgreSQL/دیتابیس فعال", r.json().get("database") in ("postgresql", "sqlite"))
 
 _db = SessionLocal()
@@ -67,28 +67,44 @@ check("نوار بالایی با تاریخ شمسی + ساعت تهران", "v
 check("ساعت در نوار بالایی است — نه وسط منوی اصلی", "meta-clock" not in r.text)
 check("هیرو: عنوان پیش‌فرض + جست‌وجوی زنده", "نوبتیار؛ سامانه هوشمند" in r.text
       and "heroSearch" in r.text)
-check("هیرو: تصویر واقعی پذیرش بیمارستان بینا (دارای مجوز)", "/static/img/v0150/hero.webp" in r.text)
+check("هیرو: بلوک رنگی برند + آیکون خطی استاندارد (بدون عکس)",
+      "imgph imgph-navy" in r.text and 'aria-label="نماد رزرو آنلاین نوبت"' in r.text)
+check("دستور کارفرما: هیچ مرجع تصویر v0150 در صفحهٔ اصلی نیست", "/static/img/v0150/" not in r.text)
 check("ترتیب بخش‌ها: هیرو ← تبلیغات ← تخصص‌ها ← خدمات ← پنل‌ها ← پزشکان ← رویکرد ← شیراز ← مجله",
       r.text.find("v15-hero") < r.text.find("adBillboard") < r.text.find('id="specialties"')
       < r.text.find('id="services"') < r.text.find('id="panels"') < r.text.find('id="doctors"')
       < r.text.find('id="approach"') < r.text.find('id="shiraz"') < r.text.find('id="magazine"'))
-check("۸ کارت تصویری تخصص‌ها با شمارش واقعی", r.text.count("v15-cat-card") == 8
+check("۸ کارت تخصص‌ها با بلوک آیکونی + شمارش واقعی", r.text.count("v15-cat-card") == 8
+      and r.text.count("imgph imgph-cat") == 8 and "imgph-tint-" in r.text
       and "۷ تخصص" in r.text and "۳ تخصص" in r.text)
 check("دکمهٔ مشاهدهٔ همهٔ ۵۱ تخصص", "مشاهدهٔ همهٔ ۵۱ تخصص" in r.text)
-check("۶ کارت خدمات و مراکز با تصویر", r.text.count('class="v15-service"') == 6)
+check("۶ کارت خدمات با بلوک آیکونی", r.text.count('class="v15-service"') == 6
+      and r.text.count("imgph imgph-service") == 6)
 check("۳ کارت پنل (بیمار/پزشک/مدیریت)", r.text.count("v15-panel-card") == 3)
-check("رویکرد: تصویر پزشک ایرانی واقعی + آمار", "/static/img/v0150/staff.webp" in r.text
+check("رویکرد: بلوک آیکونی + آمار (بدون عکس پزشک)", r.text.count("imgph-navy") == 3
       and "۵۱" in r.text and "۱۸" in r.text)
-check("شیراز: تصویر واقعی بیمارستان نمازی + متن انتساب CC BY-SA 3.0",
-      "/static/img/v0150/shiraz.webp" in r.text and "CC BY-SA 3.0" in r.text
-      and "Ahura21" in r.text)
-check("فوتر: خط اعتبارنامهٔ تصاویر", "ATTRIBUTIONS.txt" in r.text)
+check("شیراز: بلوک آیکونی — بدون عکس بیمارستان و بدون خط انتساب",
+      r.text.count("imgph-navy") == 3 and "CC BY-SA 3.0" not in r.text
+      and "Ahura21" not in r.text)
+check("فوتر: بدون خط اعتبارنامهٔ تصاویر عکس — خط جایگزین آیکون‌ها", "ATTRIBUTIONS.txt" not in r.text
+      and "Material Symbols" in r.text)
 check("هیچ تصویر «واقعی‌نما»ی مصنوعی v14 باقی نمانده", "v14-section-doctors" not in r.text
       and "v14-section-shiraz" not in r.text)
-check("فایل اعتبارنامهٔ تصاویر به‌صورت عمومی سرو می‌شود",
-      client.get("/static/img/v0150/ATTRIBUTIONS.txt").status_code == 200)
-check("فایل تصویر hero از static سرو می‌شود",
-      client.get("/static/img/v0150/hero.webp").status_code == 200)
+check("کارت‌های مجله در صفحهٔ اصلی: بلوک رنگی با نام دسته (بدون کاور عکس)",
+      "cover_jpg" not in r.text and "imgph-cover" in r.text)
+
+# ==================== ۱-ب) مجله و تماس — بدون عکس طبق دستور کارفرما ====================
+r_mag = client.get("/magazine")
+check("صفحهٔ مجله ۲۰۰ و بدون تصویر محتوایی", r_mag.status_code == 200
+      and "/static/img/v14-magazine-hero" not in r_mag.text
+      and "mag-hero-ph" in r_mag.text)
+r_art = client.get("/magazine/article/magazine-launch")
+check("صفحهٔ مقالهٔ seed ۲۰۰ و با بلوک رنگی کاور", r_art.status_code == 200
+      and "mag-article-cover" in r_art.text and "imgph-cover" in r_art.text
+      and 'src="{{' not in r_art.text)
+r_contact = client.get("/contact")
+check("صفحهٔ تماس ۲۰۰ و بدون عکس پذیرش (بلوک آیکونی)", r_contact.status_code == 200
+      and "img-reception-new" not in r_contact.text and "imgph imgph-navy" in r_contact.text)
 
 # ==================== ۲) API عمومی محتوا — سفیدفهرست ====================
 r = client.get("/api/public/site/content")
