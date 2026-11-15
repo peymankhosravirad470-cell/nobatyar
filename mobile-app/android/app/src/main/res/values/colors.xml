@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- رنگ برند نوبتیار (سرمه‌ای/فیروزه‌ای) — مطابق style.css سایت -->
+    <color name="navy">#14355F</color>
+    <color name="navy_deep">#0F2A47</color>
+    <color name="teal">#0891B2</color>
+    <color name="teal_bright">#67E8F9</color>
+    <color name="nav_item_icon">#FFFFFF</color>
+</resources>

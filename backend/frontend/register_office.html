@@ -2,6 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
+  <script>(function(){try{var f=location.search.indexOf('app=1')>-1||window.NOBATYAR_APP===true||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());if(f){document.documentElement.classList.add('app-mode');document.addEventListener('click',function(ev){try{var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;if(!a)return;var href=a.getAttribute('href')||'';if(!href||href.charAt(0)!=='/'||href.charAt(1)==='/'||href.indexOf('app=1')>-1||href.indexOf(':')>-1)return;a.setAttribute('href',href+(href.indexOf('?')>-1?'&app=1':'?app=1'));}catch(e){}},true);}}catch(e){}})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ثبت‌نام مطب و پزشک | نوبتیار</title>
   <meta name="description" content="فرم ثبت‌نام مطب و پزشک در نوبتیار — ثبت اطلاعات مطب، تخصص، ساعات کاری و خدمات؛ پس از ارسال، کد پیگیری دریافت می‌کنید و درخواست بررسی می‌شود.">
@@ -17,9 +18,15 @@
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0140" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/style.css?v=0140">
+  <link rel="stylesheet" href="/static/css/style.css?v=0161">
 </head>
 <body>
+  <!-- v0.16.0: نوار بالای native اپ — فقط داخل WebView اپ نمایش داده می‌شود -->
+  <div id="app-topbar" class="app-topbar">
+    <img src="/static/img/favicon-64.png" alt="لوگوی نوبتیار" class="app-topbar-mark" width="30" height="30">
+    <span class="app-topbar-title" id="appTopbarTitle">نوبتیار</span>
+  </div>
+  <script>(function(){function s(){try{var el=document.getElementById('appTopbarTitle');if(!el)return;var m={'/':'خانه','/book':'رزرو نوبت','/contact':'تماس با ما','/specialties':'تخصص‌ها','/magazine':'مجله سلامت','/about':'دربارهٔ نوبتیار','/faq':'پرسش‌های متداول','/complaints':'شکایات و پیگیری','/partners':'همکاری با ما','/register':'ثبت‌نام مراکز','/terms':'قوانین استفاده','/privacy':'حریم خصوصی','/cancellation':'لغو و تغییر نوبت','/admin/login':'ورود مدیر','/admin/panel':'پنل مدیریت','/clinic/login':'ورود مرکز','/clinic/panel':'پنل مرکز'};var h=location.pathname.replace(/\/+$/,'')||'/';var n=m[h]||'';if(!n){var h1=document.querySelector('main h1, h1');n=(h1&&h1.textContent||'').trim();}if(!n){var t=document.title||'نوبتیار';var i=t.indexOf('|');n=(i>-1?t.slice(0,i):t).trim()||'نوبتیار';}el.textContent=n;}catch(e){}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',s);}else{s();}})();</script>
   <header class="site-header site-header-v3">
     <div class="brand-band">
       <div class="container brand-band-inner">

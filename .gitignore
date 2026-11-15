@@ -13,3 +13,15 @@ backups/
 *.pem
 *.key
 secrets*
+
+# mobile-app (Capacitor) — v0.16.0
+mobile-app/node_modules/
+mobile-app/android/.gradle/
+mobile-app/android/build/
+mobile-app/android/app/build/
+mobile-app/android/local.properties
+mobile-app/android/capacitor-cordova-android-plugins/
+mobile-app/android/.idea/
+mobile-app/ios/App/Pods/
+mobile-app/ios/App/public/
+mobile-app/ios/DerivedData/

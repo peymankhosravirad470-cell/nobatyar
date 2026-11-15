@@ -1891,3 +1891,42 @@ a.feature-badge:hover { background: var(--teal-text); color: #fff; }
   color: rgba(255,255,255,.4);
 }
 .mag-hero-ph svg { width: 88px; height: 88px; }
+
+/* ============================================================
+   حالت اپ موبایل (v0.16.0) — فقط داخل WebView اپ نوبتیار
+   تشخیص: کلاس app-mode روی <html> — با ?app=1 یا تزریق NOBATYAR_APP
+   داخل اپ فعال می‌شود؛ در مرورگر معمولی هیچ اثری ندارد.
+   ============================================================ */
+.app-topbar { display: none; }
+html.app-mode .v15-topbar,
+html.app-mode .site-header { display: none !important; }
+html.app-mode .app-topbar {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 1200;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  padding-top: calc(9px + env(safe-area-inset-top, 0px));
+  background: var(--primary, #14355f);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .08), 0 2px 12px rgba(10, 22, 44, .28);
+}
+html.app-mode .app-topbar .app-topbar-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  display: block;
+}
+html.app-mode .app-topbar .app-topbar-title {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}

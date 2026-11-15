@@ -1,0 +1,27 @@
+{
+  "appId": "ir.nobatyar.app",
+  "appName": "نوبتیار",
+  "webDir": "www",
+  "server": {
+    "url": "https://shirazhealthtour.ir/?app=1",
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2500,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 800,
+      "backgroundColor": "#ffffff",
+      "androidScaleType": "CENTER_INSIDE",
+      "splashFullScreen": true,
+      "splashImmersive": true,
+      "useSpinner": false
+    }
+  },
+  "ios": {
+    "contentInset": "never"
+  }
+}

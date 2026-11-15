@@ -55,7 +55,7 @@ from catalog import router as catalog_router
 import site_content as site_content_mod  # v0.15.0: محتوای مدیر + کاتالوگ دیتابیسی + حسابرسی
 from site_content import router as site_router, admin_router as site_admin_router
 
-APP_VERSION = "0.15.1"
+APP_VERSION = "0.16.0"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
