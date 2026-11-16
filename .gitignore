@@ -25,3 +25,4 @@ mobile-app/android/.idea/
 mobile-app/ios/App/Pods/
 mobile-app/ios/App/public/
 mobile-app/ios/DerivedData/
+mobile-app/android/app/google-services.json

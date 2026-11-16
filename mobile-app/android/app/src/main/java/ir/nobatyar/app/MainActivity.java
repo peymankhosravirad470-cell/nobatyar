@@ -35,8 +35,9 @@ import java.util.Collections;
  *     EncryptedSharedPreferences (AES256-GCM) ذخیره و در شروع هر سند بازمی‌گرداند —
  *     پس لاگین کاربر در حافظهٔ امن native ماندگار است، نه فقط کوکی/حافظهٔ مرورگر.
  *   بند ۱ — زیرساخت FCM: درخواست مجوز POST_NOTIFICATIONS (اندروید ۱۳+) و
- *     تلاش برای دریافت توکن FCM به‌صورت graceful (به‌محض قرارگرفتن
- *     google-services.json در android/app/ بدون تغییر کد فعال می‌شود).
+ *     دریافت بی‌صدای توکن FCM در هر اجرای سرد + ذخیره در prefs محلی؛
+ *     نوتیفیکیشن واقعی با NobatYarPushService (اولویت HIGH + صفحهٔ قفل) —
+ *     در v0.5.0-test2/test3 با ارسال واقعی FCM v1 تأیید شد؛ v0.5.1 = ریلیز نهایی.
  */
 public class MainActivity extends BridgeActivity {
 
