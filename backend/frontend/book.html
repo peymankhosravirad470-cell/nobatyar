@@ -299,6 +299,29 @@
       loadSlots();
     });
 
+    // v0.17.0 — پیوند توکن FCM دستگاه با این نوبت (فقط داخل اپ موبایل کار می‌کند).
+    // خروج از WebView/مرورگر عادی: پلاگین NobatYarNative وجود ندارد و این تابع کاری نمی‌کند.
+    // شکست ثبت توکن هرگز نمایش موفقیت نوبت را نباید بشکند (fire-and-forget).
+    async function _registerDeviceToken(phone, appointmentId) {
+      try {
+        const np = window.Capacitor && window.Capacitor.Plugins &&
+                   window.Capacitor.Plugins.NobatYarNative;
+        if (!np || !np.getFcmToken) return;
+        const r = await np.getFcmToken({});
+        if (!r || !r.value) return;
+        await fetch('/api/device-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: r.value,
+            phone: phone,
+            appointment_id: appointmentId,
+            platform: 'android'
+          })
+        });
+      } catch (e) { /* بی‌صدا — ثبت توکن اختیاری است */ }
+    }
+
     document.getElementById('bookBtn').addEventListener('click', async () => {
       const name = document.getElementById('patientName').value.trim();
       const phone = document.getElementById('patientPhone').value.trim();
@@ -325,6 +348,7 @@
       }
       msg.innerHTML = `<div class="alert alert-success">نوبت شما ثبت شد (کد: ${json.id}). وضعیت: در انتظار تأیید مطب</div>`;
       document.getElementById('patientForm').classList.add('hidden');
+      _registerDeviceToken(phone, json.id);  // v0.17.0: پیوند توکن اپ با این نوبت (بی‌صدا)
       // رفرش اسلات‌ها
       document.getElementById('clinicSelect').dispatchEvent(new Event('change'));
     });

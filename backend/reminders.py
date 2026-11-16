@@ -117,9 +117,12 @@ def scan_appointment_reminders(db) -> list[tuple[ApptReminderLog, Appointment, s
                 due.append((log, appt, kind))
     # ارسال‌های claim‌شده ولی ناموفق (مثلاً قطعی شبکه) — تا ۶ ساعت تلاش مجدد؛
     # ردیف‌هایی که همین حالا در همین دور claim شده‌اند دوباره برنمی‌گردند (ضد ارسال دوباره)
+    # v0.17.0: فقط kind های کانال بله — ردیف‌های FCM ("1h") مسیر تلاش مجدد
+    # خودشان را در fcm_reminders.py دارند و نباید از بله ارسال شوند.
     stale = db.query(ApptReminderLog).filter(
         ApptReminderLog.sent_ok == False,   # noqa: E712
         ApptReminderLog.sent_at >= now_utc - timedelta(hours=6),
+        ApptReminderLog.kind.in_(("1d", "2h")),
     ).limit(10).all()
     for log in stale:
         if log.id in fresh_ids:

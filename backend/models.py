@@ -595,6 +595,38 @@ class ApptReminderLog(Base):
     )
 
 
+class DeviceToken(Base):
+    """توکن FCM دستگاه اپ موبایل (v0.17.0 — فاز ۲: نوتیفیکیشن واقعی یادآوری نوبت).
+
+    هویت بیمار در سیستم فعلی «شمارهٔ موبایل» است (تنها شناسهٔ مشترک وب/اپ)؛
+    هر توکن یکتاست و با شمارهٔ بیمار پیوند می‌خورد:
+    - ثبت اولیه بی‌صدا از لایهٔ native اپ (MainActivity) بدون شماره → phone=NULL
+    - پیوند شماره از جریان نوبت‌گیری در WebView اپ (book.html) → phone=<09xxxxxxxxx>
+      ایده‌آل همراه appointment_id (راستی‌آزمایی تطابق بیمارِ همان نوبت)
+
+    امنیت:
+    - توکن هرگز در لاگ نوشته نمی‌شود (فقط ۸ نویسهٔ اول برای عیب‌یابی در کد صدا زده می‌شود)
+    - UNREGISTERED شدن توکن از سمت FCM → is_active=False (پاک‌سازی خودکار)
+    """
+    __tablename__ = "device_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String(256), unique=True, nullable=False, index=True)
+    patient_phone = Column(String(20), nullable=True, index=True)  # هویت بیمار (نرمال 09xxxxxxxxx)
+    platform = Column(String(10), nullable=False, default="android", server_default="android")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+
+    last_error = Column(String(255), nullable=True)          # آخرین خطای ارسال (دیده‌بانی)
+    last_sent_at = Column(DateTime, nullable=True)           # آخرین ارسال موفق FCM
+    last_registered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_device_tokens_phone_active", "patient_phone", "is_active"),
+    )
+
+
 class PatientMedication(Base):
     """پرونده دارویی بیمار (v0.10.1 — طبق سند طراحی medication-log؛ مهاجرت 0007).
 

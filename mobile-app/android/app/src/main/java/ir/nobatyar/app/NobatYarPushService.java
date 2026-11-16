@@ -39,6 +39,8 @@ public class NobatYarPushService extends FirebaseMessagingService {
         getSharedPreferences("nobatyar_native", Context.MODE_PRIVATE)
                 .edit().putString("fcm_token", token).apply();
         Logger.debug("NobatYar", "FCM token refreshed and stored natively");
+        // v0.17.0 — فاز ۲: توکن تازه بلافاصله در بک‌اند ثبت می‌شود (بی‌صدا)
+        NobatYarNative.postTokenToBackend(token);
     }
 
     @Override

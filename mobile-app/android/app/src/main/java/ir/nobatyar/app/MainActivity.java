@@ -151,6 +151,9 @@ public class MainActivity extends BridgeActivity {
                                     .putString("fcm_token", task.getResult())
                                     .apply();
                             Logger.debug("NobatYar", "FCM token acquired and stored natively");
+                            // v0.17.0 — فاز ۲: ثبت بی‌صدای توکن در بک‌اند
+                            // (پیوند شمارهٔ بیمار بعداً از جریان نوبت‌گیری سایت در WebView می‌آید)
+                            NobatYarNative.postTokenToBackend(task.getResult());
                         }
                     });
         } catch (Throwable t) {

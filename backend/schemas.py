@@ -628,3 +628,29 @@ class ComplaintStatusUpdate(BaseModel):
     priority: Optional[str] = Field(None, pattern="^(normal|high|urgent)$")
     public_reply: Optional[str] = Field(None, max_length=3000)
     internal_note: Optional[str] = Field(None, max_length=3000)
+
+
+# ---------- توکن دستگاه اپ موبایل (v0.17.0 — فاز ۲: نوتیفیکیشن واقعی) ----------
+class DeviceTokenRegister(BaseModel):
+    """ثبت/به‌روزرسانی توکن FCM دستگاه اپ.
+
+    - token: توکن FCM (از لایهٔ native اپ یا پلاگین Capacitor در WebView)
+    - phone: شمارهٔ بیمار — «اختیاری»؛ ثبت اولیهٔ بی‌صدا از اپ بدون شماره می‌آید؛
+      پیوند شماره از جریان نوبت‌گیری اپ (book.html) انجام می‌شود.
+    - appointment_id: اختیاری — اگر داده شود، باید phone با صاحبِ همان نوبت
+      مطابقت کند (راستی‌آزمایی تطابق بیمارِ نوبت).
+    """
+    token: str = Field(..., min_length=20, max_length=256)
+    phone: Optional[str] = None
+    appointment_id: Optional[int] = None
+    platform: Optional[str] = Field(None, pattern="^(android|ios)$")
+
+    @field_validator("phone")
+    @classmethod
+    def _norm_phone(cls, v):
+        if not v:
+            return None
+        n = normalize_mobile(v)
+        if not n:
+            raise ValueError("شمارهٔ موبایل معتبر نیست")
+        return n

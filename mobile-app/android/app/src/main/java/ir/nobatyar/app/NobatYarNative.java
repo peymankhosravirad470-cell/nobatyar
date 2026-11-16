@@ -7,10 +7,17 @@ import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
 import com.getcapacitor.JSObject;
+import com.getcapacitor.Logger;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import org.json.JSONObject;
+
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /**
  * NobatYarNative — پلاگین بومی اپ نوبتیار (v0.5.0 — مرحلهٔ ۱ از تبدیل به اپ native واقعی)
@@ -97,5 +104,48 @@ public class NobatYarNative extends Plugin {
         JSObject ret = new JSObject();
         ret.put("value", p.getString("fcm_token", null));
         call.resolve(ret);
+    }
+
+    /**
+     * v0.17.0 — فاز ۲: ثبت توکن FCM در بک‌اند (POST /api/device-token).
+     *
+     * ثبت اولیهٔ «بی‌صدا» بدون شماره (phone=null) — پیوند شمارهٔ بیمار از
+     * جریان نوبت‌گیری سایت در WebView انجام می‌شود (book.html پس از ثبت
+     * موفق نوبت همان توکن را با شماره و شناسهٔ نوبت می‌فرستد). Upsert سمت
+     * سرور یکتاست؛ فراخوانی تکراری در هر اجرای سرد فقط به‌روزرسانی است.
+     *
+     * هرگز نباید جریان اپ را بشکند: نخ پس‌زمینهٔ daemon + گرفتن همهٔ خطاها
+     * با Logger.debug؛ توکن کامل در هیچ لاگی نوشته نمی‌شود.
+     */
+    public static void postTokenToBackend(String token) {
+        if (token == null || token.isEmpty()) return;
+        Thread t = new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL("https://shirazhealthtour.ir/api/device-token");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                JSONObject body = new JSONObject();
+                body.put("token", token);
+                body.put("platform", "android");
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes("UTF-8"));
+                os.flush();
+                os.close();
+                int code = conn.getResponseCode();
+                Logger.debug("NobatYar", "device-token registered (http " + code + ")");
+            } catch (Throwable e) {
+                Logger.debug("NobatYar", "device-token post failed: "
+                        + e.getClass().getSimpleName());
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }, "nobatyar-token-post");
+        t.setDaemon(true);
+        t.start();
     }
 }

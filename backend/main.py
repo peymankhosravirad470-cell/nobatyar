@@ -24,6 +24,7 @@ from models import (
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
     FeedbackStatus, Doctor, AppointmentStatusHistory, WaitlistEntry,  # v0.13.0
     APPOINTMENT_CLINIC_STATUSES, WAITLIST_STATUSES,
+    DeviceToken,  # v0.17.0: توکن دستگاه اپ موبایل (فاز ۲ — نوتیفیکیشن واقعی)
 )
 from schemas import (
     ClinicRegister, ClinicOut, ClinicLogin, AdminLogin, ClinicApprove,
@@ -33,6 +34,7 @@ from schemas import (
     PasswordChange, LabCreate, LabUpdate, LabOut,
     RescheduleRequest, AppointmentStatusHistoryOut,          # v0.13.0
     WaitlistCreate, WaitlistOut, WaitlistStatusUpdate,        # v0.13.0
+    DeviceTokenRegister,                                      # v0.17.0: ثبت توکن FCM اپ
 )
 from auth import (
     hash_password, verify_password, create_access_token,
@@ -47,6 +49,9 @@ from admin_security import generate_connect_code
 import bale_bot
 import referral
 import centers
+import fcm            # v0.17.0: ارسال نوتیفیکیشن واقعی FCM v1
+import fcm_reminders  # v0.17.0: زمان‌بند یادآوری نوبت به اپ موبایل
+from fa_utils import normalize_mobile
 import complaints as complaints_mod  # noqa: F401 — v0.12.0: سامانه شکایات
 import catalog as catalog_mod  # noqa: F401 — v0.12.0: کاتالوگ عمومی
 from centers import router as centers_router
@@ -55,7 +60,7 @@ from catalog import router as catalog_router
 import site_content as site_content_mod  # v0.15.0: محتوای مدیر + کاتالوگ دیتابیسی + حسابرسی
 from site_content import router as site_router, admin_router as site_admin_router
 
-APP_VERSION = "0.16.0"
+APP_VERSION = "0.17.0"
 
 # v0.11.2: مستندات تعاملی (docs/redoc/openapi) در تولید به‌صورت پیش‌فرض بسته است
 # تا نقشهٔ کامل API در اختیار شناسایی خودکار مهاجم قرار نگیرد.
@@ -182,6 +187,7 @@ _feedback_limit = SlidingWindow(max_events=10, window_seconds=3600)
 _register_limit = SlidingWindow(max_events=10, window_seconds=3600)
 _appointment_limit = SlidingWindow(max_events=30, window_seconds=3600)
 _waitlist_limit = SlidingWindow(max_events=8, window_seconds=3600)  # v0.13.0: ضد اسپم فهرست انتظار
+_device_token_limit = SlidingWindow(max_events=12, window_seconds=3600)  # v0.17.0: ثبت توکن دستگاه اپ
 
 
 def _throttle(request: Request, limiter: SlidingWindow) -> None:
@@ -262,6 +268,9 @@ def on_startup():
     init_db()
     # ربات بله — فقط اگر BALE_BOT_TOKEN ست شده باشد فعال می‌شود
     bale_bot.start_bot_task()
+    # v0.17.0: زمان‌بند نوتیفیکیشن واقعی یادآوری نوبت — مستقل از ربات بله
+    # (فقط وقتی کلید سرویس‌اکانت Firebase در متغیر محیطی باشد ارسال می‌کند)
+    fcm_reminders.start_task()
     _bootstrap_admin()
     # بکاپ خودکار روزانه — فقط اگر NOBATYAR_BACKUP_KEY/DIR تنظیم شده باشد (v0.11.0)
     import backup_svc
@@ -371,6 +380,7 @@ def _bootstrap_admin():
 @app.on_event("shutdown")
 def on_shutdown():
     bale_bot.aclose()
+    fcm.aclose_sync()  # v0.17.0: بستن client ارسال FCM (ایمن حتی اگر فعال نباشد)
 
 
 def _html(name: str):
@@ -1918,12 +1928,81 @@ def update_waitlist_entry(
     return entry
 
 
+# ==================== API: توکن دستگاه اپ موبایل (v0.17.0 — فاز ۲) ====================
+
+@app.post("/api/device-token")
+def register_device_token(
+    data: DeviceTokenRegister, request: Request, db: Session = Depends(get_db)
+):
+    """ثبت/به‌روزرسانی توکن FCM دستگاه اپ موبایل (یادآوری واقعی نوبت).
+
+    هویت بیمار در سیستم فعلی «شمارهٔ موبایل» است (تنها شناسهٔ مشترک وب/اپ —
+    همان شناسهٔ جدول appointments). دو مسیر ثبت:
+    ۱) بی‌صدا از لایهٔ native اپ در هر اجرای سرد (فقط token) → phone=NULL؛
+       توکن شناخته می‌شود ولی هنوز یادآوری نمی‌گیرد.
+    ۲) پیوند شماره از جریان نوبت‌گیری در WebView اپ (book.html پس از ثبت
+       موفق نوبت) → phone=<09xxxxxxxxx> + راستی‌آزمایی تطابق با appointment_id.
+
+    امنیت:
+    - محدودیت نرخ: ۱۲ درخواست در ساعت برای هر IP (ضد اسپم/دیتابیس‌سوزی)
+    - اگر appointment_id داده شود، شمارهٔ ارسالی باید با صاحبِ همان نوبت
+      بخواند (وگرنه 403) — اتصال توکن به شمارهٔ غریبه از مسیر نوبت مسدود است.
+    - Upsert یکتا روی token: ثبت تکراریِ همان دستگاه فقط به‌روزرسانی است
+      (binding قبلی با ثبت بی‌صدای native پاک نمی‌شود).
+    - توکن کامل هرگز لاگ نمی‌شود (fcm.mask در ماژول ارسال).
+    """
+    _throttle(request, _device_token_limit)
+    phone = data.phone
+    if data.appointment_id:
+        appt = db.query(Appointment).filter(
+            Appointment.id == data.appointment_id).first()
+        if not appt:
+            raise HTTPException(404, "نوبت یافت نشد")
+        if not phone or appt.patient_phone != phone:
+            # بدون تطابق شماره، پیوند به نوبتِ دیگری ممکن نیست
+            raise HTTPException(403, "شمارهٔ موبایل با صاحب این نوبت مطابقت ندارد")
+    row = db.query(DeviceToken).filter(DeviceToken.token == data.token).first()
+    if row:
+        # ثبت مجدد همان دستگاه (هر اجرای سرد) — binding شماره حفظ/به‌روز می‌شود
+        if phone:
+            row.patient_phone = phone
+        row.is_active = True   # بازگشت اپ بعد از فعال‌شدن مجدد
+        row.platform = data.platform or row.platform
+        row.last_registered_at = datetime.utcnow()
+    else:
+        row = DeviceToken(
+            token=data.token,
+            patient_phone=phone,
+            platform=data.platform or "android",
+        )
+        db.add(row)
+    db.commit()
+    return {"ok": True, "bound": bool(row.patient_phone)}
+
+
 # Health
 @app.get("/api/health")
 def health():
+    fcm_status = {"enabled": False, "project": None}
+    device_tokens = None
+    try:
+        fcm_status = {"enabled": fcm.configured(), "project": fcm.project_id()}
+    except Exception:  # noqa: BLE001 — health هرگز نباید بشکند
+        pass
+    try:
+        db = SessionLocal()
+        try:
+            device_tokens = db.query(DeviceToken).filter(
+                DeviceToken.is_active == True).count()   # noqa: E712
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001
+        device_tokens = None
     return {
         "status": "ok", "service": "نوبتیار", "version": APP_VERSION,
         "database": "postgresql" if IS_POSTGRES else "sqlite",
+        "fcm": fcm_status,
+        "device_tokens": device_tokens,
         "time": datetime.utcnow().isoformat()
     }
 
