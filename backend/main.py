@@ -213,6 +213,24 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 import img_ph as _img_ph  # noqa: E402
 templates.env.globals["ph_icon"] = _img_ph.icon
 
+# v0.16.1: میزبانی APK اپ موبایل روی همان دامنه — بدون سرویس دانلود خارجی.
+# فایل داخل مخزن در backend/downloads/nobatyar.apk است و با هر deploy بازنشر می‌شود
+# (پاک نمی‌شود). مسیر /download/app عمداً بیرون از /static/ است تا middleware کش،
+# آن را no-cache سرو کند و آپدیت‌های بعدی APK بلافاصله به کاربر برسد؛
+# Content-Disposition: attachment هم تضمین می‌کند مرورگر همیشه دانلود کند.
+MOBILE_APK_PATH = os.path.join(BASE_DIR, "downloads", "nobatyar.apk")
+
+
+@app.get("/download/app", include_in_schema=False)
+def download_mobile_app():
+    if not os.path.isfile(MOBILE_APK_PATH):
+        raise HTTPException(status_code=404, detail="APK not found")
+    return FileResponse(
+        MOBILE_APK_PATH,
+        media_type="application/vnd.android.package-archive",
+        filename="nobatyar.apk",
+    )
+
 
 def _not_found(request, message: str = "صفحه مورد نظر یافت نشد"):
     """نمای ۴۰۴ واحد سایت با کد وضعیت درست."""
