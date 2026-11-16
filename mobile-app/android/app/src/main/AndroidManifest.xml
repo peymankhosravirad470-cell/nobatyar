@@ -27,9 +27,20 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- v0.5.0 — بند ۱: سرویس دریافت Push واقعی از FCM -->
+        <service
+            android:name=".NobatYarPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- v0.5.0 — بند ۱: نمایش اعلان (اندروید ۱۳+ runtime) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
