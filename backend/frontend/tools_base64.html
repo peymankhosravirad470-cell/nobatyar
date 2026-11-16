@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ابزار تبدیل Base64 | نوبتیار</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
+  <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0112" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css?v=0170">
+  <style>
+    .tool-card { max-width: 820px; margin: 1.5rem auto; padding: 1.6rem; }
+    .tool-card h1 { font-size: 1.4rem; color: var(--primary); margin-bottom: .4rem; }
+    .tool-card h2 { font-size: 1.05rem; margin-top: 1.4rem; color: var(--primary); }
+    .tool-note { background: #f0f9f8; border: 1px solid #bfe3e0; border-radius: 10px; padding: .9rem 1rem; font-size: .9rem; line-height: 2; color: #1f5c57; margin: .9rem 0; }
+    .tool-warn { background: #fef4ec; border: 1px solid #f3d1b0; border-radius: 10px; padding: .9rem 1rem; font-size: .9rem; line-height: 2; color: #8a4b12; margin: .9rem 0; }
+    .tool-out { width: 100%; min-height: 110px; direction: ltr; text-align: left; font-family: monospace; font-size: .78rem; border: 1px solid #d6dee6; border-radius: 10px; padding: .7rem; background: #fbfdfe; color: #233; word-break: break-all; margin-top: .6rem; }
+    .tool-btn { display: inline-block; border: 0; border-radius: 10px; padding: .65rem 1.3rem; font-family: inherit; font-size: .95rem; cursor: pointer; margin-top: .7rem; background: var(--primary, #123c5c); color: #fff; }
+    .tool-btn.secondary { background: #eef3f7; color: var(--primary, #123c5c); border: 1px solid #cfdce6; }
+    .tool-file { margin-top: .6rem; font-size: .95rem; }
+    .tool-meta { font-size: .85rem; color: #2a7; margin-top: .5rem; line-height: 1.9; }
+    .tool-meta.bad { color: #b3261e; }
+    .tool-code { direction: ltr; display: inline-block; background: #eef3f7; border: 1px solid #d6dee6; border-radius: 6px; padding: .1rem .45rem; font-family: monospace; font-size: .85rem; color: #123c5c; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="card tool-card">
+      <h1>ابزار تبدیل Base64 (کاملاً داخل گوشی شما)</h1>
+      <div class="tool-note">
+        این صفحه هیچ چیزی به سرور یا اینترنت ارسال نمی‌کند. تبدیل base64 صددرصد داخل مرورگر خودتان انجام می‌شود و فایل کلید هرگز از گوشی شما خارج نمی‌شود. برای اطمینان می‌توانید بعد از باز کردن صفحه، اینترنت گوشی را قطع کنید و دوباره تبدیل را انجام دهید — همان نتیجه را می‌گیرید.
+      </div>
+
+      <h2>روش پیشنهادی: انتخاب فایل JSON</h2>
+      <p style="line-height:2; color:var(--muted); font-size:.92rem;">فایل JSON کلید سرویس‌اکانت را که از کنسول Firebase دانلود کرده‌اید (مثلاً <span class="tool-code">nobatyar-dd7f5-xxxxx.json</span>) همین‌جا انتخاب کنید:</p>
+      <input type="file" id="fileInput" class="tool-file" accept=".json,application/json,text/plain">
+      <div id="fileMeta" class="tool-meta" hidden></div>
+      <textarea id="fileOut" class="tool-out" readonly placeholder="خروجی base64 اینجا نمایش داده می‌شود"></textarea>
+      <button type="button" id="copyFile" class="tool-btn" disabled>کپی خروجی base64</button>
+
+      <h2>روش دوم: چسباندن متن JSON</h2>
+      <p style="line-height:2; color:var(--muted); font-size:.92rem;">اگر انتخاب فایل در مرورگر شما راحت نبود، کل محتوای فایل JSON را در کادر زیر بچسبانید (Paste کنید):</p>
+      <textarea id="pasteIn" class="tool-out" style="min-height:130px" placeholder="محتوای کامل فایل JSON را اینجا Paste کنید"></textarea>
+      <button type="button" id="convertPaste" class="tool-btn">تبدیل متن به base64</button>
+      <div id="pasteMeta" class="tool-meta" hidden></div>
+      <textarea id="pasteOut" class="tool-out" readonly placeholder="خروجی base64 اینجا نمایش داده می‌شود"></textarea>
+      <button type="button" id="copyPaste" class="tool-btn" disabled>کپی خروجی base64</button>
+      <button type="button" id="copyMin" class="tool-btn secondary" disabled>کپی JSON تک‌خطی (روش جایگزین)</button>
+      <textarea id="minOut" class="tool-out" readonly hidden></textarea>
+
+      <div class="tool-warn">
+        <b>سه یادآوری امنیتی:</b>
+        <ol style="margin:.5rem .8rem 0 0; padding:0; line-height:2.1;">
+          <li>این فایل کلید محرمانه است؛ آن را در هیچ چت، ایمیل یا سایت ناشناسی Paste نکنید.</li>
+          <li>مقدار base64 فقط در بخش Environment Variables پنل لیارا وارد می‌شود.</li>
+          <li>کلید قبلی (که قبلاً اشتباهی در چت فرستاده شد) باید از کنسول Firebase/Google Cloud حذف (revoke) شود.</li>
+        </ol>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      function bytesToB64(bytes) {
+        var bin = '', CH = 0x8000;
+        for (var i = 0; i < bytes.length; i += CH) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+        }
+        return btoa(bin);
+      }
+      function describe(obj, meta, nbytes) {
+        var pid = obj && typeof obj.project_id === 'string' ? obj.project_id : null;
+        var ok = pid && pid.indexOf('nobatyar') === 0;
+        meta.hidden = false;
+        meta.className = 'tool-meta' + (ok ? '' : ' bad');
+        meta.innerHTML = 'اندازهٔ فایل: ' + nbytes + ' بایت | ' +
+          (pid ? ('project_id شناسایی‌شده: <span class="tool-code">' + pid + '</span> — ' +
+            (ok ? 'درست است، این کلید همان پروژهٔ نوبتیار است.' : 'هشدار: این کلید مربوط به پروژهٔ نوبتیار نیست!'))
+               : 'هشدار: این فایل JSON معتبر سرویس‌اکانت Firebase به نظر نمی‌رسد (project_id پیدا نشد).');
+      }
+      function fail(meta, msg) {
+        meta.hidden = false;
+        meta.className = 'tool-meta bad';
+        meta.textContent = msg;
+      }
+      function copyBtn(btn, ta) {
+        btn.addEventListener('click', function () {
+          var label = btn.textContent;
+          function done() { btn.textContent = 'کپی شد'; setTimeout(function () { btn.textContent = label; }, 1800); }
+          function fallback() {
+            ta.focus(); ta.select();
+            try { document.execCommand('copy'); done(); }
+            catch (e) { window.alert('کپی خودکار ممکن نشد؛ لطفاً متن را دستی انتخاب و کپی کنید.'); }
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(ta.value).then(done, fallback);
+          } else { fallback(); }
+        });
+      }
+      var fileInput = document.getElementById('fileInput');
+      var fileMeta = document.getElementById('fileMeta');
+      var fileOut = document.getElementById('fileOut');
+      var copyFile = document.getElementById('copyFile');
+      fileInput.addEventListener('change', function () {
+        var f = fileInput.files && fileInput.files[0];
+        if (!f) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var bytes = new Uint8Array(reader.result);
+            fileOut.value = bytesToB64(bytes);
+            copyFile.disabled = false;
+            var obj = JSON.parse(new TextDecoder().decode(bytes));
+            describe(obj, fileMeta, bytes.length);
+          } catch (e) {
+            fail(fileMeta, 'خواندن فایل ناموفق بود: ' + (e && e.message ? e.message : e));
+          }
+        };
+        reader.onerror = function () { fail(fileMeta, 'خطا در خواندن فایل؛ دوباره تلاش کنید.'); };
+        reader.readAsArrayBuffer(f);
+      });
+      copyBtn(copyFile, fileOut);
+
+      var pasteIn = document.getElementById('pasteIn');
+      var pasteMeta = document.getElementById('pasteMeta');
+      var pasteOut = document.getElementById('pasteOut');
+      var minOut = document.getElementById('minOut');
+      var copyPaste = document.getElementById('copyPaste');
+      var copyMin = document.getElementById('copyMin');
+      document.getElementById('convertPaste').addEventListener('click', function () {
+        var txt = pasteIn.value.trim();
+        if (!txt) { fail(pasteMeta, 'اول محتوای JSON را در کادر بالا بچسبانید.'); return; }
+        try {
+          var obj = JSON.parse(txt);
+          var min = JSON.stringify(obj);
+          var enc = new TextEncoder().encode(min);
+          pasteOut.value = bytesToB64(enc);
+          minOut.value = min;
+          minOut.hidden = false;
+          copyPaste.disabled = false;
+          copyMin.disabled = false;
+          describe(obj, pasteMeta, enc.length);
+        } catch (e) {
+          fail(pasteMeta, 'متن چسبانده‌شده JSON معتبر نیست — کل محتوای فایل را کامل کپی کنید.');
+        }
+      });
+      copyBtn(copyPaste, pasteOut);
+      copyBtn(copyMin, minOut);
+    })();
+  </script>
+</body>
+</html>

@@ -582,6 +582,13 @@ def book_page():
     return _html("book.html")
 
 
+@app.get("/tools/base64", response_class=HTMLResponse)
+def tools_base64_page():
+    """ابزار داخلی تبدیل base64 (v0.17.0) — کاملاً سمت مرورگر؛
+    فایل کلید سرویس‌اکانت هرگز به سرور ارسال نمی‌شود (بدون ایندکس در موتورهای جست‌وجو)."""
+    return _html("tools_base64.html")
+
+
 @app.get("/clinic/login", response_class=HTMLResponse)
 def clinic_login_page():
     return _html("clinic_login.html")
