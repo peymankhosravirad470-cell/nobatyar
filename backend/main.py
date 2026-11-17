@@ -45,6 +45,7 @@ from booking import (  # noqa: E402
     book_slot_atomic, BookingError, AppointmentSource,
     reschedule_appointment_atomic, add_status_history,
 )
+from time_utils import tehran_now_naive
 from admin_security import generate_connect_code
 import bale_bot
 import referral
@@ -1647,7 +1648,7 @@ def public_free_slots(
     q = db.query(AvailableSlot).filter(
         AvailableSlot.clinic_id == clinic_id,
         AvailableSlot.is_booked == False,
-        AvailableSlot.start_datetime >= datetime.utcnow()
+        AvailableSlot.start_datetime >= tehran_now_naive()
     )
     # v0.11.0: فیلتر پزشک برای درمانگاه چندپزشکی (None = اسلات‌های عمومی مرکز)
     if doctor_id is not None:
@@ -1739,7 +1740,7 @@ def update_appointment_status(
     if data.status == "no_show":
         # صداقت عملیاتی: «عدم حضور» فقط برای نوبتی معنا دارد که وقتش رسیده باشد
         # (۱۰ دقیقه گره هراسی برای اختلاف ساعت سرور)
-        grace = datetime.utcnow() + timedelta(minutes=10)
+        grace = tehran_now_naive() + timedelta(minutes=10)
         if appt.appointment_datetime > grace:
             raise HTTPException(400, "عدم حضور فقط پس از فرا رسیدن وقت نوبت قابل ثبت است")
 

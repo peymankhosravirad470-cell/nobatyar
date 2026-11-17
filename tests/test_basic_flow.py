@@ -4,6 +4,16 @@
 
 import sys
 import os
+import atexit
+import tempfile
+
+# این تست جدول‌ها را حذف می‌کند؛ همیشه باید روی فایل SQLite موقت اجرا شود.
+os.environ.pop("DATABASE_URL", None)
+_fd, _test_db = tempfile.mkstemp(prefix="nobatyar-basic-flow-", suffix=".sqlite3")
+os.close(_fd)
+os.environ["NOBATYAR_DB"] = _test_db
+atexit.register(lambda: os.path.exists(_test_db) and os.remove(_test_db))
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 from fastapi.testclient import TestClient

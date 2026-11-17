@@ -11,7 +11,7 @@
    برای وب هم اعمال می‌شود.
 """
 
-from datetime import datetime
+from time_utils import tehran_now_naive
 
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
@@ -64,7 +64,7 @@ def book_slot_atomic(
         ).first()
         if not slot:
             raise BookingError("slot_missing", "اسلات در دسترس نیست")
-        if slot.start_datetime < datetime.utcnow():
+        if slot.start_datetime < tehran_now_naive():
             raise BookingError("slot_past", "این اسلات گذشته است")
 
         if enforce_patient_limits and patient_national_code:
@@ -155,7 +155,7 @@ def reschedule_appointment_atomic(
         # ---------- اعتبارسنجی نوبت فعلی ----------
         if appointment.status not in APPT_ACTIVE_STATUSES:
             raise BookingError("not_active", "فقط نوبتِ در انتظار تأیید یا تأییدشده قابل تغییر زمان است.")
-        if appointment.appointment_datetime <= datetime.utcnow():
+        if appointment.appointment_datetime <= tehran_now_naive():
             raise BookingError("past_appointment", "نوبت گذشته قابل تغییر زمان نیست؛ آن را لغو کنید.")
 
         # ---------- اعتبارسنجی اسلات جدید ----------
@@ -165,7 +165,7 @@ def reschedule_appointment_atomic(
         ).first()
         if not new_slot:
             raise BookingError("slot_missing", "اسلات جدید در دسترس نیست")
-        if new_slot.start_datetime < datetime.utcnow():
+        if new_slot.start_datetime < tehran_now_naive():
             raise BookingError("slot_past", "اسلات جدید به گذشته تعلق دارد")
         if appointment.slot_id and new_slot.id == appointment.slot_id:
             raise BookingError("same_slot", "اسلات جدید با اسلات فعلی یکسان است")

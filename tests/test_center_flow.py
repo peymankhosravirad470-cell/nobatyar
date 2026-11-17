@@ -341,6 +341,62 @@ check("۴۳. مراکز نمونه با برچسب صریح در فهرست عم
 r = client.get("/api/public/search", params={"q": "نمونه"})
 check("۴۴. جست‌وجوی «نمونه» مراکز دمو را می‌یابد", r.json()["total"] >= 2)
 
+# ==================== ۱۷) fail-closed پس از حذف پزشک ====================
+r = client.post("/api/clinic/doctors", headers=ch,
+                json={"full_name": "پزشک حذف‌شوندهٔ تست", "specialty": "داخلی"})
+check("۴۵. ایجاد پزشک آزمایشی بدون نوبت", r.status_code == 200)
+if r.status_code == 200:
+    _deleted_doc_id = r.json()["id"]
+    r = client.post("/api/clinic/staff", headers=ch, json={
+        "username": "deleted_doctor_staff", "password": "RemovedDoctor#123",
+        "role": "doctor", "doctor_id": _deleted_doc_id,
+    })
+    check("۴۶. ایجاد حساب پزشک آزمایشی", r.status_code == 200)
+    if r.status_code == 200:
+        _login = client.post("/api/clinic/staff/login", json={
+            "username": "deleted_doctor_staff", "password": "RemovedDoctor#123"})
+        _deleted_doctor_headers = {"Authorization": f"Bearer {_login.json()['access_token']}"}
+        _del = client.delete(f"/api/clinic/doctors/{_deleted_doc_id}", headers=ch)
+        check("۴۷. حذف پزشک بدون نوبت موفق است", _del.status_code == 200)
+        if _del.status_code == 200:
+            _leak = client.get("/api/clinic/appointments", headers=_deleted_doctor_headers)
+            check("۴۸. حساب پزشکِ بدون اتصال دسترسی نمی‌گیرد (403)", _leak.status_code == 403)
+
+# ==================== ۱۸) نوبت گذشته با ساعت تهران ====================
+from datetime import timedelta as _timedelta
+from database import SessionLocal as _SessionLocal
+from models import AvailableSlot as _AvailableSlot
+from time_utils import tehran_now_naive as _tehran_now_naive
+from booking import book_slot_atomic as _book_slot_atomic, BookingError as _BookingError
+
+_now = _tehran_now_naive()
+_db = _SessionLocal()
+_stale_slot = _AvailableSlot(
+    clinic_id=center_req["request_id"],
+    start_datetime=_now - _timedelta(minutes=5),
+    end_datetime=_now + _timedelta(minutes=25),
+    is_booked=False,
+)
+_db.add(_stale_slot)
+_db.commit()
+_stale_slot_id = _stale_slot.id
+_db.close()
+
+_public_slots = client.get(f"/api/public/clinics/{center_req['request_id']}/slots")
+check("۴۹. اسلات شروع‌شده در گذشته در فهرست عمومی نیست",
+      _public_slots.status_code == 200 and
+      all(s["id"] != _stale_slot_id for s in _public_slots.json()))
+
+_db = _SessionLocal()
+try:
+    _book_slot_atomic(_db, center_req["request_id"], _stale_slot_id,
+                      "بیمار آزمایشی", "09123336668")
+    check("۵۰. رزرو اسلات گذشته رد می‌شود", False)
+except _BookingError as _err:
+    check("۵۰. رزرو اسلات گذشته رد می‌شود", _err.code == "slot_past")
+finally:
+    _db.close()
+
 # ==================== نتیجه ====================
 failed = [n for n, c in PASS if not c]
 print(f"\n===== {len(PASS) - len(failed)}/{len(PASS)} گام سناریو پاس شد =====")

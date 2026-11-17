@@ -320,6 +320,16 @@ def _role_from_token(credentials, db: Session) -> tuple[Clinic, str, Optional[Cl
         clinic = db.query(Clinic).filter(Clinic.id == staff.clinic_id).first()
         if not clinic or clinic.status != ClinicStatus.approved:
             raise HTTPException(403, "مرکز تأیید نشده است")
+        if staff.role == "doctor":
+            doctor = None
+            if staff.doctor_id is not None:
+                doctor = db.query(Doctor).filter(
+                    Doctor.id == staff.doctor_id,
+                    Doctor.clinic_id == clinic.id,
+                    Doctor.is_active == True,  # noqa: E712
+                ).first()
+            if not doctor:
+                raise HTTPException(403, "حساب پزشک به پزشک فعال متصل نیست")
         return clinic, staff.role, staff
     raise HTTPException(403, "دسترسی مرکز لازم است")
 

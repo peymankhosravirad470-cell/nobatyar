@@ -122,10 +122,16 @@ btns = [b["text"] for row in bale_bot.kb_home() for b in row]
 cbs = [b["callback_data"] for row in bale_bot.kb_home() for b in row
        if "callback_data" in b]  # دکمه‌های URL callback ندارند
 # v0.11.2: دکمهٔ «📣 ارتباط با نوبتیار» اضافه شد (مأموریت ارتباطات)
-check("منو: ۱۴ گزینهٔ قبلی + وب‌سایت + ارتباط با نوبتیار", len(btns) == 15)
+check("منو: لینک سایت و اپ + ۱۴ قابلیت", len(btns) == 16)
 check("منو: دکمهٔ وب‌سایت در ردیف اول با URL رسمی",
       bale_bot.kb_home()[0] == [{"text": "🌐 وب‌سایت نوبتیار",
                                  "url": "https://shirazhealthtour.ir"}])
+check("منو: دکمهٔ دانلود اپ در ردیف دوم",
+      bale_bot.kb_home()[1][0].get("text") == "📥 دانلود اپلیکیشن نوبتیار"
+      and bale_bot.kb_home()[1][0].get("url") == bale_bot.APK_URL)
+check("منو: دکمهٔ دانلود اپ در ردیف دوم",
+      bale_bot.kb_home()[1][0].get("text") == "📥 دانلود اپلیکیشن نوبتیار"
+      and bale_bot.kb_home()[1][0].get("url") == bale_bot.APK_URL)
 order_expected = [
     "🗓 دریافت نوبت", "🔎 جست‌وجوی پزشک و درمانگاه",
     "🧪 آزمایشگاه‌ها", "💊 داروخانه‌ها",
@@ -137,7 +143,7 @@ order_expected = [
     "❓ راهنما و پشتیبانی", "📣 ارتباط با نوبتیار",
 ]
 check("منو: ترتیب کامل (وب‌سایت + همراه بیمار کنار دعوت دوستان)",
-      btns[1:] == order_expected)
+      btns[2:] == order_expected)
 feedback_rows = [r for r in bale_bot.kb_home() if r[0]["text"] == "💬 پیشنهادات و انتقادات"]
 own_row = bool(feedback_rows) and len(feedback_rows[0]) == 1
 check("منو: دکمه پیشنهادات در ردیف کامل مستقل (رفع ایراد کوتاهی متن)", own_row)
