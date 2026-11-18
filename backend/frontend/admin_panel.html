@@ -13,14 +13,6 @@
   <link rel="stylesheet" href="/static/css/style.css?v=0161">
   <link rel="stylesheet" href="/static/css/portal-redesign.css?v=0172">
 
-  <!-- Google tag (gtag.js) — Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-NVWBWMF1E4');
-  </script>
 </head>
 <body class="portal-body portal-admin portal-private portal-dashboard">
   <!-- v0.16.0: نوار بالای native اپ — فقط داخل WebView اپ نمایش داده می‌شود -->
@@ -311,9 +303,8 @@
     <input type="hidden" id="approveClinicId">
     <label>نام کاربری ورود مطب</label>
     <input type="text" id="approveUsername" placeholder="مثلاً clinic1">
-    <label>رمز عبور اولیه (حداقل ۱۲ نویسه)</label>
-    <input type="password" id="approvePassword" placeholder="رمز قوی را تعیین کنید" minlength="12" autocomplete="new-password">
-    <button id="confirmApprove">تأیید و فعال‌سازی</button>
+    <p>پس از تأیید، لینک یک‌بارمصرف ۴۸ ساعته نمایش داده می‌شود؛ مدیر مرکز رمز را خودش در صفحهٔ امن تعیین می‌کند.</p>
+    <button id="confirmApprove">تأیید و صدور لینک امن</button>
     <button class="btn-outline" onclick="document.getElementById('approveModal').classList.add('hidden')">انصراف</button>
   </div>
 
@@ -432,25 +423,21 @@
     function openApprove(id) {
       document.getElementById('approveClinicId').value = id;
       document.getElementById('approveUsername').value = 'clinic' + id;
-      document.getElementById('approvePassword').value = '';
       document.getElementById('approveModal').classList.remove('hidden');
     }
 
     document.getElementById('confirmApprove').onclick = async () => {
       const data = {
         clinic_id: parseInt(document.getElementById('approveClinicId').value),
-        login_username: document.getElementById('approveUsername').value.trim(),
-        password: document.getElementById('approvePassword').value
+        login_username: document.getElementById('approveUsername').value.trim()
       };
-      if (data.password.length < 12) { alert('رمز عبور اولیه باید حداقل ۱۲ نویسه باشد'); return; }
       const res = await fetch('/api/admin/clinics/approve', {
         method: 'POST', headers, body: JSON.stringify(data)
       });
       const json = await res.json();
       document.getElementById('approveModal').classList.add('hidden');
-      document.getElementById('msg').innerHTML = res.ok
-        ? `<div class="alert alert-success">مطب تأیید شد. یوزرنیم: ${esc(data.login_username)}</div>`
-        : _errHtml(json);
+      if (res.ok) showClinicActivationLink(json, `مطب تأیید شد. نام کاربری: ${esc(data.login_username)}؛ مدیر مرکز باید رمز را خودش تنظیم کند.`);
+      else document.getElementById('msg').innerHTML = _errHtml(json);
       loadPending();
     };
 
@@ -763,6 +750,9 @@
       const menuActions = r.public_menu_status === 'pending_review' ? `
         <button class="btn-sm btn-success" onclick="decideClinicMenu(${r.id},'approve')">تأیید و انتشار منو</button>
         <button class="btn-sm" onclick="decideClinicMenu(${r.id},'revision')">درخواست اصلاح منو</button>` : '';
+      const activationActions = r.status !== 'approved' ? '' : r.account_activated
+        ? '<p class="alert alert-success">حساب مدیر مرکز فعال است؛ رمز در اختیار پنل ادمین نیست.</p>'
+        : `<p class="muted">هنوز رمز توسط مدیر مرکز تعیین نشده است. لینک قبلی را می‌توان با صدور لینک تازه باطل کرد.</p><button class="btn-sm" onclick="reissueClinicActivationLink(${r.id})">صدور/تعویض لینک فعال‌سازی</button>`;
       document.getElementById('regDetail').innerHTML = `
         <div class="alert alert-info">
           <h3>${esc(r.name)} — ${REG_STATUS_FA[r.status] || esc(r.status)}</h3>
@@ -804,7 +794,8 @@
           ${r.public_menu_note ? `<p><b>پیام برای مدیر مرکز:</b> ${esc(r.public_menu_note)}</p>` : ''}
           ${draft ? `<p><b>عنوان بخش:</b> ${esc(draft.menu_title || 'منوی اختصاصی مرکز')}</p><p><b>موارد قابل نمایش:</b> ${visibleFeatures.map(esc).join('، ') || 'هیچ‌کدام'}</p><ul>${menuItems || '<li>آیتم سفارشی ثبت نشده</li>'}</ul>` : '<p>منوی اختصاصی هنوز پیکربندی نشده؛ رفتار پیش‌فرض فعلی حفظ می‌شود.</p>'}
           <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0;">${menuActions}</div>
-        </div>`;
+        </div>
+        ${r.status === 'approved' ? `<div class="card"><h3>دسترسی مدیر مرکز</h3>${activationActions}</div>` : ''}`;
       document.getElementById('regDetail').scrollIntoView({ behavior: 'smooth' });
       const hres = await fetch(`/api/admin/registrations/${id}/license-review/history`, { headers });
       const history = hres.ok ? await hres.json() : [];
@@ -857,17 +848,37 @@
       await loadRegistrations(_regState); showRegDetail(id);
     }
 
+    function showClinicActivationLink(result, intro) {
+      const link = window.location.origin + result.activation_path;
+      document.getElementById('msg').innerHTML = `<div class="alert alert-success"><p>${esc(intro)}</p><p>اعتبار: ${Number(result.expires_in_hours || 48)} ساعت. این لینک یک‌بارمصرف است؛ فقط از کانال مورد توافق و امن به مدیر مرکز تحویل دهید، نه در پیام عمومی.</p><div style="display:flex;gap:.4rem;flex-wrap:wrap"><input id="clinicActivationLink" type="text" dir="ltr" readonly value="${esc(link)}" style="flex:1;min-width:220px"><button class="btn-sm" type="button" onclick="copyClinicActivationLink()">کپی لینک</button></div></div>`;
+    }
+
+    async function copyClinicActivationLink() {
+      const input = document.getElementById('clinicActivationLink');
+      if (!input) return;
+      input.focus(); input.select();
+      try { await navigator.clipboard.writeText(input.value); }
+      catch (_) { document.execCommand('copy'); }
+    }
+
     async function regApprove(id) {
       const username = prompt('نام کاربری ورود مدیر مرکز:', 'center' + id);
       if (!username) return;
-      const password = prompt('رمز اولیه پنل مرکز (حداقل ۱۲ نویسه):');
-      if (!password || password.length < 12) { alert('رمز باید حداقل ۱۲ نویسه باشد'); return; }
-      const res = await fetch(`/api/admin/registrations/${id}/approve`, { method: 'POST', headers, body: JSON.stringify({ login_username: username.trim(), password }) });
+      const res = await fetch(`/api/admin/registrations/${id}/approve`, { method: 'POST', headers, body: JSON.stringify({ login_username: username.trim() }) });
       const j = await res.json();
-      document.getElementById('msg').innerHTML = res.ok
-        ? `<div class="alert alert-success">مرکز تأیید شد — حساب مدیر ساخته شد (کد پیگیری: ${esc(j.tracking_code || '')}). رمز اولیه را به مسئول مرکز اعلام کنید.</div>`
-        : _errHtml(j);
-      loadRegistrations('pending');
+      if (res.ok) {
+        showClinicActivationLink(j, `مرکز تأیید شد (کد پیگیری: ${j.tracking_code ? esc(j.tracking_code) : '—'}). مدیر مرکز باید رمز را خودش در صفحهٔ امن تعیین کند.`);
+        await loadRegistrations('approved');
+        showRegDetail(id);
+      } else document.getElementById('msg').innerHTML = _errHtml(j);
+    }
+
+    async function reissueClinicActivationLink(id) {
+      if (!confirm('لینک قبلی باطل و یک لینک تازهٔ ۴۸ ساعته صادر شود؟')) return;
+      const res = await fetch(`/api/admin/registrations/${id}/activation-link`, { method: 'POST', headers });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) showClinicActivationLink(j, 'لینک فعال‌سازی تازه صادر شد.');
+      else document.getElementById('msg').innerHTML = _errHtml(j);
     }
 
     async function regReject(id) {

@@ -65,7 +65,22 @@ class AdminLogin(BaseModel):
 class ClinicApprove(BaseModel):
     clinic_id: int
     login_username: str = Field(..., min_length=4, max_length=50)
-    password: str = Field(..., min_length=12, max_length=128)  # رمز اولیه؛ بدون مقدار پیش‌فرض قابل‌حدس
+    password: Optional[str] = Field(
+        None,
+        description="موقوف: رمز را از پنل ادمین تعیین نکنید؛ مدیر مرکز خودش از لینک یک‌بارمصرف تنظیم می‌کند.",
+        json_schema_extra={"deprecated": True, "writeOnly": True},
+    )
+
+    @field_validator("login_username")
+    @classmethod
+    def _clinic_approve_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if not 4 <= len(normalized) <= 50:
+            raise ValueError("نام کاربری پس از حذف فاصلهٔ ابتدا/انتها باید ۴ تا ۵۰ نویسه باشد")
+        return normalized
+
+    class Config:
+        extra = "forbid"
 
 
 # ---------- Working Hours & Slots ----------
@@ -471,7 +486,37 @@ class RegistrationStatusOut(BaseModel):
 
 class ApproveIn(BaseModel):
     login_username: str = Field(..., min_length=4, max_length=50)
+    password: Optional[str] = Field(
+        None,
+        description="موقوف: رمز را در endpoint تأیید ارسال نکنید؛ مدیر مرکز خودش از لینک یک‌بارمصرف تنظیم می‌کند.",
+        json_schema_extra={"deprecated": True, "writeOnly": True},
+    )
+    class Config:
+        extra = "forbid"
+
+    @field_validator("login_username")
+    @classmethod
+    def _registration_approve_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if not 4 <= len(normalized) <= 50:
+            raise ValueError("نام کاربری پس از حذف فاصلهٔ ابتدا/انتها باید ۴ تا ۵۰ نویسه باشد")
+        return normalized
+
+
+class ClinicAccountActivateIn(BaseModel):
+    token: str = Field(..., min_length=40, max_length=100)
     password: str = Field(..., min_length=12, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def _strong_activation_password(cls, value: str) -> str:
+        if value.strip().lower() in _WEAK_PASSWORDS:
+            raise ValueError("این رمز به‌سادگی حدس زده می‌شود")
+        if not any(char.isalpha() for char in value) or not any(char.isdigit() for char in value):
+            raise ValueError("رمز باید دست‌کم یک حرف و یک رقم داشته باشد")
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("طول رمز از محدودیت امن سامانه بیشتر است")
+        return value
 
 
 class RejectIn(BaseModel):
@@ -628,6 +673,7 @@ class RegistrationAdminOut(BaseModel):
     address: str
     phone: Optional[str] = None
     status: str
+    account_activated: bool = False
     tracking_code: Optional[str] = None
     revision_requested: bool = False
     status_note: Optional[str] = None

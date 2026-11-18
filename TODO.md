@@ -2,7 +2,7 @@
 
 **آخرین به‌روزرسانی:** ۱۴۰۵/۰۸/۲۷
 
-**شاخهٔ کاری:** `ci/pilot-postgres-tests`، بر پایهٔ `feat/appointment-receipt-reference`، بازطراحی `feat/three-portal-redesign` و hardening `fix/commercial-readiness-v0.17.0`
+**شاخهٔ کاری:** `feat/clinic-activation-links`، بر پایهٔ CI پایلوت `ci/pilot-postgres-tests`، رسید بیمار `feat/appointment-receipt-reference`، بازطراحی `feat/three-portal-redesign` و hardening `fix/commercial-readiness-v0.17.0`
 
 **محیط:** preview ایزوله؛ هنوز روی سایت زنده منتشر نشده است.
 
@@ -12,7 +12,9 @@
 - [x] **ورودی مراکز:** `/partners` مسیر مستقل ثبت درخواست، ورود و پیگیری دارد؛ فرم‌های مطب/درمانگاه و پوسته‌های login/panel با همان APIها و احراز هویت فعلی حفظ شده‌اند.
 - [x] **پنل ادمین:** ورود و پنل جدا و `noindex` هستند؛ صف بررسی مجوز، تأیید منو، مدیریت تبلیغ و بخش فهرست مراکز در دسترس‌اند.
 - [x] **مدیریت/حذف ایمن مرکز:** مرکز جدید فقط از ثبت‌نام و بررسی مجوز وارد چرخه می‌شود؛ ادمین می‌تواند دسترسی را فعال/غیرفعال کند؛ «حذف» فیزیکی انجام نمی‌شود تا تاریخچهٔ نوبت و ممیزی باقی بماند. API فهرست، API soft-disable و قفل ورود/نشست/نمایش عمومی افزوده شده‌اند؛ migration افزایشی `0019_clinic_enablement` است.
+- [x] **فعال‌سازی امن مدیر مرکز در هر دو مسیر approval (جدید و legacy):** ادمین فقط نام کاربری را ثبت می‌کند و دیگر رمز اولیه نمی‌گیرد؛ سامانه لینک ۲۵۶-bit یک‌بارمصرف با اعتبار ۴۸ ساعت صادر می‌کند، فقط SHA-256 آن را ذخیره می‌کند، reissue لینک قبلی را باطل می‌کند و مدیر رمز خودش را تنظیم می‌کند. صفحهٔ فعال‌سازی token را در URL fragment نگه می‌دارد و `no-store`/`no-referrer`/`noindex` است؛ رویدادهای صدور/فعال‌سازی بدون token یا رمز audit می‌شوند. UI ادمین وضعیت حساب و صدور/تعویض لینک را نشان می‌دهد. همهٔ مسیرها Clinic را پیش از توکن قفل می‌کنند؛ آزمون PostgreSQL race از token فعال حداکثر یکی و نبود 500/deadlock مطمئن می‌شود. ارسال خودکار پیامک/ایمیل اضافه نشده؛ تحویل لینک فعلاً دستی و خارج از چت عمومی است.
 - [x] **عدم دادهٔ جعلی:** ابزار seed دادهٔ نمایشی از UI و API حذف شد؛ ردیف‌های قدیمیِ دارای نشانگر demo از وب، کاتالوگ، رزرو و ربات پنهان می‌شوند. هیچ مرکز یا پزشک ساختگی به پایگاه دادهٔ تولیدی اضافه نشده است.
+- [x] **اسکریپت ثالث و دادهٔ حساس:** Google Analytics/GTM از صفحه‌های عمومی، رزرو، تماس، login/panel ادمین و مرکز و mirrorهای `docs/` حذف شده است؛ تا وقتی پردازش‌گر analytics و سیاست حریم خصوصی تصمیم‌گیری نشده‌اند، هیچ tracker ثالثی روی این صفحات نیست. تست regression این صفحات را بررسی می‌کند.
 - [x] **هویت بصری:** تصویرسازی 3D سبک در hero، پوستهٔ مشترک RTL و چیدمان موبایل‌محور با Vazirmatn خودمیزبان؛ از بازنویسی framework یا کپی کامل یک سرویس خارجی استفاده نشده است.
 - [x] **بازبینی:** صفحهٔ بیمار و ورودی مراکز در preview دسکتاپ دیده شدند؛ ۳۵ بلوک جاوااسکریپت اجرایی parse شدند؛ `git diff --check` پاک است.
 
@@ -33,7 +35,7 @@
 
 ## آزمون و انتشار
 
-- [x] `run_tests.sh` روی SQLite و PostgreSQL محلی sandbox نسخهٔ **16.15**: **۳۲ فایل، ۳۲ PASS، صفر FAIL، صفر file-level SKIP و صفر VACUOUS**؛ **۹۲۰ گام script-style و ۴۲ تست pytest** موفق. نزاع waitlist، **۱۰۰ دور × ۱۲ درخواست واقعی HTTP** را با ۱۲۰۰ درخواست، ۱۰۰ ثبت یکتا و صفر 500 گذراند. آزمون legacy migration از `0019` به `0020` در PostgreSQL و SQLite، backfill، `NOT NULL` و unique را بررسی کرد؛ matrix بکاپ/بازیابی نیز ۱۴ سناریوی موجود را گذراند. ده زیرسناریوی همان matrix که به فایل‌های واقعی Production نیاز دارند، صریحاً داخل گزارش آزمون SKIP شده‌اند؛ این اجرا staging یا بکاپ واقعی را تأیید نمی‌کند.
+- [x] `run_tests.sh` روی SQLite و PostgreSQL محلی sandbox نسخهٔ **16.15**: **۳۵ فایل، ۳۵ PASS، صفر FAIL، صفر file-level SKIP و صفر VACUOUS**؛ **۹۵۰ گام script-style و ۴۲ تست pytest** موفق. نزاع waitlist، **۱۰۰ دور × ۱۲ درخواست واقعی HTTP** را با ۱۲۰۰ درخواست، ۱۰۰ ثبت یکتا و صفر 500 گذراند. مهاجرت‌های `0019→0020` و `0020→0021` در PostgreSQL و اجرای migration chain تا head در SQLite بررسی شدند؛ آزمون‌ها backfill، `NOT NULL`، hash index یکتا و FK را پوشش می‌دهند. E2E activation شامل rotation، انقضا، single-use، hash-only storage و رقابت approval/reissue/activation است. matrix بکاپ/بازیابی ۱۴ سناریوی موجود را گذراند؛ ده زیرسناریوی نیازمند آرتیفکت واقعی Production داخل همان آزمون صریحاً SKIP شده‌اند؛ این اجرا staging یا بکاپ واقعی را تأیید نمی‌کند.
 - [x] رگرسیون مرکز: **۱۱۰/۱۱۰** گام؛ regression پنهان‌سازی demo و مدیریت مرکز: **۲۳/۲۳**.
 - [x] **CI پایلوت:** workflow محدود `.github/workflows/pilot-tests.yml` در PR #4 اجرا شد؛ هر دو check مربوط به push و pull request موفق شدند (**۲/۲**). SQLite و PostgreSQL 16.15 disposable، فقط `contents: read`، بدون secrets Production یا deploy. این checkها جای staging یا بکاپ واقعی را نمی‌گیرند.
 - [ ] ارتقای staging روی دیتابیس نسخهٔ واقعی و smoke test PostgreSQL؛ آزمون محلی روی PG 16.15 انجام شده، اما staging URL/credential هنوز در دسترس نیست. بررسی بکاپ/rollback واقعی پیش از انتشار نیز باز است.
