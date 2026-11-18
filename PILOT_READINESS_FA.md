@@ -89,8 +89,8 @@
 
 ### CI خودکار pull request
 
-Workflow `.github/workflows/pilot-tests.yml` برای PRهای شاخه‌های پایلوت و push شاخهٔ کاری، کل suite SQLite/PostgreSQL 16.15 را با دیتابیس disposable اجرا می‌کند؛ به secrets Production دسترسی ندارد و فقط مجوز `contents: read` دارد. تا تأیید اجرای موفق GitHub Actions روی PR خودش، این مورد «پیاده‌سازی‌شده، اما هنوز تأییدنشده در GitHub» محسوب می‌شود. این CI staging یا انتشار را انجام نمی‌دهد.
+Workflow `.github/workflows/pilot-tests.yml` برای PRهای شاخه‌های پایلوت و push شاخهٔ کاری، کل suite SQLite/PostgreSQL 16.15 را با دیتابیس disposable اجرا می‌کند؛ به secrets Production دسترسی ندارد و فقط مجوز `contents: read` دارد. روی PR پیش‌نویس **#4** هر دو اجرای `push` و `pull_request` موفق شدند (**۲/۲**). این CI staging یا انتشار را انجام نمی‌دهد.
 
 ## شرط ادغام و انتشار
 
-PR hardening شمارهٔ ۱، PR بازطراحی شمارهٔ ۲ و PR رسید امن شمارهٔ ۳ پیش‌نویس‌اند. آزمون migration `0020_patient_reference` روی PostgreSQL 16.15 محلی انجام شده؛ این **تأیید staging نیست**. **هیچ merge به شاخهٔ اصلی، انتشار Liara، تماس با مراکز یا تغییر دادهٔ زنده انجام نشده است.** قبل از ادغام، migration روی staging نسخهٔ نمایندهٔ PostgreSQL و بکاپ/rollback واقعی آزمون شود؛ سپس مسیرهای ثبت، اصلاح، ورود، رزرو، نمایش/چاپ رسید، FCM، غیرفعال‌سازی و بازیابی حساب smoke test شوند. `/api/appointments` تا انتقال کلاینت‌های قدیمی بازنشسته نشود. اطلاعات پذیرنده/درگاه و سرویس امضای معتبر هنوز دریافت و متصل نشده‌اند.
+PR hardening شمارهٔ ۱، PR بازطراحی شمارهٔ ۲، PR رسید امن شمارهٔ ۳ و PR CI شمارهٔ ۴ پیش‌نویس‌اند. آزمون migration `0020_patient_reference` روی PostgreSQL 16.15 محلی انجام شده؛ این **تأیید staging نیست**. **هیچ merge به شاخهٔ اصلی، انتشار Liara، تماس با مراکز یا تغییر دادهٔ زنده انجام نشده است.** قبل از ادغام، migration روی staging نسخهٔ نمایندهٔ PostgreSQL و بکاپ/rollback واقعی آزمون شود؛ سپس مسیرهای ثبت، اصلاح، ورود، رزرو، نمایش/چاپ رسید، FCM، غیرفعال‌سازی و بازیابی حساب smoke test شوند. `/api/appointments` تا انتقال کلاینت‌های قدیمی بازنشسته نشود. اطلاعات پذیرنده/درگاه و سرویس امضای معتبر هنوز دریافت و متصل نشده‌اند.

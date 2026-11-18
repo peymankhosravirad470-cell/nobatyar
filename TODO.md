@@ -35,6 +35,6 @@
 
 - [x] `run_tests.sh` روی SQLite و PostgreSQL محلی sandbox نسخهٔ **16.15**: **۳۲ فایل، ۳۲ PASS، صفر FAIL، صفر file-level SKIP و صفر VACUOUS**؛ **۹۲۰ گام script-style و ۴۲ تست pytest** موفق. نزاع waitlist، **۱۰۰ دور × ۱۲ درخواست واقعی HTTP** را با ۱۲۰۰ درخواست، ۱۰۰ ثبت یکتا و صفر 500 گذراند. آزمون legacy migration از `0019` به `0020` در PostgreSQL و SQLite، backfill، `NOT NULL` و unique را بررسی کرد؛ matrix بکاپ/بازیابی نیز ۱۴ سناریوی موجود را گذراند. ده زیرسناریوی همان matrix که به فایل‌های واقعی Production نیاز دارند، صریحاً داخل گزارش آزمون SKIP شده‌اند؛ این اجرا staging یا بکاپ واقعی را تأیید نمی‌کند.
 - [x] رگرسیون مرکز: **۱۱۰/۱۱۰** گام؛ regression پنهان‌سازی demo و مدیریت مرکز: **۲۳/۲۳**.
-- [ ] **CI پایلوت:** workflow محدود `.github/workflows/pilot-tests.yml` برای هر PR شاخه‌های نوبتیار، SQLite و PostgreSQL 16.15 disposable را اجرا می‌کند و فقط `contents: read` می‌خواهد؛ پس از اجرای موفق GitHub Actions تیک می‌خورد.
+- [x] **CI پایلوت:** workflow محدود `.github/workflows/pilot-tests.yml` در PR #4 اجرا شد؛ هر دو check مربوط به push و pull request موفق شدند (**۲/۲**). SQLite و PostgreSQL 16.15 disposable، فقط `contents: read`، بدون secrets Production یا deploy. این checkها جای staging یا بکاپ واقعی را نمی‌گیرند.
 - [ ] ارتقای staging روی دیتابیس نسخهٔ واقعی و smoke test PostgreSQL؛ آزمون محلی روی PG 16.15 انجام شده، اما staging URL/credential هنوز در دسترس نیست. بررسی بکاپ/rollback واقعی پیش از انتشار نیز باز است.
 - [ ] انتشار کنترل‌شدهٔ شاخهٔ بازطراحی و سپس smoke test روی دامنهٔ نهایی؛ هیچ تغییری روی production در این مرحله انجام نشده است.
