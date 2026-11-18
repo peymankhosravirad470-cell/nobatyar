@@ -46,7 +46,8 @@ from booking import (  # noqa: E402
     reschedule_appointment_atomic, add_status_history,
 )
 from time_utils import tehran_now_naive
-from admin_security import generate_connect_code
+from clinic_menu import public_clinic_visibility_clause
+from admin_security import generate_connect_code, record_security_event
 import bale_bot
 import referral
 import centers
@@ -627,6 +628,7 @@ def specialty_page(slug: str, request: _Request, db: Session = Depends(get_db)):
     clinics = db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).all()
     from catalog import _clinic_matches_specialty  # تطبیق نرمال‌سازی‌شدهٔ فارسی
     matched = [c for c in clinics if _clinic_matches_specialty(c, sp)]
@@ -674,6 +676,7 @@ def doctor_page(doctor_id: int, request: _Request, db: Session = Depends(get_db)
             Clinic.id == doc.clinic_id,
             Clinic.status == ClinicStatus.approved,
             Clinic.subscription_status == SubscriptionStatus.active,
+            public_clinic_visibility_clause(),
         ).first()
     if not doc or not clinic:
         return _not_found(request, "پروفایل پزشک یافت نشد یا فعال نیست")
@@ -704,6 +707,7 @@ def center_page(clinic_id: int, request: _Request, db: Session = Depends(get_db)
         Clinic.id == clinic_id,
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         return _not_found(request, "مرکز مورد نظر یافت نشد یا فعال نیست")
@@ -810,6 +814,7 @@ def sitemap_xml():
             clinics = db.query(Clinic).filter(
                 Clinic.status == ClinicStatus.approved,
                 Clinic.subscription_status == SubscriptionStatus.active,
+                public_clinic_visibility_clause(),
             ).all()
             ids = [c.id for c in clinics]
             for cid in ids:
@@ -895,7 +900,8 @@ def list_public_clinics(
     """فقط مراکز تأییدشده و فعال؛ فیلتر اختیاری نوع (clinic/office) و جست‌وجوی فارسی"""
     q = db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
-        Clinic.subscription_status == SubscriptionStatus.active
+        Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     )
     if type in ("clinic", "office"):
         q = q.filter(Clinic.type == type)
@@ -925,6 +931,7 @@ def get_clinic(clinic_id: int, db: Session = Depends(get_db)):
         Clinic.id == clinic_id,
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد یا غیرفعال است")
@@ -1491,14 +1498,42 @@ def reject_clinic(
     return {"message": "مطب رد شد"}
 
 
+@app.get("/api/admin/clinics")
+def admin_list_clinics(
+    limit: int = 200,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """فهرست محدودشدهٔ مرکزها برای مدیریت؛ بدون حذف فیزیکی یا PII غیرضروری."""
+    limit = max(1, min(limit, 500))
+    rows = db.query(Clinic).order_by(
+        Clinic.created_at.desc(), Clinic.id.desc()
+    ).limit(limit).all()
+    return [
+        {
+            "id": clinic.id,
+            "name": clinic.name,
+            "specialty": clinic.specialty,
+            "type": clinic.type,
+            "city": clinic.city,
+            "status": clinic.status.value,
+            "subscription_status": clinic.subscription_status.value,
+            "is_enabled": clinic.is_enabled,
+            "created_at": clinic.created_at.isoformat() if clinic.created_at else None,
+        }
+        for clinic in rows
+    ]
+
+
 @app.patch("/api/admin/clinics/{clinic_id}", response_model=ClinicOut)
 def admin_update_clinic(
     clinic_id: int,
     data: ClinicAdminUpdate,
+    request: Request,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """بروزرسانی ادمینی مرکز: نوع (درمانگاه/مطب)، نام پزشک، وضعیت اشتراک"""
+    """بروزرسانی ادمینی مرکز؛ غیرفعال‌سازی soft و بدون حذف سوابق است."""
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد")
@@ -1508,8 +1543,19 @@ def admin_update_clinic(
         clinic.doctor_name = data.doctor_name.strip()[:100] or None
     if data.subscription_status is not None:
         clinic.subscription_status = SubscriptionStatus(data.subscription_status)
+    enabled_state_changed = data.is_enabled is not None and clinic.is_enabled != data.is_enabled
+    if data.is_enabled is not None:
+        clinic.is_enabled = data.is_enabled
     db.commit()
     db.refresh(clinic)
+    if enabled_state_changed:
+        event_type = "admin_clinic_enabled" if clinic.is_enabled else "admin_clinic_disabled"
+        record_security_event(
+            event_type,
+            username=admin.username,
+            ip=client_ip(request),
+            detail=f"clinic_id={clinic.id}",
+        )
     return clinic
 
 
@@ -1525,6 +1571,8 @@ def clinic_login(data: ClinicLogin, request: Request, db: Session = Depends(get_
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
     if clinic.status != ClinicStatus.approved:
         raise HTTPException(403, "مطب هنوز تأیید نشده است")
+    if not clinic.is_enabled:
+        raise HTTPException(403, "دسترسی مرکز غیرفعال شده است")
     login_clear(data.username, ip)
     token = create_access_token({"sub": clinic.id, "role": "clinic"})
     return {
@@ -1688,7 +1736,8 @@ def public_free_slots(
     clinic = db.query(Clinic).filter(
         Clinic.id == clinic_id,
         Clinic.status == ClinicStatus.approved,
-        Clinic.subscription_status == SubscriptionStatus.active
+        Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد یا غیرفعال است")
@@ -1721,6 +1770,7 @@ def create_appointment(data: AppointmentCreate, request: Request, db: Session = 
         Clinic.id == data.clinic_id,
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         raise HTTPException(404, "مرکز یافت نشد یا غیرفعال است")
@@ -1907,6 +1957,7 @@ def join_waitlist(
         Clinic.id == clinic_id,
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         raise HTTPException(404, "مرکز یافت نشد یا غیرفعال است")
@@ -2278,111 +2329,3 @@ def admin_list_companions(
             } for r in rows
         ],
     }
-
-
-# ==================== v0.11.0: دادهٔ نمایشی (نسخه Demo — صریحاً آزمایشی) ====================
-
-_DEMO_MARKER = "نمونه — نسخه نمایشی"
-
-
-def _demo_slot(db: Session, clinic, doctor_id, day_offset, hour, minute, duration_min=30):
-    from datetime import timedelta as _td
-    start = datetime.utcnow().replace(minute=0, second=0, microsecond=0) + _td(days=day_offset)
-    start = start.replace(hour=hour, minute=minute)
-    slot = AvailableSlot(clinic_id=clinic.id, doctor_id=doctor_id,
-                         start_datetime=start, end_datetime=start + _td(minutes=duration_min),
-                         is_booked=False)
-    db.add(slot)
-    return slot
-
-
-@app.post("/api/admin/demo/seed")
-def admin_seed_demo_data(
-    admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """ایجاد دادهٔ نمایشی برای ارائهٔ حضوری — صریحاً برچسب «نمونه — نسخه نمایشی».
-
-    - یک درمانگاه نمونهٔ چندپزشکی + یک مطب نمونه
-    - نوبت آزمایشی ثبت نمی‌شود (فقط اسلات آزاد) تا آمار واقعی آلوده نشود
-    - اجرای تکراری: قبلی‌ها را پاک و از نو می‌سازد (idempotent برای دمو)
-    """
-    created = {"clinics": 0, "doctors": 0, "slots": 0}
-    old_ids = [c.id for c in db.query(Clinic).filter(
-        Clinic.name.like(f"%{_DEMO_MARKER}%")).all()]
-    if old_ids:
-        db.query(AvailableSlot).filter(AvailableSlot.clinic_id.in_(old_ids)).delete()
-        db.query(WorkingHour).filter(WorkingHour.clinic_id.in_(old_ids)).delete()
-        for c in db.query(Clinic).filter(Clinic.id.in_(old_ids)).all():
-            db.delete(c)
-        db.flush()
-
-    def make_center(name, spec, ctype, addr, doctors, wh_days):
-        c = Clinic(
-            name=name, specialty=spec, type=ctype, address=addr,
-            phone="07130000000", status=ClinicStatus.approved,
-            subscription_status=SubscriptionStatus.active,
-            subscription_expires_at=datetime.utcnow() + timedelta(days=30),
-            province="فارس", city="شیراز",
-            manager_name="مدیر نمونه", manager_mobile="09120000000",
-            working_hours_text="شنبه تا چهارشنبه ۱۷ تا ۲۱ (نمونه)",
-            services_text="ویزیت و مشاوره (نمونه)",
-            booking_method="slot",
-            capacity_note="اسلات‌های ۳۰ دقیقه‌ای نمونه",
-            documents_note="مجوز نمونه برای نمایش",
-        )
-        db.add(c)
-        db.flush()
-        docs = []
-        for fname, fspec in doctors:
-            d = Doctor(clinic_id=c.id, full_name=fname, specialty=fspec)
-            db.add(d)
-            db.flush()
-            docs.append(d)
-            created["doctors"] += 1
-        for day, s_h, e_h in wh_days:
-            db.add(WorkingHour(clinic_id=c.id, day_of_week=day,
-                               start_time=time(s_h, 0), end_time=time(e_h, 0),
-                               slot_duration_minutes=30))
-        for off in (1, 2, 3):
-            for d in docs:
-                for h, mn in ((17, 0), (17, 30), (18, 0), (18, 30)):
-                    _demo_slot(db, c, d.id, off, h, mn)
-                    created["slots"] += 1
-        created["clinics"] += 1
-        return c
-
-    make_center(
-        "درمانگاه سلامت پارس " + _DEMO_MARKER, "چندتخصصی", "clinic",
-        "شیراز، بلوار نمونهٔ نمایشی، پلاک ۱ (داده آزمایشی)",
-        [("دکتر زهرا کریمی (نمونه)", "داخلی"),
-         ("دکتر علی محمدی (نمونه)", "ارتوپدی"),
-         ("دکتر سارا احمدی (نمونه)", "زنان و زایمان")],
-        [(0, 17, 21), (1, 17, 21), (2, 17, 21), (3, 17, 21)],
-    )
-    make_center(
-        "مطب دکتر رضا نوری " + _DEMO_MARKER, "قلب و عروق", "office",
-        "شیراز، خیابان نمونهٔ نمایشی، پلاک ۲ (داده آزمایشی)",
-        [("دکتر رضا نوری (نمونه)", "قلب و عروق")],
-        [(0, 17, 20), (2, 17, 20), (4, 17, 20)],
-    )
-    db.commit()
-    return {"message": "دادهٔ نمایشی ساخته شد (برچسب: " + _DEMO_MARKER + ")",
-            **created}
-
-
-@app.delete("/api/admin/demo/seed")
-def admin_clear_demo_data(
-    admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """پاک‌کردن کامل دادهٔ نمایشی — فقط رکوردهای برچسب‌دار."""
-    old_ids = [c.id for c in db.query(Clinic).filter(
-        Clinic.name.like(f"%{_DEMO_MARKER}%")).all()]
-    if old_ids:
-        db.query(AvailableSlot).filter(AvailableSlot.clinic_id.in_(old_ids)).delete()
-        db.query(WorkingHour).filter(WorkingHour.clinic_id.in_(old_ids)).delete()
-        for c in db.query(Clinic).filter(Clinic.id.in_(old_ids)).all():
-            db.delete(c)
-        db.commit()
-    return {"message": f"{len(old_ids)} مرکز نمونه پاک شد."}

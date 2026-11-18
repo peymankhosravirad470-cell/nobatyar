@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Clinic, Doctor, AvailableSlot, ClinicStatus, SubscriptionStatus
-from clinic_menu import effective_public_menu as _effective_public_menu
+from clinic_menu import effective_public_menu as _effective_public_menu, public_clinic_visibility_clause
 from catalog_data import specialty_by_slug, search_symptoms, EMERGENCY_KEYS
 from catalog_data import SPECIALTIES
 from fa_utils import normalize_fa
@@ -31,6 +31,7 @@ def _approved_clinics(db: Session):
     return db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).all()
 
 
@@ -187,6 +188,7 @@ def doctor_profile(doctor_id: int, db: Session = Depends(get_db)):
         Clinic.id == doc.clinic_id,
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         raise HTTPException(404, "مرکز پزشک فعال نیست")

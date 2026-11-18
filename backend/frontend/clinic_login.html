@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <script>(function(){try{var f=location.search.indexOf('app=1')>-1||window.NOBATYAR_APP===true||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());if(f){document.documentElement.classList.add('app-mode');document.addEventListener('click',function(ev){try{var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;if(!a)return;var href=a.getAttribute('href')||'';if(!href||href.charAt(0)!=='/'||href.charAt(1)==='/'||href.indexOf('app=1')>-1||href.indexOf(':')>-1)return;a.setAttribute('href',href+(href.indexOf('?')>-1?'&app=1':'?app=1'));}catch(e){}},true);}}catch(e){}})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
   <title>ورود مطب | نوبتیار</title>
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0140" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/style.css?v=0161">
+  <link rel="stylesheet" href="/static/css/portal-redesign.css?v=0172">
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -20,51 +22,22 @@
     gtag('config', 'G-NVWBWMF1E4');
   </script>
 </head>
-<body>
+<body class="portal-body portal-center portal-private portal-auth-page">
   <!-- v0.16.0: نوار بالای native اپ — فقط داخل WebView اپ نمایش داده می‌شود -->
   <div id="app-topbar" class="app-topbar">
     <img src="/static/img/favicon-64.png" alt="لوگوی نوبتیار" class="app-topbar-mark" width="30" height="30">
     <span class="app-topbar-title" id="appTopbarTitle">نوبتیار</span>
   </div>
   <script>(function(){function s(){try{var el=document.getElementById('appTopbarTitle');if(!el)return;var m={'/':'خانه','/book':'رزرو نوبت','/contact':'تماس با ما','/specialties':'تخصص‌ها','/magazine':'مجله سلامت','/about':'دربارهٔ نوبتیار','/faq':'پرسش‌های متداول','/complaints':'شکایات و پیگیری','/partners':'همکاری با ما','/register':'ثبت‌نام مراکز','/terms':'قوانین استفاده','/privacy':'حریم خصوصی','/cancellation':'لغو و تغییر نوبت','/admin/login':'ورود مدیر','/admin/panel':'پنل مدیریت','/clinic/login':'ورود مرکز','/clinic/panel':'پنل مرکز'};var h=location.pathname.replace(/\/+$/,'')||'/';var n=m[h]||'';if(!n){var h1=document.querySelector('main h1, h1');n=(h1&&h1.textContent||'').trim();}if(!n){var t=document.title||'نوبتیار';var i=t.indexOf('|');n=(i>-1?t.slice(0,i):t).trim()||'نوبتیار';}el.textContent=n;}catch(e){}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',s);}else{s();}})();</script>
-  <header class="site-header site-header-v3">
-    <div class="brand-band">
-      <div class="container brand-band-inner">
-        <a href="/" class="brand-lockup" aria-label="نوبتیار — صفحهٔ اصلی">
-          <picture>
-            <source type="image/webp" srcset="/static/img/nobatyar-mark.webp">
-            <img src="/static/img/nobatyar-mark.png" alt="لوگوی رسمی نوبتیار" class="brand-mark" width="62" height="40">
-          </picture>
-          <span class="brand-lockup-text"><b>نوبتیار</b><small>همراه هوشمند سلامت در شیراز</small></span>
-        </a>
-        <div class="brand-band-cta">
-          <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener" class="btn-ghost">ربات بله</a>
-          <a href="/book" class="btn-grad">رزرو نوبت آنلاین</a>
-        </div>
-      </div>
-    </div>
-    <div class="nav-band">
-      <div class="container">
-        <button type="button" class="nav-burger" aria-expanded="false" aria-controls="mainnav">
-          <span></span><span></span><span></span>
-          <span class="sr-only">باز و بسته کردن منو</span>
-        </button>
-        <nav class="main-nav" id="mainnav" aria-label="منوی اصلی">
-        <a href="/">خانه</a>
-        <a href="/specialties">تخصص‌ها</a>
-        <a href="/book">رزرو نوبت</a>
-        <a href="/magazine">مجله سلامت</a>
-        <a href="/complaints">شکایات و پیگیری</a>
-        <a href="/partners">ویژه پزشکان و درمانگاه‌ها</a>
-        <a href="/contact">تماس با ما</a>
-        <a href="https://ble.ir/nobatyarshirazbot" target="_blank" rel="noopener">ربات بله</a>
-        <a href="/register" class="nav-cta">ثبت‌نام مراکز</a>
-        </nav>
-      </div>
+  <header class="portal-header">
+    <div class="container portal-header-inner">
+      <a href="/partners" class="portal-brand" aria-label="درگاه مراکز نوبتیار"><img src="/static/img/nobatyar-mark.webp" alt=""><span class="portal-brand-copy"><strong>نوبتیار</strong><small>ورود مرکز درمانی</small></span></a>
+      <nav class="portal-nav" aria-label="درگاه مراکز"><a href="/partners">فرآیند همکاری</a><a href="/register">ثبت‌نام و پیگیری</a></nav>
+      <a class="portal-return" href="/">سایت بیماران</a>
     </div>
   </header>
-  <main class="container">
-    <div class="card" style="max-width: 400px; margin: 2rem auto;">
+  <main class="container portal-auth-main">
+    <div class="card portal-auth-card">
       <h1 style="margin-bottom:1rem;color:var(--primary);font-size:1.25rem;">ورود به پنل مطب</h1>
       <div id="msg"></div>
       <form id="loginForm">

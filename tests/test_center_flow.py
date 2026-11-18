@@ -659,14 +659,9 @@ r = client.post("/api/clinic/slots/generate", headers=oh,
                       "to_date": str(_off_target)})
 check("۴۱. مطب مستقل: اسلات عمومی (بدون انتخاب پزشک) ساخته شد", r.status_code == 200 and r.json()["created"] > 0)
 
-# ==================== ۱۶) دادهٔ نمایشی (برچسب صریح) ====================
+# ==================== ۱۶) منع دادهٔ نمایشی در محصول ====================
 r = client.post("/api/admin/demo/seed", headers=ah2)
-check("۴۲. دادهٔ نمایشی ساخته شد", r.status_code == 200 and r.json()["clinics"] == 2, r.text[:200])
-r = client.get("/api/clinics/public")
-demo_in_public = [x for x in r.json() if "نمونه — نسخه نمایشی" in x["name"]]
-check("۴۳. مراکز نمونه با برچسب صریح در فهرست عمومی‌اند", len(demo_in_public) >= 2)
-r = client.get("/api/public/search", params={"q": "نمونه"})
-check("۴۴. جست‌وجوی «نمونه» مراکز دمو را می‌یابد", r.json()["total"] >= 2)
+check("۴۲. API ساخت دادهٔ نمایشی از محصول حذف شده", r.status_code == 404, r.text[:200])
 
 # ==================== ۱۷) fail-closed پس از حذف پزشک ====================
 r = client.post("/api/clinic/doctors", headers=ch,

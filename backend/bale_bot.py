@@ -38,6 +38,7 @@ import httpx
 from sqlalchemy import update
 
 from database import SessionLocal
+from clinic_menu import public_clinic_visibility_clause
 from models import (
     Clinic, Doctor, AvailableSlot, Appointment, Admin, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
@@ -291,6 +292,7 @@ def _active_query(db):
     return db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     )
 
 

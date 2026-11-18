@@ -155,6 +155,9 @@ class Clinic(Base):
         index=True
     )
     subscription_expires_at = Column(DateTime, nullable=True)
+    # Soft-disable by admins: public access and existing clinic sessions are blocked,
+    # but appointment and review history remains intact.
+    is_enabled = Column(Boolean, nullable=False, default=True, server_default=text("true"))
 
     # ---------- v0.11.0: سامانه ثبت‌نام مراکز ----------
     manager_name = Column(String(100), nullable=True)          # نام مدیر/مسئول مرکز

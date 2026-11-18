@@ -280,10 +280,11 @@ class FeedbackReply(BaseModel):
 
 
 class ClinicAdminUpdate(BaseModel):
-    """بروزرسانی ادمین: نوع مرکز، نام پزشک، وضعیت اشتراک"""
+    """بروزرسانی ادمین: نوع مرکز، نام پزشک، وضعیت اشتراک و فعال‌بودن سرویس."""
     type: Optional[str] = Field(None, pattern="^(clinic|office)$")
     doctor_name: Optional[str] = Field(None, max_length=100)
     subscription_status: Optional[str] = Field(None, pattern="^(active|inactive)$")
+    is_enabled: Optional[bool] = None
 
 
 # ---------- امنیت پنل: تغییر رمز ----------
