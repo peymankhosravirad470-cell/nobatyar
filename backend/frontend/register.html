@@ -210,6 +210,7 @@
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const STATUS_FA = { pending: 'در انتظار بررسی', approved: 'تأیید شده', rejected: 'رد شده' };
+    const RESUBMIT_KEY = 'nobatyar_registration_resubmit_v1';
     document.getElementById('stForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target, out = document.getElementById('stResult'), msg = document.getElementById('msg');
@@ -219,10 +220,24 @@
         const j = await res.json();
         if (!res.ok) { out.innerHTML = `<div class="alert alert-error">${esc(typeof j.detail === 'string' ? j.detail : 'یافت نشد')}</div>`; return; }
         const note = j.status_note ? `<p><b>پاسخ تیم بررسی:</b> ${esc(j.status_note)}</p>` : '';
+        const canResume = j.revision_requested && (j.type === 'office' || j.type === 'clinic');
         const hint = (j.status === 'rejected') ? '<p>برای ثبت‌نام مجدد می‌توانید از فرم مربوطه استفاده کنید.</p>'
-          : (j.revision_requested ? '<p>لطفاً موارد اعلام‌شده را اصلاح و از طریق فرم همان مسیر، درخواست را دوباره ارسال کنید.</p>' : '');
+          : (canResume ? '<p>برای ارسال اصلاحات، اطلاعات فرم مربوطه را دوباره وارد کنید؛ درخواست قبلی به‌روزرسانی می‌شود، نه اینکه درخواست تازه‌ای ساخته شود.</p><button type="button" class="btn btn-outline btn-sm" id="resumeRegistration">اصلاح و ارسال مجدد</button>'
+            : (j.revision_requested ? '<p>برای راهنمایی دربارهٔ اصلاح این درخواست با نوبتیار تماس بگیرید.</p>' : ''));
         out.innerHTML = `<div class="alert ${j.status === 'approved' ? 'alert-success' : 'alert-info'}">
           <p><b>${esc(j.name)}</b> — وضعیت: <b>${STATUS_FA[j.status] || esc(j.status)}</b></p>${note}${hint}</div>`;
+        if (canResume) {
+          document.getElementById('resumeRegistration').addEventListener('click', () => {
+            try {
+              sessionStorage.setItem(RESUBMIT_KEY, JSON.stringify({
+                request_id: j.request_id, code: f.code.value.trim(), type: j.type
+              }));
+              window.location.href = j.type === 'office' ? '/register/office' : '/register/clinic';
+            } catch (err) {
+              out.insertAdjacentHTML('beforeend', '<p class="alert alert-error">مرورگر اجازهٔ ادامهٔ اصلاح را نداد؛ صفحه را در مرورگر اصلی باز کنید.</p>');
+            }
+          });
+        }
       } catch (err) { out.innerHTML = '<div class="alert alert-error">خطای شبکه</div>'; }
     });
   </script>

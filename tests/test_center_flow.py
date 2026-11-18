@@ -57,8 +57,11 @@ def office_payload(**over):
         "manager_name": "مسئول آزمایشی", "manager_mobile": "09121110000",
         "landline_phone": "07132223344",
         "working_hours_text": "شنبه و دوشنبه ۱۷ تا ۲۰",
+        "working_days": "شنبه، دوشنبه",
         "booking_method": "slot",
         "documents_note": "پروانه مطب (شماره آزمایشی)",
+        "registration_contact_name": "پذیرش آزمایشی",
+        "registration_contact_phone": "09123334444",
         "doctor_name": "دکتر تستی", "medical_number": "123456",
     }
     p.update(over)
@@ -118,13 +121,24 @@ check("۴. درمانگاه بدون پزشک رد می‌شود (اعتبارس
 
 # ==================== ۳) ورود درخواست‌ها به پنل مدیریت ====================
 ah = admin_token()
+legacy_pending = client.get("/api/admin/clinics/pending", headers=ah)
+check("مسیر قدیمی ادمین درخواست‌های دارای کد پیگیری را نشان نمی‌دهد",
+      legacy_pending.status_code == 200 and all(
+          x["id"] not in {office_req["request_id"], center_req["request_id"]}
+          for x in legacy_pending.json()))
+legacy_approve = client.post("/api/admin/clinics/approve", headers=ah, json={
+    "clinic_id": office_req["request_id"], "login_username": "safe_clinic_user",
+    "password": "SafeInitialPass#2026",
+})
+check("مسیر قدیمی نمی‌تواند درخواست جدید را تأیید کند", legacy_approve.status_code == 409)
 r = client.get("/api/admin/registrations", headers=ah)
 check("۵. پنل مدیریت هر دو درخواست را می‌بیند",
       r.status_code == 200 and {x["id"] for x in r.json()} == {office_req["request_id"], center_req["request_id"]})
 r = client.get(f"/api/admin/registrations/{center_req['request_id']}", headers=ah)
 det = r.json()
 check("۶. جزئیات کامل درخواست (مدیر، پزشکان، مدارک)",
-      det["manager_name"] and len(det["doctors"]) == 3 and det["documents_note"])
+      det["manager_name"] and len(det["doctors"]) == 3 and det["documents_note"]
+      and det["center_type"] == "درمانگاه روزانه" and det["departments"] == "داخلی، ارتوپدی")
 
 # ==================== ۴) رد با دلیل + استعلام متقاضی ====================
 r = client.post(f"/api/admin/registrations/{office_req['request_id']}/reject",
@@ -134,10 +148,38 @@ r = client.get(f"/api/clinics/requests/{office_req['request_id']}/status",
                params={"code": office_req["tracking_code"]})
 st = r.json()
 check("۸. متقاضی دلیل رد را با کد پیگیری می‌بیند",
-      st["status"] == "rejected" and "مدارک ناقص" in (st["status_note"] or ""))
+      st["status"] == "rejected" and st["type"] == "office"
+      and "مدارک ناقص" in (st["status_note"] or ""))
 r = client.get(f"/api/clinics/requests/{office_req['request_id']}/status",
                params={"code": "NB-WRONGCODE"})
 check("۹. کد پیگیری اشتباه → 404 (بدون افشا)", r.status_code == 404)
+
+# اصلاحِ درخواست مطب باید همان رکورد را به‌روزرسانی کند و درخواست تکراری نسازد.
+r = client.post("/api/clinics/register/office", json=office_payload(name="مطب اصلاحی آزمایشی"))
+office_revision_req = r.json()
+r = client.post(f"/api/admin/registrations/{office_revision_req['request_id']}/revision",
+                json={"reason": "لطفاً ساعات کاری را اصلاح کنید."}, headers=ah)
+check("۹.۱ درخواست اصلاح مطب ثبت شد", r.status_code == 200)
+r = client.post(f"/api/clinics/requests/{office_revision_req['request_id']}/resubmit",
+                params={"code": office_revision_req["tracking_code"]}, json=center_payload())
+check("۹.۲ فرم نامنطبق درمانگاه برای درخواست مطب رد شد", r.status_code == 422)
+r = client.post(f"/api/clinics/requests/{office_revision_req['request_id']}/resubmit",
+                params={"code": office_revision_req["tracking_code"]},
+                json=office_payload(name="مطب اصلاح‌شدهٔ آزمایشی", working_hours_text="یکشنبه ۱۸ تا ۲۰",
+                                    working_days="پنج‌شنبه"))
+check("۹.۳ مطب می‌تواند همان درخواست را اصلاح و دوباره ارسال کند",
+      r.status_code == 200 and r.json()["request_id"] == office_revision_req["request_id"]
+      and r.json()["tracking_code"] == office_revision_req["tracking_code"])
+r = client.get(f"/api/clinics/requests/{office_revision_req['request_id']}/status",
+               params={"code": office_revision_req["tracking_code"]})
+check("۹.۴ پس از اصلاح، درخواست مطب دوباره در انتظار بررسی است",
+      r.status_code == 200 and r.json()["status"] == "pending"
+      and not r.json()["revision_requested"] and r.json()["name"] == "مطب اصلاح‌شدهٔ آزمایشی")
+r = client.get(f"/api/admin/registrations/{office_revision_req['request_id']}", headers=ah)
+check("۹.۵ روزهای کاری فرم مطب پس از resubmit ذخیره و برای ادمین قابل مشاهده است",
+      r.status_code == 200 and r.json()["working_days"] == "پنج‌شنبه"
+      and r.json()["registration_contact_name"] == "پذیرش آزمایشی"
+      and r.json()["registration_contact_phone"] == "09123334444")
 
 # درخواست اصلاح روی درمانگاه + resubmit
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/revision",
@@ -146,9 +188,18 @@ check("۱۰. درخواست اصلاح ثبت شد", r.status_code == 200)
 r = client.post(f"/api/clinics/requests/{center_req['request_id']}/resubmit",
                 params={"code": center_req["tracking_code"]},
                 json=center_payload(documents_note="مجوز رسمی شماره 12345 (تکمیل‌شده)"))
-check("۱۱. اصلاح و ارسال مجدد → در انتظار بررسی", r.status_code == 200)
+check("۱۱. اصلاح درمانگاه همان شناسه و کد پیگیری را نگه می‌دارد",
+      r.status_code == 200 and r.json()["request_id"] == center_req["request_id"]
+      and r.json()["tracking_code"] == center_req["tracking_code"])
+r = client.get(f"/api/admin/registrations/{center_req['request_id']}", headers=ah)
+check("۱۱.۱ فیلدهای اختصاصی درمانگاه پس از resubmit ذخیره می‌مانند",
+      r.status_code == 200 and r.json()["center_type"] == "درمانگاه روزانه"
+      and r.json()["departments"] == "داخلی، ارتوپدی")
 
 # ==================== ۵) تأیید مرکز ====================
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
+                json={"login_username": "pars_center", "password": "WeakPass123"}, headers=ah)
+check("رمز ۱۱ نویسه‌ای در endpoint تأیید جدید رد می‌شود", r.status_code == 422)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
                 json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
 check("۱۲. تأیید مرکز + ساخت حساب مدیر", r.status_code == 200, r.text[:200])
@@ -340,6 +391,62 @@ demo_in_public = [x for x in r.json() if "نمونه — نسخه نمایشی" 
 check("۴۳. مراکز نمونه با برچسب صریح در فهرست عمومی‌اند", len(demo_in_public) >= 2)
 r = client.get("/api/public/search", params={"q": "نمونه"})
 check("۴۴. جست‌وجوی «نمونه» مراکز دمو را می‌یابد", r.json()["total"] >= 2)
+
+# ==================== ۱۷) fail-closed پس از حذف پزشک ====================
+r = client.post("/api/clinic/doctors", headers=ch,
+                json={"full_name": "پزشک حذف‌شوندهٔ تست", "specialty": "داخلی"})
+check("۴۵. ایجاد پزشک آزمایشی بدون نوبت", r.status_code == 200)
+if r.status_code == 200:
+    _deleted_doc_id = r.json()["id"]
+    r = client.post("/api/clinic/staff", headers=ch, json={
+        "username": "deleted_doctor_staff", "password": "RemovedDoctor#123",
+        "role": "doctor", "doctor_id": _deleted_doc_id,
+    })
+    check("۴۶. ایجاد حساب پزشک آزمایشی", r.status_code == 200)
+    if r.status_code == 200:
+        _login = client.post("/api/clinic/staff/login", json={
+            "username": "deleted_doctor_staff", "password": "RemovedDoctor#123"})
+        _deleted_doctor_headers = {"Authorization": f"Bearer {_login.json()['access_token']}"}
+        _del = client.delete(f"/api/clinic/doctors/{_deleted_doc_id}", headers=ch)
+        check("۴۷. حذف پزشک بدون نوبت موفق است", _del.status_code == 200)
+        if _del.status_code == 200:
+            _leak = client.get("/api/clinic/appointments", headers=_deleted_doctor_headers)
+            check("۴۸. حساب پزشکِ بدون اتصال دسترسی نمی‌گیرد (403)", _leak.status_code == 403)
+
+# ==================== ۱۸) نوبت گذشته با ساعت تهران ====================
+from datetime import timedelta as _timedelta
+from database import SessionLocal as _SessionLocal
+from models import AvailableSlot as _AvailableSlot
+from time_utils import tehran_now_naive as _tehran_now_naive
+from booking import book_slot_atomic as _book_slot_atomic, BookingError as _BookingError
+
+_now = _tehran_now_naive()
+_db = _SessionLocal()
+_stale_slot = _AvailableSlot(
+    clinic_id=center_req["request_id"],
+    start_datetime=_now - _timedelta(minutes=5),
+    end_datetime=_now + _timedelta(minutes=25),
+    is_booked=False,
+)
+_db.add(_stale_slot)
+_db.commit()
+_stale_slot_id = _stale_slot.id
+_db.close()
+
+_public_slots = client.get(f"/api/public/clinics/{center_req['request_id']}/slots")
+check("۴۹. اسلات شروع‌شده در گذشته در فهرست عمومی نیست",
+      _public_slots.status_code == 200 and
+      all(s["id"] != _stale_slot_id for s in _public_slots.json()))
+
+_db = _SessionLocal()
+try:
+    _book_slot_atomic(_db, center_req["request_id"], _stale_slot_id,
+                      "بیمار آزمایشی", "09123336668")
+    check("۵۰. رزرو اسلات گذشته رد می‌شود", False)
+except _BookingError as _err:
+    check("۵۰. رزرو اسلات گذشته رد می‌شود", _err.code == "slot_past")
+finally:
+    _db.close()
 
 # ==================== نتیجه ====================
 failed = [n for n, c in PASS if not c]

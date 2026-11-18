@@ -11,6 +11,8 @@ Database setup for Nobatyar.
 """
 
 import os
+import sys
+from pathlib import Path
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
@@ -18,6 +20,24 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 RAW_DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
 DATABASE_URL = ""
 IS_POSTGRES = False
+
+# Test scripts contain drop_all() calls. Refuse an inherited production URI unless
+# the dedicated runner explicitly enabled a test PostgreSQL URI for this process.
+_SCRIPT = Path(sys.argv[0]).resolve()
+_IS_TEST_PROCESS = (
+    os.environ.get("NOBATYAR_TEST_MODE") == "1"
+    or (_SCRIPT.name.startswith("test_") and "tests" in _SCRIPT.parts)
+    or "pytest" in _SCRIPT.name.lower()
+)
+if (
+    _IS_TEST_PROCESS
+    and RAW_DATABASE_URL
+    and os.environ.get("NOBATYAR_TEST_ALLOW_DATABASE_URL") != "1"
+):
+    raise RuntimeError(
+        "Refusing DATABASE_URL in a test process; use an isolated SQLite database "
+        "or explicitly configure the dedicated test PostgreSQL URI."
+    )
 
 if RAW_DATABASE_URL.startswith(("postgres://", "postgresql://", "postgresql+psycopg2://")):
     DATABASE_URL = RAW_DATABASE_URL

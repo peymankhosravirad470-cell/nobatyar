@@ -24,10 +24,20 @@
 set -u
 cd "$(dirname "$0")" || exit 9
 
+# Fail closed: این runner نباید با اتصال دیتابیس برنامه اجرا شود.
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  echo "REFUSED: DATABASE_URL تنظیم است؛ برای جلوگیری از تماس با دیتابیس تولید آن را unset کنید." >&2
+  exit 90
+fi
+
+TEST_DB_DIR="$(mktemp -d /tmp/nobatyar-test-db.XXXXXX)"
+cleanup_test_db() { rm -rf -- "$TEST_DB_DIR"; }
+trap cleanup_test_db EXIT
+
 LOGDIR="${NOBATYAR_TEST_LOGDIR:-/tmp/nobatyar_test_logs}"
 rm -rf "$LOGDIR"; mkdir -p "$LOGDIR"
 export PYTHONUNBUFFERED=1
-export SECRET_KEY="${SECRET_KEY:-nobatyar-test-suite-secret-not-for-prod}"
+export SECRET_KEY="nobatyar-test-suite-secret-not-for-prod"
 
 TOTAL_FILES=0; N_PASS=0; N_FAIL=0; N_SKIP=0; N_VAC=0
 FAIL_LIST=""; SKIP_LIST=""; VAC_LIST=""
@@ -35,20 +45,32 @@ declare -a SUMMARY
 
 echo "=================================================================="
 echo " Nobatyar test suite — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-echo " PG بیرونی: ${NOBATYAR_TEST_PG_URI:-<تنظیم نشده — آزمون‌های PG فقط در صورت pgserver یا skip شفاف>}"
+if [[ -n "${NOBATYAR_TEST_PG_URI:-}" ]]; then
+  echo " PG بیرونی: تنظیم است (URI محرمانه؛ مقدار چاپ نمی‌شود)"
+else
+  echo " PG بیرونی: تنظیم نشده — آزمون‌های PG فقط در صورت pgserver یا skip شفاف"
+fi
 echo "=================================================================="
 
 for t in tests/test_*.py; do
   f=$(basename "$t")
   TOTAL_FILES=$((TOTAL_FILES+1))
   LOG="$LOGDIR/$f.log"
-  python3 "$t" > "$LOG" 2>&1
+  TEST_ENV=(env -i "PATH=${PATH:-/usr/bin:/bin}" "HOME=${HOME:-/tmp}" \
+    "LANG=${LANG:-C.UTF-8}" "PYTHONUNBUFFERED=1" \
+    "PYTHONDONTWRITEBYTECODE=1" \
+    "SECRET_KEY=$SECRET_KEY" "NOBATYAR_TEST_MODE=1" \
+    "NOBATYAR_DB=$TEST_DB_DIR/$f.sqlite3")
+  if [[ -n "${NOBATYAR_TEST_PG_URI:-}" ]]; then
+    TEST_ENV+=("NOBATYAR_TEST_PG_URI=$NOBATYAR_TEST_PG_URI" "NOBATYAR_TEST_ALLOW_DATABASE_URL=1")
+  fi
+  "${TEST_ENV[@]}" python3 "$t" > "$LOG" 2>&1
   rc=$?
   ok_marks=$(grep -c '✅' "$LOG" 2>/dev/null || true)
   pytest_passed=$(grep -oE '[0-9]+ passed' "$LOG" | head -1 | grep -oE '[0-9]+' || true)
 
   status=""
-  if [ "$rc" -eq 3 ]; then
+  if [ "$rc" -eq 3 ] || { [ "$rc" -eq 1 ] && grep -q '^Skipped:' "$LOG"; }; then
     status="SKIP"; N_SKIP=$((N_SKIP+1)); SKIP_LIST="$SKIP_LIST $f"
   elif [ "$rc" -eq 0 ]; then
     if [ "${pytest_passed:-0}" -gt 0 ] 2>/dev/null || [ "${ok_marks:-0}" -gt 0 ] 2>/dev/null; then

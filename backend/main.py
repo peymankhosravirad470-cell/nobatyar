@@ -20,7 +20,7 @@ import os  # noqa: E402 — پیش از تنظیمات CORS استفاده می�
 
 from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
-    Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
+    Admin, Clinic, ClinicStaff, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
     FeedbackStatus, Doctor, AppointmentStatusHistory, WaitlistEntry,  # v0.13.0
     APPOINTMENT_CLINIC_STATUSES, WAITLIST_STATUSES,
@@ -45,6 +45,7 @@ from booking import (  # noqa: E402
     book_slot_atomic, BookingError, AppointmentSource,
     reschedule_appointment_atomic, add_status_history,
 )
+from time_utils import tehran_now_naive
 from admin_security import generate_connect_code
 import bale_bot
 import referral
@@ -1400,7 +1401,12 @@ def list_pending_clinics(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    return db.query(Clinic).filter(Clinic.status == ClinicStatus.pending).all()
+    # مسیر قدیمی فقط رکوردهای بدون tracking_code را مدیریت می‌کند؛
+    # درخواست‌های جدید در /api/admin/registrations دیده می‌شوند.
+    return db.query(Clinic).filter(
+        Clinic.status == ClinicStatus.pending,
+        Clinic.tracking_code.is_(None),
+    ).all()
 
 
 @app.post("/api/admin/clinics/approve")
@@ -1412,16 +1418,22 @@ def approve_clinic(
     clinic = db.query(Clinic).filter(Clinic.id == data.clinic_id).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد")
+    if clinic.tracking_code is not None:
+        raise HTTPException(409, "این درخواست کد پیگیری دارد؛ از بخش ثبت‌نام‌های جدید ادمین استفاده کنید")
     if clinic.status != ClinicStatus.pending:
         raise HTTPException(400, "این مطب در وضعیت انتظار نیست")
-    
-    # چک یکتایی یوزرنیم
-    exists = db.query(Clinic).filter(Clinic.login_username == data.login_username).first()
-    if exists:
+
+    login_username = data.login_username.strip()
+    if len(login_username) < 4:
+        raise HTTPException(422, "نام کاربری باید حداقل ۴ نویسه داشته باشد")
+    # یکتایی حساب در هر دو سازوکار قدیمی و staff جدید.
+    exists = db.query(Clinic).filter(Clinic.login_username == login_username).first()
+    staff_exists = db.query(ClinicStaff).filter(ClinicStaff.username == login_username).first()
+    if exists or staff_exists:
         raise HTTPException(400, "این نام کاربری قبلاً استفاده شده")
     
     clinic.status = ClinicStatus.approved
-    clinic.login_username = data.login_username
+    clinic.login_username = login_username
     clinic.password_hash = hash_password(data.password)
     # برای تست اولیه: اشتراک را فعال می‌کنیم
     clinic.subscription_status = SubscriptionStatus.active
@@ -1439,6 +1451,10 @@ def reject_clinic(
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد")
+    if clinic.tracking_code is not None:
+        raise HTTPException(409, "این درخواست باید از بخش ثبت‌نام‌های جدید ادمین مدیریت شود")
+    if clinic.status != ClinicStatus.pending:
+        raise HTTPException(400, "این مطب در وضعیت انتظار نیست")
     clinic.status = ClinicStatus.rejected
     db.commit()
     return {"message": "مطب رد شد"}
@@ -1647,7 +1663,7 @@ def public_free_slots(
     q = db.query(AvailableSlot).filter(
         AvailableSlot.clinic_id == clinic_id,
         AvailableSlot.is_booked == False,
-        AvailableSlot.start_datetime >= datetime.utcnow()
+        AvailableSlot.start_datetime >= tehran_now_naive()
     )
     # v0.11.0: فیلتر پزشک برای درمانگاه چندپزشکی (None = اسلات‌های عمومی مرکز)
     if doctor_id is not None:
@@ -1739,7 +1755,7 @@ def update_appointment_status(
     if data.status == "no_show":
         # صداقت عملیاتی: «عدم حضور» فقط برای نوبتی معنا دارد که وقتش رسیده باشد
         # (۱۰ دقیقه گره هراسی برای اختلاف ساعت سرور)
-        grace = datetime.utcnow() + timedelta(minutes=10)
+        grace = tehran_now_naive() + timedelta(minutes=10)
         if appt.appointment_datetime > grace:
             raise HTTPException(400, "عدم حضور فقط پس از فرا رسیدن وقت نوبت قابل ثبت است")
 

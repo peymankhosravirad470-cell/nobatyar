@@ -12,7 +12,7 @@ import logging
 import secrets
 import string
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from sqlalchemy.orm import Session
@@ -71,6 +71,18 @@ def _apply_common(clinic: Clinic, data) -> None:
     clinic.followup_phone = data.followup_phone
     clinic.latitude = data.latitude
     clinic.longitude = data.longitude
+    if isinstance(data, OfficeRegister):
+        clinic.working_days = (data.working_days or "").strip() or None
+        clinic.registration_contact_name = (data.registration_contact_name or "").strip() or None
+        clinic.registration_contact_phone = data.registration_contact_phone
+        clinic.center_type = None
+        clinic.departments = None
+    elif isinstance(data, CenterRegister):
+        clinic.center_type = data.center_type.strip()
+        clinic.departments = (data.departments or "").strip() or None
+        clinic.working_days = None
+        clinic.registration_contact_name = None
+        clinic.registration_contact_phone = None
 
 
 def _sync_doctors(db: Session, clinic: Clinic, doctors: List[DoctorIn]) -> None:
@@ -159,23 +171,35 @@ def request_status(request_id: int, code: str, db: Session = Depends(get_db)):
         revision_requested=bool(clinic.revision_requested),
         status_note=clinic.status_note,
         name=clinic.name,
+        type=clinic.type,
         submitted_at=clinic.created_at,
     )
 
 
 @router.post("/clinics/requests/{request_id}/resubmit", response_model=RegistrationCreated)
 def request_resubmit(
-    request_id: int, code: str, data: CenterRegister,
+    request_id: int, code: str, data: Union[OfficeRegister, CenterRegister],
     request: Request, db: Session = Depends(get_db),
 ):
-    """اصلاح و ارسال مجدد پس از «درخواست اصلاح» — به حالت در انتظار بررسی برمی‌گردد."""
+    """اصلاح و ارسال مجدد مطب/درمانگاه پس از «درخواست اصلاح»."""
     from main import _register_limit, _throttle
     _throttle(request, _register_limit)
     clinic = _get_request_or_404(db, request_id, code)
     if clinic.status != ClinicStatus.pending or not clinic.revision_requested:
         raise HTTPException(400, "این درخواست در وضعیت اصلاح نیست")
-    _apply_common(clinic, data)
-    _sync_doctors(db, clinic, data.doctors)
+    if clinic.type == "office" and isinstance(data, OfficeRegister):
+        _apply_common(clinic, data)
+        clinic.doctor_name = data.doctor_name.strip()
+        _sync_doctors(db, clinic, [DoctorIn(
+            full_name=data.doctor_name,
+            specialty=data.specialty,
+            medical_number=data.medical_number,
+        )])
+    elif clinic.type == "clinic" and isinstance(data, CenterRegister):
+        _apply_common(clinic, data)
+        _sync_doctors(db, clinic, data.doctors)
+    else:
+        raise HTTPException(422, "فرم اصلاح باید با نوع درخواست اولیه (مطب/درمانگاه) یکسان باشد")
     clinic.revision_requested = False
     clinic.status_note = None
     clinic.status = ClinicStatus.pending
@@ -320,6 +344,16 @@ def _role_from_token(credentials, db: Session) -> tuple[Clinic, str, Optional[Cl
         clinic = db.query(Clinic).filter(Clinic.id == staff.clinic_id).first()
         if not clinic or clinic.status != ClinicStatus.approved:
             raise HTTPException(403, "مرکز تأیید نشده است")
+        if staff.role == "doctor":
+            doctor = None
+            if staff.doctor_id is not None:
+                doctor = db.query(Doctor).filter(
+                    Doctor.id == staff.doctor_id,
+                    Doctor.clinic_id == clinic.id,
+                    Doctor.is_active == True,  # noqa: E712
+                ).first()
+            if not doctor:
+                raise HTTPException(403, "حساب پزشک به پزشک فعال متصل نیست")
         return clinic, staff.role, staff
     raise HTTPException(403, "دسترسی مرکز لازم است")
 

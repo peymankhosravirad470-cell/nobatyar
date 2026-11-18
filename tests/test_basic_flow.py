@@ -4,6 +4,16 @@
 
 import sys
 import os
+import atexit
+import tempfile
+
+# این تست جدول‌ها را حذف می‌کند؛ همیشه باید روی فایل SQLite موقت اجرا شود.
+os.environ.pop("DATABASE_URL", None)
+_fd, _test_db = tempfile.mkstemp(prefix="nobatyar-basic-flow-", suffix=".sqlite3")
+os.close(_fd)
+os.environ["NOBATYAR_DB"] = _test_db
+atexit.register(lambda: os.path.exists(_test_db) and os.remove(_test_db))
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 from fastapi.testclient import TestClient
@@ -56,6 +66,13 @@ def test_register_and_approve_flow():
     assert r.status_code == 200
     admin_token = r.json()["access_token"]
     print("✅ ورود ادمین")
+
+    # رمز اولیهٔ ضعیف باید در API هم رد شود، نه فقط در رابط کاربری.
+    r = client.post("/api/admin/clinics/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "pass123"})
+    assert r.status_code == 422
+    print("✅ رمز اولیهٔ کوتاه در API رد شد")
 
     # تأیید
     r = client.post("/api/admin/clinics/approve",

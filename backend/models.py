@@ -169,6 +169,12 @@ class Clinic(Base):
     documents_note = Column(String(1000), nullable=True)        # مدارک/مجوزهای اعلام‌شده
     followup_name = Column(String(100), nullable=True)          # مسئول پیگیری
     followup_phone = Column(String(20), nullable=True)
+    # جزئیات اختصاصی فرم‌های onboarding مطب و درمانگاه (migration 0016)
+    working_days = Column(String(200), nullable=True)
+    registration_contact_name = Column(String(100), nullable=True)
+    registration_contact_phone = Column(String(20), nullable=True)
+    center_type = Column(String(60), nullable=True)
+    departments = Column(String(1000), nullable=True)
     status_note = Column(String(1000), nullable=True)           # دلیل رد / درخواست اصلاح (ادمین)
     revision_requested = Column(Boolean, nullable=False, default=False, server_default="0")
     tracking_code = Column(String(12), unique=True, nullable=True, index=True)  # کد پیگیری متقاضی

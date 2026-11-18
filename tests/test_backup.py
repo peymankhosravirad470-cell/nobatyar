@@ -46,13 +46,16 @@ info = backup_svc.run_backup_now()
 check("۲. فایل بکاپ ساخته شد", os.path.isfile(os.path.join(BDIR, info["file"])), str(info))
 check("۳. فایل رمزنگاری‌شده است (بدون متن آشکار JSON)",
       b'"data"' not in open(os.path.join(BDIR, info["file"]), "rb").read())
-check("۴. پوشش کامل پویا: ۳۱ جدول مدل پوشش داده شد",
-      info.get("tables") == 31, f"tables={info.get('tables')}")
+check("۴. پوشش کامل پویا: همهٔ جدول‌های مدل پوشش داده شد",
+      info.get("tables") == len(Base.metadata.tables), f"tables={info.get('tables')}")
 check("۵. متادیتا در بکاپ: نسخهٔ برنامه + نسخهٔ شِما",
       info.get("format") == "nobatyar-backup-v2")
 v = backup_svc.verify_last_backup()
-check("۶. متادیتای داخل فایل: schema_version ثبت شده",
-      v.get("schema_version") == "0014_seed_article_covers", str(v.get("schema_version")))
+with engine.connect() as _conn:
+    _expected_schema_version = _conn.exec_driver_sql(
+        "SELECT version_num FROM alembic_version").scalar_one()
+check("۶. متادیتای داخل فایل: schema_version با دیتابیس هم‌خوان است",
+      v.get("schema_version") == _expected_schema_version, str(v.get("schema_version")))
 check("۷. کنار فایل، sidecar SHA256 ذخیره شده",
       os.path.isfile(os.path.join(BDIR, info["file"] + ".sha256")))
 check("۸. راستی‌آزمایی بازیابی و ساختار موفق",
@@ -109,8 +112,8 @@ os.environ["NOBATYAR_ALLOW_RESTORE"] = "1"
 r = client.post("/api/admin/restore", json=payload, headers={**h, **CONF})
 check("۱۴. بازیابی کامل از فایل بکاپ (مسیر رسمی ادمین)", r.status_code == 200, r.text[:200])
 j = r.json() if r.status_code == 200 else {}
-check("۱۵. پوشش بازیابی = کامل و ۳۱ جدول",
-      j.get("coverage") == "full" and len(j.get("restored", {})) == 31,
+check("۱۵. پوشش بازیابی = کامل و همهٔ جدول‌های مدل",
+      j.get("coverage") == "full" and len(j.get("restored", {})) == len(Base.metadata.tables),
       json.dumps({k: j.get(k) for k in ("coverage",)}, ensure_ascii=False))
 check("۱۶. تعداد رکوردها پس از بازیابی درست",
       j.get("restored", {}).get("clinics") == 1 and j.get("restored", {}).get("admins") == 1)
@@ -151,7 +154,7 @@ j = r.json()
 check("۲۵. داشبورد: فعال + زمان‌بندی + سیاست نگهداری لایه‌ای",
       j["enabled"] and j["dir_set"] and j["key_set"]
       and j["retention"]["keep_days"] == 14 and j["retention"]["keep_weeks"] == 8)
-check("۲۶. داشبورد: درصد پوشش واقعی = ۱۰۰٪ (۲۸/۲۸)",
+check("۲۶. داشبورد: درصد پوشش واقعی = ۱۰۰٪",
       j.get("coverage", {}).get("pct") == 100.0, json.dumps(j.get("coverage")))
 check("۲۷. داشبورد: RPO/RTO مستند", bool(j.get("rpo_rto", {}).get("rpo"))
       and bool(j.get("rpo_rto", {}).get("rto")))

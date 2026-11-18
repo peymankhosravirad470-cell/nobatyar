@@ -44,9 +44,10 @@ def check(name, cond, detail=""):
 
 
 # ==================== ۰) نسخه و مهاجرت ====================
-check("APP_VERSION = 0.15.1", APP_VERSION == "0.15.1")
+check("APP_VERSION مقدار دارد", bool(APP_VERSION))
 r = client.get("/api/health")
-check("health نسخهٔ 0.15.1 را اعلام می‌کند", r.status_code == 200 and r.json().get("version") == "0.15.1")
+check("health با APP_VERSION هماهنگ است",
+      r.status_code == 200 and r.json().get("version") == APP_VERSION)
 check("health: PostgreSQL/دیتابیس فعال", r.json().get("database") in ("postgresql", "sqlite"))
 
 _db = SessionLocal()

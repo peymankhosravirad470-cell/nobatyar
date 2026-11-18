@@ -97,6 +97,10 @@ for t in ["admins", "clinics", "working_hours", "available_slots", "appointments
 appt_cols = {c["name"] for c in insp.get_columns("appointments")}
 check("ستون discount_pct در appointments", "discount_pct" in appt_cols)
 check("ستون survey_sent_at در appointments", "survey_sent_at" in appt_cols)
+clinic_cols = {c["name"] for c in insp.get_columns("clinics")}
+for column in ("working_days", "registration_contact_name", "registration_contact_phone",
+               "center_type", "departments"):
+    check(f"ستون clinics.{column} در migration وجود دارد", column in clinic_cols)
 
 # محدودیت یکتای کلیدی idempotency
 idx = {i["name"] for i in insp.get_indexes("med_reminder_logs")}

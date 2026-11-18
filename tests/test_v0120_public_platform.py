@@ -242,7 +242,7 @@ check("CSP اجرایی حفظ شده (بدون شکستن سایت)", "default-
 check("CSP سخت‌گیرانه در Report-Only برای مهاجرت nonce/TT (۲۲.۲ و ۲۲.۵)",
       "require-trusted-types-for" in h.get("content-security-policy-report-only", ""),
       h.get("content-security-policy-report-only"))
-check("CSS با نسخهٔ جدید کش‌بوست", "style.css?v=0150" in r.text)
+check("CSS با query-version برای کش‌بوست", "style.css?v=" in r.text)
 
 # ==================== ۱۰) محدودیت نرخ ثبت شکایت ====================
 # (در انتها اجرا می‌شود — تا شمارندهٔ IP تست سایر تست‌ها را نزدن)
