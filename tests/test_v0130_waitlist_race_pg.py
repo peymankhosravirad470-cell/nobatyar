@@ -261,7 +261,9 @@ try:
 
     # ==================== ۵) نسخهٔ اعلامی health روی PG ====================
     _h = _hx.get(BASE + "/api/health", timeout=10).json()
-    check("۵-۱. /api/health نسخهٔ 0.15.0 را اعلام می‌کند", _h.get("version") == "0.15.0",
+    from main import APP_VERSION
+    check("۵-۱. /api/health نسخهٔ پیکربندی‌شدهٔ برنامه را اعلام می‌کند",
+          _h.get("version") == APP_VERSION,
           f"health={_h}")
     check("۵-۲. /api/health اتصال postgresql واقعی را گزارش می‌کند",
           _h.get("database") == "postgresql", f"health={_h}")

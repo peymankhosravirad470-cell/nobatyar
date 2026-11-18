@@ -14,12 +14,13 @@
 #   VACUOUS — exit=0 ولی هیچ گامی اجرا نشده («سبزِ پوچ» = شکست مجموعه)
 #
 # متغیرهای محیطی اختیاری:
-#   NOBATYAR_TEST_PG_URI      URI PostgreSQL واقعی برای ۳ آزمون PG
+#   NOBATYAR_TEST_PG_URI      URI PostgreSQL واقعی برای آزمون‌های PG
 #                             (مثلاً postgresql://postgres@127.0.0.1:5432/postgres)
 #   WAITLIST_RACE_ROUNDS      تعداد دور نزاع فهرست انتظار (پیش‌فرض ۱۰۰)
 #
-# هیچ تماسی با دیتابیس تولیدی ندارد؛ PG فقط با دیتابیس‌های اختصاصیِ
-# «nobatyar_migration_test» و «nobatyar_race_test» کار می‌کند (drop/create).
+# هیچ تماسی با دیتابیس تولیدی ندارد؛ آزمون‌های PG فقط با دیتابیس‌های اختصاصیِ
+# «nobatyar_migration_test»، «nobatyar_race_test»، «nobatyar_conc_test» و
+# «nobatyar_br_matrix» کار می‌کنند (drop/create).
 # ============================================================================
 set -u
 cd "$(dirname "$0")" || exit 9

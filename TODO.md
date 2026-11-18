@@ -33,7 +33,7 @@
 
 ## آزمون و انتشار
 
-- [x] `run_tests.sh` روی محیط ایزوله: **۳۱ فایل کشف‌شده، ۲۷ PASS، صفر FAIL، صفر VACUOUS و چهار SKIP شفاف**؛ **۸۶۱ گام script-style و ۳۹ تست pytest** موفق. آزمون migration از `0019` backfill سه رکورد، `NOT NULL` و یکتایی را در SQLite بررسی کرد؛ آزمون batch alter روی شِمای کامل‌تر SQLite حفظ ایندکس‌ها و foreign keyها را تأیید کرد. آزمون‌های وابسته به PostgreSQL/زیرساخت اختصاصی در این محیط اجرا نشده‌اند.
+- [x] `run_tests.sh` روی SQLite و PostgreSQL محلی sandbox نسخهٔ **16.15**: **۳۲ فایل، ۳۲ PASS، صفر FAIL، صفر file-level SKIP و صفر VACUOUS**؛ **۹۲۰ گام script-style و ۴۲ تست pytest** موفق. نزاع waitlist، **۱۰۰ دور × ۱۲ درخواست واقعی HTTP** را با ۱۲۰۰ درخواست، ۱۰۰ ثبت یکتا و صفر 500 گذراند. آزمون legacy migration از `0019` به `0020` در PostgreSQL و SQLite، backfill، `NOT NULL` و unique را بررسی کرد؛ matrix بکاپ/بازیابی نیز ۱۴ سناریوی موجود را گذراند. ده زیرسناریوی همان matrix که به فایل‌های واقعی Production نیاز دارند، صریحاً داخل گزارش آزمون SKIP شده‌اند؛ این اجرا staging یا بکاپ واقعی را تأیید نمی‌کند.
 - [x] رگرسیون مرکز: **۱۱۰/۱۱۰** گام؛ regression پنهان‌سازی demo و مدیریت مرکز: **۲۳/۲۳**.
-- [ ] ارتقای staging روی دیتابیس نسخهٔ واقعی و smoke test PostgreSQL؛ بررسی بکاپ/rollback قبل از انتشار.
+- [ ] ارتقای staging روی دیتابیس نسخهٔ واقعی و smoke test PostgreSQL؛ آزمون محلی روی PG 16.15 انجام شده، اما staging URL/credential هنوز در دسترس نیست. بررسی بکاپ/rollback واقعی پیش از انتشار نیز باز است.
 - [ ] انتشار کنترل‌شدهٔ شاخهٔ بازطراحی و سپس smoke test روی دامنهٔ نهایی؛ هیچ تغییری روی production در این مرحله انجام نشده است.

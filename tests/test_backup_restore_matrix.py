@@ -317,13 +317,17 @@ with client:
     r3 = client.get("/magazine")
     r4 = client.get("/api/admin/backup/status", headers=H2)
     st = r4.json() if r4.status_code == 200 else {}
+    actual_schema_tables = len([
+        name for name in _insp(_ce(DBURL)).get_table_names() if name != "alembic_version"
+    ])
     check("۱۰. APIهای اصلی پس از بازیابی: health + کلینیک‌های عمومی + صفحهٔ مجله "
-          "+ داشبورد بکاپ ادمین (شمارش جدول واقعی = ۳۲ با بازطراحی 0.15.0)",
+          "+ داشبورد بکاپ ادمین (تعداد جدول پویا مطابق schema واقعی)",
           r1.status_code == 200 and r2.status_code == 200
           and r3.status_code == 200 and r4.status_code == 200
-          and st.get("coverage", {}).get("total_tables") == 32,
+          and st.get("coverage", {}).get("total_tables") == actual_schema_tables,
           f"health={r1.status_code} clinics={r2.status_code} mag={r3.status_code} "
-          f"status={r4.status_code} coverage={json.dumps(st.get('coverage'))}")
+          f"status={r4.status_code} actual_tables={actual_schema_tables} "
+          f"coverage={json.dumps(st.get('coverage'))}")
 
 # ==================== آزمون ۱۱: بکاپ/بازیابی پس از تغییر داده ====================
 # v0.14.0 fix: تعداد کلینیک‌های مبنا دیگر هاردکد (۴ از مسیر Production) نیست؛
