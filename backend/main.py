@@ -4,6 +4,7 @@
 
 from datetime import datetime, timedelta, date, time
 from typing import List, Optional
+from html import escape
 import logging  # v0.11.2: رفع باگ NameError در هُک‌های پس از تغییر وضعیت نوبت
 
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Security
@@ -29,7 +30,7 @@ from models import (
 from schemas import (
     ClinicRegister, ClinicOut, ClinicLogin, AdminLogin, ClinicApprove,
     WorkingHourIn, WorkingHourOut, GenerateSlotsRequest, AvailableSlotOut,
-    AppointmentCreate, AppointmentOut, AppointmentStatusUpdate,
+    AppointmentCreate, AppointmentOut, PatientAppointmentReceiptOut, AppointmentStatusUpdate,
     FeedbackCreate, FeedbackOut, FeedbackReply, ClinicAdminUpdate,
     PasswordChange, LabCreate, LabUpdate, LabOut,
     RescheduleRequest, AppointmentStatusHistoryOut,          # v0.13.0
@@ -53,7 +54,7 @@ import referral
 import centers
 import fcm            # v0.17.0: ارسال نوتیفیکیشن واقعی FCM v1
 import fcm_reminders  # v0.17.0: زمان‌بند یادآوری نوبت به اپ موبایل
-from fa_utils import normalize_mobile
+from fa_utils import normalize_mobile, fa_digits
 import complaints as complaints_mod  # noqa: F401 — v0.12.0: سامانه شکایات
 import catalog as catalog_mod  # noqa: F401 — v0.12.0: کاتالوگ عمومی
 from centers import router as centers_router
@@ -1806,6 +1807,82 @@ def create_appointment(data: AppointmentCreate, request: Request, db: Session = 
     return appt
 
 
+@app.post("/api/public/appointments", response_model=PatientAppointmentReceiptOut)
+def create_patient_appointment_receipt(
+    data: AppointmentCreate, request: Request, db: Session = Depends(get_db)
+):
+    """ثبت نوبت برای وب عمومی و برگرداندن رسیدی بدون شناسهٔ داخلی یا PII بیمار."""
+    appt = create_appointment(data, request, db)
+    clinic = db.query(Clinic).filter(Clinic.id == appt.clinic_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == appt.doctor_id).first() if appt.doctor_id else None
+    status_value = appt.status.value if hasattr(appt.status, "value") else str(appt.status)
+    status_labels = {
+        "pending": "در انتظار تأیید مرکز",
+        "confirmed": "تأیید شده",
+        "cancelled": "لغو شده",
+        "completed": "انجام شده",
+        "no_show": "عدم حضور",
+    }
+    return PatientAppointmentReceiptOut(
+        patient_reference=appt.patient_reference,
+        clinic_name=clinic.name if clinic else "مرکز درمانی",
+        doctor_name=doctor.full_name if doctor else None,
+        appointment_datetime=appt.appointment_datetime,
+        appointment_datetime_label=bale_bot.fmt_dt(appt.appointment_datetime),
+        status=status_value,
+        status_label=status_labels.get(status_value, status_value),
+    )
+
+
+@app.get("/receipt/{reference}", response_class=HTMLResponse)
+def patient_receipt_page(reference: str, db: Session = Depends(get_db)):
+    """رسید قابل چاپ با مرجع تصادفی؛ بدون شناسهٔ DB، نام، تلفن یا کدملی بیمار."""
+    if len(reference) != 30 or not reference.startswith("NBY-"):
+        raise HTTPException(404, "رسید یافت نشد")
+    appt = db.query(Appointment).filter(Appointment.patient_reference == reference).first()
+    if not appt:
+        raise HTTPException(404, "رسید یافت نشد")
+    clinic = db.query(Clinic).filter(Clinic.id == appt.clinic_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == appt.doctor_id).first() if appt.doctor_id else None
+    status_value = appt.status.value if hasattr(appt.status, "value") else str(appt.status)
+    status_labels = {
+        "pending": "در انتظار تأیید مرکز", "confirmed": "تأیید شده",
+        "cancelled": "لغو شده", "completed": "انجام شده", "no_show": "عدم حضور",
+        "rescheduled": "زمان تغییر کرده است",
+    }
+    code = escape(appt.patient_reference or "")
+    clinic_name = escape(clinic.name if clinic else "مرکز درمانی")
+    doctor_name = escape(doctor.full_name if doctor else "—")
+    time_label = escape(bale_bot.fmt_dt(appt.appointment_datetime))
+    status_label = escape(status_labels.get(status_value, status_value))
+    page = f"""<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>رسید نوبت | نوبتیار</title>
+<style>
+*{{box-sizing:border-box}}body{{margin:0;padding:2rem 1rem;background:#f4f8f7;color:#20322f;font-family:Tahoma,Arial,sans-serif}}
+main{{max-width:680px;margin:3vh auto;background:#fff;border:1px solid #dce9e5;border-radius:22px;padding:2rem;box-shadow:0 16px 48px #1233}}
+h1{{font-size:1.35rem;color:#12675e;margin-top:0}}.code{{direction:ltr;display:inline-block;font:700 1.2rem ui-monospace,monospace;letter-spacing:.08em;padding:.7rem 1rem;background:#e7f7f2;border-radius:12px;color:#0e514a}}
+dl{{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin:1.2rem 0}}dl div{{padding:.8rem;border:1px solid #e6eeeb;border-radius:12px}}dt{{font-size:.8rem;color:#667872}}dd{{margin:.35rem 0 0;font-weight:700;line-height:1.6}}
+p{{line-height:1.9;color:#536560}}button{{border:0;border-radius:12px;background:#12675e;color:#fff;padding:.8rem 1.3rem;font:inherit;cursor:pointer}}
+@media(max-width:520px){{body{{padding:1rem .5rem}}main{{padding:1.25rem}}dl{{grid-template-columns:1fr}}}}
+@media print{{body{{padding:0;background:#fff}}main{{margin:0;max-width:none;border:0;box-shadow:none;padding:0}}button,.privacy-note{{display:none!important}}}}
+</style></head><body><main>
+<h1>رسید نوبت نوبتیار</h1><p>کد مرجع</p><p><span class="code">{code}</span></p>
+<dl><div><dt>مرکز درمانی</dt><dd>{clinic_name}</dd></div>
+<div><dt>پزشک</dt><dd>{doctor_name}</dd></div>
+<div><dt>زمان نوبت</dt><dd>{time_label}</dd></div>
+<div><dt>وضعیت</dt><dd>{status_label}</dd></div></dl>
+<p class="privacy-note">این رسید فقط اطلاعات محدود نوبت را نشان می‌دهد. کد مرجع به‌تنهایی امکان لغو، ویرایش یا مشاهدهٔ اطلاعات بیمار را نمی‌دهد؛ وضعیت نوبت را با مرکز درمانی پیگیری کنید.</p>
+<button type="button" onclick="window.print()">چاپ رسید</button></main></body></html>"""
+    return HTMLResponse(content=page, headers={
+        "Cache-Control": "private, no-store, max-age=0",
+        "X-Robots-Tag": "noindex, nofollow, noarchive",
+        "Referrer-Policy": "no-referrer",
+    })
+
+
 @app.get("/api/clinic/appointments", response_model=List[AppointmentOut])
 def list_clinic_appointments(
     status_filter: Optional[str] = None,
@@ -2058,27 +2135,26 @@ def register_device_token(
     همان شناسهٔ جدول appointments). دو مسیر ثبت:
     ۱) بی‌صدا از لایهٔ native اپ در هر اجرای سرد (فقط token) → phone=NULL؛
        توکن شناخته می‌شود ولی هنوز یادآوری نمی‌گیرد.
-    ۲) پیوند شماره از جریان نوبت‌گیری در WebView اپ (book.html پس از ثبت
-       موفق نوبت) → phone=<09xxxxxxxxx> + راستی‌آزمایی تطابق با appointment_id.
+    ۲) پیوند شماره از جریان نوبت‌گیری در WebView اپ → شماره به‌همراه patient_reference
+       تصادفی راستی‌آزمایی می‌شود؛ شناسهٔ ترتیبی برای bind دستگاه پذیرفته نیست.
 
     امنیت:
     - محدودیت نرخ: ۱۲ درخواست در ساعت برای هر IP (ضد اسپم/دیتابیس‌سوزی)
-    - اگر appointment_id داده شود، شمارهٔ ارسالی باید با صاحبِ همان نوبت
-      بخواند (وگرنه 403) — اتصال توکن به شمارهٔ غریبه از مسیر نوبت مسدود است.
+    - phone به تنهایی یا همراه شناسهٔ ترتیبی قابل اتصال نیست؛ باید با مرجع تصادفی نوبت بخواند.
     - Upsert یکتا روی token: ثبت تکراریِ همان دستگاه فقط به‌روزرسانی است
       (binding قبلی با ثبت بی‌صدای native پاک نمی‌شود).
     - توکن کامل هرگز لاگ نمی‌شود (fcm.mask در ماژول ارسال).
     """
     _throttle(request, _device_token_limit)
     phone = data.phone
-    if data.appointment_id:
+    if data.patient_reference is not None:
         appt = db.query(Appointment).filter(
-            Appointment.id == data.appointment_id).first()
-        if not appt:
-            raise HTTPException(404, "نوبت یافت نشد")
-        if not phone or appt.patient_phone != phone:
-            # بدون تطابق شماره، پیوند به نوبتِ دیگری ممکن نیست
+            Appointment.patient_reference == data.patient_reference
+        ).first()
+        if not appt or not phone or appt.patient_phone != phone:
             raise HTTPException(403, "شمارهٔ موبایل با صاحب این نوبت مطابقت ندارد")
+    elif phone:
+        raise HTTPException(400, "برای اتصال شماره، کد مرجع نوبت لازم است؛ شناسهٔ ترتیبی پذیرفته نیست")
     row = db.query(DeviceToken).filter(DeviceToken.token == data.token).first()
     if row:
         # ثبت مجدد همان دستگاه (هر اجرای سرد) — binding شماره حفظ/به‌روز می‌شود

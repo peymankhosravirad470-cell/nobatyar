@@ -20,6 +20,17 @@
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0140" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/style.css?v=0161">
+  <style>
+    .appointment-receipt{margin:1rem 0;padding:1.25rem;border:1px solid #b7ded5;border-radius:18px;background:linear-gradient(145deg,#f6fffc,#fff);box-shadow:0 12px 32px rgba(18,93,83,.08)}
+    .appointment-receipt h2{margin:0 0 .75rem;color:#12675e;font-size:1.15rem}
+    .receipt-reference{direction:ltr;display:inline-block;font:700 1.1rem ui-monospace,monospace;letter-spacing:.08em;color:#0e514a;background:#e7f7f2;padding:.55rem .8rem;border-radius:10px}
+    .receipt-fields{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:1rem 0}
+    .receipt-field{padding:.65rem .75rem;background:#fff;border:1px solid #e7efed;border-radius:12px}
+    .receipt-field dt{font-size:.78rem;color:#64736f}.receipt-field dd{margin:.25rem 0 0;font-weight:600}
+    .receipt-note{color:#576863;font-size:.9rem;line-height:1.8}.receipt-actions{display:flex;gap:.6rem;margin-top:1rem}
+    @media(max-width:520px){.receipt-fields{grid-template-columns:1fr}}
+    @media print{body *{visibility:hidden!important}#msg,#msg *{visibility:visible!important}#msg{position:fixed;inset:0;padding:0!important;margin:0!important}.appointment-receipt{box-shadow:none;border:1px solid #999}.receipt-actions{display:none!important}}
+  </style>
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -322,7 +333,7 @@
     // v0.17.0 — پیوند توکن FCM دستگاه با این نوبت (فقط داخل اپ موبایل کار می‌کند).
     // خروج از WebView/مرورگر عادی: پلاگین NobatYarNative وجود ندارد و این تابع کاری نمی‌کند.
     // شکست ثبت توکن هرگز نمایش موفقیت نوبت را نباید بشکند (fire-and-forget).
-    async function _registerDeviceToken(phone, appointmentId) {
+    async function _registerDeviceToken(phone, patientReference) {
       try {
         const np = window.Capacitor && window.Capacitor.Plugins &&
                    window.Capacitor.Plugins.NobatYarNative;
@@ -335,11 +346,54 @@
           body: JSON.stringify({
             token: r.value,
             phone: phone,
-            appointment_id: appointmentId,
+            patient_reference: patientReference,
             platform: 'android'
           })
         });
       } catch (e) { /* بی‌صدا — ثبت توکن اختیاری است */ }
+    }
+
+    function renderPatientReceipt(target, data) {
+      const card = document.createElement('section');
+      card.className = 'appointment-receipt';
+      card.setAttribute('aria-label', 'رسید نوبت');
+      const title = document.createElement('h2');
+      title.textContent = 'درخواست نوبت ثبت شد';
+      const code = document.createElement('p');
+      code.innerHTML = '<strong>کد مرجع:</strong> ';
+      const reference = document.createElement('span');
+      reference.className = 'receipt-reference';
+      reference.textContent = data.patient_reference;
+      code.appendChild(reference);
+      const fields = document.createElement('dl');
+      fields.className = 'receipt-fields';
+      const rows = [
+        ['مرکز درمانی', data.clinic_name],
+        ['پزشک', data.doctor_name || '—'],
+        ['زمان نوبت', data.appointment_datetime_label],
+        ['وضعیت', data.status_label]
+      ];
+      rows.forEach(([label, value]) => {
+        const item = document.createElement('div');
+        item.className = 'receipt-field';
+        const dt = document.createElement('dt'); dt.textContent = label;
+        const dd = document.createElement('dd'); dd.textContent = value || '—';
+        item.append(dt, dd); fields.appendChild(item);
+      });
+      const note = document.createElement('p');
+      note.className = 'receipt-note';
+      note.textContent = 'این کد برای پیگیری با مرکز درمانی است و به‌تنهایی به معنی تأیید نوبت نیست. کد را نگه دارید؛ اطلاعات شخصی در رسید چاپی نمایش داده نمی‌شود.';
+      const actions = document.createElement('div');
+      actions.className = 'receipt-actions';
+      const print = document.createElement('button');
+      print.type = 'button'; print.className = 'btn-grad'; print.textContent = 'چاپ رسید';
+      print.addEventListener('click', () => window.print());
+      const openReceipt = document.createElement('a');
+      openReceipt.href = `/receipt/${encodeURIComponent(data.patient_reference)}`;
+      openReceipt.rel = 'noreferrer'; openReceipt.textContent = 'مشاهدهٔ صفحهٔ رسید';
+      actions.append(print, openReceipt);
+      card.append(title, code, fields, note, actions);
+      target.replaceChildren(card);
     }
 
     document.getElementById('bookBtn').addEventListener('click', async () => {
@@ -350,7 +404,7 @@
         msg.innerHTML = '<div class="alert alert-error">همه فیلدها را پر کنید</div>';
         return;
       }
-      const res = await fetch('/api/appointments', {
+      const res = await fetch('/api/public/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -366,9 +420,14 @@
         msg.innerHTML = _errHtml(json);
         return;
       }
-      msg.innerHTML = `<div class="alert alert-success">نوبت شما ثبت شد (کد: ${json.id}). وضعیت: در انتظار تأیید مطب</div>`;
+      if (!json.patient_reference) {
+        msg.textContent = 'درخواست ثبت شد؛ پاسخ رسید کامل دریافت نشد. لطفاً دوباره نوبت ثبت نکنید و با مرکز پیگیری کنید.';
+        document.getElementById('patientForm').classList.add('hidden');
+        return;
+      }
+      renderPatientReceipt(msg, json);
       document.getElementById('patientForm').classList.add('hidden');
-      _registerDeviceToken(phone, json.id);  // v0.17.0: پیوند توکن اپ با این نوبت (بی‌صدا)
+      _registerDeviceToken(phone, json.patient_reference);  // پیوند FCM با مرجع تصادفی نوبت، نه id ترتیبی
       // رفرش اسلات‌ها
       document.getElementById('clinicSelect').dispatchEvent(new Event('change'));
     });

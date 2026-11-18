@@ -536,7 +536,7 @@ def my_appointments(chat_id, limit: int = 10):
         db.close()
 
 
-def cancel_my_appointment(chat_id, appt_id: int) -> bool:
+def cancel_my_appointment(chat_id, appt_id: int) -> str | None:
     """لغو نوبت توسط بیمار — فقط نوبت‌های همین گفتگو."""
     db = SessionLocal()
     try:
@@ -552,8 +552,9 @@ def cancel_my_appointment(chat_id, appt_id: int) -> bool:
             slot = db.get(AvailableSlot, appt.slot_id)
             if slot:
                 slot.is_booked = False
+        reference = appt.patient_reference
         db.commit()
-        return True
+        return reference
     except Exception:
         db.rollback()
         LOG.exception("cancel failed")
@@ -1456,8 +1457,8 @@ def my_appts_screen(chat_id) -> tuple:
         for a in active:
             clinic = get_active_center(a.clinic_id)
             cname = clinic.name if clinic else "مرکز حذف‌شده"
-            text += f"\n• کد {fa_digits(a.id)} — {cname}\n  {fmt_dt(a.appointment_datetime)}\n  {APPT_STATUS_FA.get(a.status.value if hasattr(a.status, 'value') else str(a.status), '')}\n"
-            rows.append([{"text": f"❌ لغو نوبت کد {fa_digits(a.id)}",
+            text += f"\n• کد مرجع {a.patient_reference or '—'} — {cname}\n  {fmt_dt(a.appointment_datetime)}\n  {APPT_STATUS_FA.get(a.status.value if hasattr(a.status, 'value') else str(a.status), '')}\n"
+            rows.append([{"text": f"❌ لغو کد مرجع {a.patient_reference or '—'}",
                           "callback_data": f"mycancel:{a.id}"}])
     if past:
         text += "\n📦 سوابق قبلی:\n"
@@ -1465,7 +1466,7 @@ def my_appts_screen(chat_id) -> tuple:
             clinic = get_active_center(a.clinic_id)
             cname = clinic.name if clinic else "—"
             st = APPT_STATUS_FA.get(a.status.value if hasattr(a.status, 'value') else str(a.status), "")
-            text += f"\n• کد {fa_digits(a.id)} — {cname}\n  {fmt_dt(a.appointment_datetime)} — {st}\n"
+            text += f"\n• کد مرجع {a.patient_reference or '—'} — {cname}\n  {fmt_dt(a.appointment_datetime)} — {st}\n"
     rows.append([{"text": "🗓 دریافت نوبت جدید", "callback_data": "book"}])
     rows.append([{"text": "🏠 منوی اصلی", "callback_data": "home"}])
     return text, rows
@@ -2734,7 +2735,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             return
         clinic = get_active_center(appt.clinic_id)
         text, kb = (
-            f"❌ لغو نوبت کد {fa_digits(appt.id)}\n\n"
+            f"❌ لغو نوبت با کد مرجع {appt.patient_reference or '—'}\n\n"
             f"• مرکز: {clinic.name if clinic else '—'}\n"
             f"• زمان: {fmt_dt(appt.appointment_datetime)}\n\n"
             "مطمئن هستید؟",
@@ -2754,10 +2755,10 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             appt_id = int(data.split(":", 1)[1])
         except ValueError:
             return
-        ok = cancel_my_appointment(chat_id, appt_id)
-        if ok:
+        reference = cancel_my_appointment(chat_id, appt_id)
+        if reference:
             text, kb = (
-                f"✅ نوبت کد {fa_digits(appt_id)} لغو شد.\n\n"
+                f"✅ نوبت با کد مرجع {reference} لغو شد.\n\n"
                 "در صورت تمایل، زمان دیگری انتخاب کنید.",
                 [
                     [{"text": "🗓 دریافت نوبت", "callback_data": "book"}],
@@ -2884,18 +2885,14 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             return
         _pop(chat_id)
         clinic = get_active_center(appt.clinic_id)
-        verified_note = ("✅ شماره تأییدشده (اشتراک از بله)" if appt.phone_verified
-                         else "⚠️ شماره دستی — تأییدنشده")
         await edit(
             chat_id, message_id,
             "✅ نوبت شما ثبت شد!\n\n"
-            f"• کد نوبت: {fa_digits(appt.id)}\n"
+            f"• کد مرجع: {appt.patient_reference}\n"
             f"• مرکز: {clinic.name if clinic else '—'}\n"
             f"• زمان: {fmt_dt(appt.appointment_datetime)}\n"
-            f"• بیمار: {appt.patient_name}\n"
-            f"• کد ملی: {fa_digits(appt.patient_national_code)}\n"
-            f"• موبایل: {fa_digits(appt.patient_phone)} ({verified_note})\n\n"
-            "وضعیت: ⏳ در انتظار تأیید مرکز\n\n"
+            "وضعیت: ⏳ در انتظار تأیید مرکز\n"
+            "کد مرجع را برای پیگیری نگه دارید؛ این کد به‌تنهایی مجوز مشاهدهٔ اطلاعات نیست.\n\n"
             "📍 برای رفت‌وآمد:",
             [
                 [{"text": "🗺 مسیریابی", "callback_data": f"navclin:{appt.clinic_id}"}],

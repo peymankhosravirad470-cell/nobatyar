@@ -200,12 +200,15 @@ check("رزرو: شماره دستی = تأییدنشده (صادقانه)", "ت
 
 asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, "confirm"))
 txt = last_text("editMessageText")
-check("رزرو: ثبت موفق + کد نوبت", "نوبت شما ثبت شد" in txt and "کد نوبت" in txt)
+check("رزرو: ثبت موفق با کد مرجع، بدون اطلاعات تماس/هویتی",
+      "نوبت شما ثبت شد" in txt and "کد مرجع" in txt
+      and VALID_NC not in txt and "09171234567" not in txt)
 
 db = SessionLocal()
 appt = db.query(Appointment).filter(Appointment.bale_chat_id == str(CHAT + 1)).first()
 check("رزرو: رکورد با کد ملی و phone_verified=False",
-      appt is not None and appt.patient_national_code == VALID_NC and appt.phone_verified is False)
+      appt is not None and appt.patient_national_code == VALID_NC and appt.phone_verified is False
+      and appt.patient_reference and appt.patient_reference in txt)
 db.close()
 
 # ==================== ۴) تأیید شماره با اشتراک بله (contact) ====================
@@ -322,15 +325,17 @@ check("مسیریابی بدون آدرس: پیام صادقانه + تلفن، 
 asyncio.run(bale_bot.handle_callback(CHAT + 2, 70, "myappts"))
 txt = last_text("editMessageText")
 check("نوبت‌های من: نوبت فعال نمایش داده شد",
-      "نوبت‌های فعال" in txt and "درمانگاه آزمایشی مهر" in txt)
+      "نوبت‌های فعال" in txt and "درمانگاه آزمایشی مهر" in txt
+      and appt2.patient_reference in txt)
 btns = kb_texts("editMessageText")
 check("نوبت‌های من: دکمه لغو موجود", any("لغو" in b for b in btns))
 asyncio.run(bale_bot.handle_callback(CHAT + 2, 70, f"mycancel:{appt2.id}"))
 txt = last_text("editMessageText")
-check("لغو: تأییدیه دو مرحله‌ای", "مطمئن هستید" in txt)
+check("لغو: تأییدیه دو مرحله‌ای با کد مرجع",
+      "مطمئن هستید" in txt and appt2.patient_reference in txt)
 asyncio.run(bale_bot.handle_callback(CHAT + 2, 70, f"mycancelyes:{appt2.id}"))
 txt = last_text("editMessageText")
-check("لغو: پیام موفقیت", "لغو شد" in txt)
+check("لغو: پیام موفقیت با کد مرجع", "لغو شد" in txt and appt2.patient_reference in txt)
 db = SessionLocal()
 s2 = db.query(AvailableSlot).filter(AvailableSlot.id == SID2).first()
 a2 = db.query(Appointment).filter(Appointment.id == appt2.id).first()

@@ -13,6 +13,7 @@ from sqlalchemy.orm import relationship
 import enum
 
 from database import Base
+from appointment_reference import generate_patient_reference
 
 
 class ClinicStatus(str, enum.Enum):
@@ -280,6 +281,8 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
+    # کد مرجع قابل‌نمایش بیمار؛ شناسهٔ ترتیبی DB مجوز یا کد عمومی نیست.
+    patient_reference = Column(String(32), nullable=False, default=generate_patient_reference)
     clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
     slot_id = Column(Integer, ForeignKey("available_slots.id", ondelete="SET NULL"), nullable=True, index=True)
     # v0.11.0: پزشک مرتبط با نوبت (از اسلات استخراج می‌شود)
@@ -315,6 +318,7 @@ class Appointment(Base):
         Index("ix_appointments_clinic_status_dt", "clinic_id", "status", "appointment_datetime"),
         Index("ix_appointments_phone", "patient_phone"),
         Index("ix_appointments_ncode", "patient_national_code"),
+        Index("uq_appointments_patient_reference", "patient_reference", unique=True),
         # محدودیت یکتای جزئی: برای هر اسلات فقط «یک» نوبت غیرلغوشده ممکن است.
         # نوبت‌های لغوشده از شمول خارج می‌شوند تا آزادسازی و رزرو مجدد اسلات کار کند.
         Index(

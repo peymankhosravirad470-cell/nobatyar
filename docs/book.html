@@ -333,7 +333,7 @@
         msg.innerHTML = '<div class="alert alert-error">همه فیلدها را پر کنید</div>';
         return;
       }
-      const res = await fetch('/api/appointments', {
+      const res = await fetch('/api/public/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -349,7 +349,12 @@
         msg.innerHTML = _errHtml(json);
         return;
       }
-      msg.innerHTML = `<div class="alert alert-success">نوبت شما ثبت شد (کد: ${json.id}). وضعیت: در انتظار تأیید مطب</div>`;
+      if (!json.patient_reference) {
+        msg.textContent = 'این نسخه پیش‌نمایش آفلاین است؛ برای ثبت نوبت واقعی از صفحهٔ رسمی نوبت‌گیری استفاده کنید.';
+        document.getElementById('patientForm').classList.add('hidden');
+        return;
+      }
+      msg.textContent = `کد مرجع نوبت: ${json.patient_reference} — وضعیت: ${json.status_label || 'در انتظار تأیید مرکز'}`;
       document.getElementById('patientForm').classList.add('hidden');
       // رفرش اسلات‌ها
       document.getElementById('clinicSelect').dispatchEvent(new Event('change'));
