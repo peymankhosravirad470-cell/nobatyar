@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>فعال‌سازی حساب مرکز | نوبتیار</title>
+  <link rel="stylesheet" href="/static/css/style.css?v=0161">
+  <link rel="stylesheet" href="/static/css/portal-redesign.css?v=0172">
+  <style>
+    main { max-width: 560px; margin: 4rem auto; padding: 1rem; }
+    .activation-form { display: grid; gap: .8rem; }
+    .activation-form input { width: 100%; }
+    #activationMessage { min-height: 2rem; }
+  </style>
+</head>
+<body class="portal-body portal-center portal-private">
+  <main>
+    <section class="card" aria-labelledby="activationTitle">
+      <h1 id="activationTitle">تعیین رمز ورود مرکز</h1>
+      <p>این لینک یک‌بارمصرف و حداکثر تا ۴۸ ساعت معتبر است. رمز را خودتان تعیین کنید؛ آن را در اختیار نوبتیار یا دیگران نگذارید.</p>
+      <form id="activationForm" class="activation-form" autocomplete="on">
+        <label for="newPassword">رمز جدید (حداقل ۱۲ نویسه، شامل حرف و رقم)</label>
+        <input id="newPassword" name="newPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" dir="ltr" required>
+        <label for="confirmPassword">تکرار رمز جدید</label>
+        <input id="confirmPassword" name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" dir="ltr" required>
+        <button class="btn-sm btn-success" type="submit">فعال‌سازی حساب</button>
+      </form>
+      <p id="activationMessage" role="status" aria-live="polite"></p>
+      <p id="loginLink" hidden><a class="btn-sm" href="/clinic/login">ورود به پنل مرکز</a></p>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const message = document.getElementById('activationMessage');
+      let token = '';
+      try {
+        token = new URLSearchParams(window.location.hash.slice(1)).get('token') || '';
+      } catch (_) {}
+      // The fragment is never sent in HTTP requests; remove it from the visible/history URL immediately.
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      const form = document.getElementById('activationForm');
+      if (!token) {
+        form.hidden = true;
+        message.textContent = 'لینک فعال‌سازی در دسترس نیست یا قبلاً از نشانی مرورگر حذف شده است.';
+        return;
+      }
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const password = document.getElementById('newPassword').value;
+        const confirmation = document.getElementById('confirmPassword').value;
+        if (password !== confirmation) {
+          message.textContent = 'تکرار رمز با رمز جدید یکسان نیست.';
+          return;
+        }
+        const button = form.querySelector('button[type="submit"]');
+        button.disabled = true;
+        message.textContent = 'در حال فعال‌سازی…';
+        try {
+          const response = await fetch('/api/clinic/account/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            body: JSON.stringify({ token, password })
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.detail || 'فعال‌سازی انجام نشد. از نوبتیار لینک تازه بخواهید.');
+          token = '';
+          form.reset();
+          form.hidden = true;
+          message.textContent = result.message || 'حساب فعال شد.';
+          document.getElementById('loginLink').hidden = false;
+        } catch (error) {
+          message.textContent = error.message || 'خطا در فعال‌سازی؛ دوباره تلاش کنید.';
+          button.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

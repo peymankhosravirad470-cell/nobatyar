@@ -6,6 +6,7 @@ import sys
 import os
 import atexit
 import tempfile
+from urllib.parse import parse_qs, urlsplit
 
 # این تست جدول‌ها را حذف می‌کند؛ همیشه باید روی فایل SQLite موقت اجرا شود.
 os.environ.pop("DATABASE_URL", None)
@@ -72,22 +73,19 @@ def test_register_and_approve_flow():
         headers={"Authorization": f"Bearer {admin_token}"},
         json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "pass123"})
     assert r.status_code == 422
-    print("✅ رمز اولیهٔ کوتاه در API رد شد")
+    assert "pass123" not in r.text
+    print("✅ endpoint legacy رمز ارسالی را بدون echo رد کرد")
 
     # مسیر قدیمی هم باید قبل از فعال‌سازی از همان workflow مجوز عبور کند.
     auth_headers = {"Authorization": f"Bearer {admin_token}"}
     r = client.post(f"/api/admin/registrations/{clinic_id}/approve",
         headers=auth_headers,
-        json={"login_username": "testclinic", "password": "clinicpass123"})
+        json={"login_username": "testclinic"})
     assert r.status_code == 409
     print("✅ endpoint جدید هم ثبت legacy را پیش از review مسدود کرد")
     r = client.post("/api/admin/clinics/approve",
         headers=auth_headers,
-        json={
-            "clinic_id": clinic_id,
-            "login_username": "testclinic",
-            "password": "clinicpass123"
-        })
+        json={"clinic_id": clinic_id, "login_username": "testclinic"})
     assert r.status_code == 409
     print("✅ تأیید legacy بدون بررسی مجوز مسدود شد")
 
@@ -99,7 +97,7 @@ def test_register_and_approve_flow():
     assert r.status_code == 200
     r = client.post("/api/admin/clinics/approve",
         headers=auth_headers,
-        json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "clinicpass123"})
+        json={"clinic_id": clinic_id, "login_username": "testclinic"})
     assert r.status_code == 409
     print("✅ تأیید legacy تا ثبت اطلاع‌رسانی واقعی مسدود ماند")
     r = client.post(f"/api/admin/registrations/{clinic_id}/license-review/notified",
@@ -107,9 +105,13 @@ def test_register_and_approve_flow():
     assert r.status_code == 200
     r = client.post("/api/admin/clinics/approve",
         headers=auth_headers,
-        json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "clinicpass123"})
+        json={"clinic_id": clinic_id, "login_username": "testclinic"})
     assert r.status_code == 200
-    print("✅ تأیید مطب")
+    activation_token = parse_qs(urlsplit(r.json()["activation_path"]).fragment)["token"][0]
+    r = client.post("/api/clinic/account/activate", json={
+        "token": activation_token, "password": "ClinicSecure#2026"})
+    assert r.status_code == 200
+    print("✅ تأیید مطب و تعیین رمز توسط مدیر از لینک یک‌بارمصرف")
 
     # حالا در لیست عمومی هست
     r = client.get("/api/clinics/public")
@@ -117,7 +119,7 @@ def test_register_and_approve_flow():
     print("✅ مطب در لیست عمومی ظاهر شد")
 
     # ورود مطب
-    r = client.post("/api/clinic/login", json={"username": "testclinic", "password": "clinicpass123"})
+    r = client.post("/api/clinic/login", json={"username": "testclinic", "password": "ClinicSecure#2026"})
     assert r.status_code == 200
     clinic_token = r.json()["access_token"]
     print("✅ ورود مطب")
@@ -202,11 +204,11 @@ def test_register_and_approve_flow():
         headers=auth_headers, json={"reason": "نسخهٔ تازهٔ مجوز لازم است."})
     assert r.status_code == 200
     r = client.post("/api/admin/clinics/approve", headers=auth_headers, json={
-        "clinic_id": revision_id, "login_username": "legacy_revision", "password": "LegacyPass#12345"})
+        "clinic_id": revision_id, "login_username": "legacy_revision"})
     assert r.status_code == 409
     print("✅ مسیر legacy بعد از درخواست اصلاح از مهر ابلاغ قبلی عبور نمی‌کند")
     r = client.post(f"/api/admin/registrations/{revision_id}/approve", headers=auth_headers, json={
-        "login_username": "legacy_revision", "password": "LegacyPass#12345"})
+        "login_username": "legacy_revision"})
     assert r.status_code == 409
     print("✅ endpoint جدید نیز درخواست اصلاح باز را تأیید نمی‌کند")
 

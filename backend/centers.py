@@ -9,13 +9,14 @@
 - هیچ دادهٔ شخصی بیمار در لاگ‌ها ثبت نمی‌شود
 """
 import logging
+import hashlib
 import secrets
 import string
 from datetime import datetime, timedelta, time, timezone
 from typing import List, Optional, Union
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Security
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -25,13 +26,14 @@ from clinic_menu import (
 )
 from models import (
     Admin, Clinic, Doctor, ClinicStaff, WorkingHour, AvailableSlot, Appointment,
-    ClinicReviewEvent, ClinicStatus, SubscriptionStatus,
+    ClinicReviewEvent, ClinicAccountActivation, ClinicStatus, SubscriptionStatus,
 )
 from schemas import (
     OfficeRegister, CenterRegister, RegistrationCreated, RegistrationStatusOut,
     RegistrationAdminOut, RejectIn, RevisionIn, ApproveIn, DoctorIn, DoctorOut,
     DoctorUpdate, StaffCreate, StaffOut, StaffLogin, ClinicMeOut,
     LicenseReviewStartIn, LicenseReviewDecisionIn, LicenseReviewNotifiedIn,
+    ClinicAccountActivateIn,
     ClinicPublicMenuConfig, ClinicMenuDecisionIn, ClinicMenuSettingsOut,
     ClinicReviewEventOut,
 )
@@ -40,6 +42,7 @@ from auth import (
     get_current_clinic, client_ip, login_rate_limit, login_register_fail, login_clear,
     security, decode_token,
 )
+from admin_security import record_security_event
 from fa_utils import normalize_fa
 import catalog as catalog_mod  # v0.12.0: نتایج علائم در جست‌وجو
 
@@ -59,6 +62,29 @@ def public_online_booking_enabled(clinic: Clinic) -> bool:
 def _utc_now_naive() -> datetime:
     """زمان UTC بدون tzinfo، مطابق قرارداد فعلی ستون‌های DateTime پروژه."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _issue_clinic_activation_link(db: Session, clinic: Clinic, admin: Admin) -> str:
+    """Rotate any prior unconsumed token and return a fragment-only bearer link."""
+    now = _utc_now_naive()
+    previous = db.query(ClinicAccountActivation).filter(
+        ClinicAccountActivation.clinic_id == clinic.id,
+        ClinicAccountActivation.token_hash.is_not(None),
+        ClinicAccountActivation.consumed_at.is_(None),
+        ClinicAccountActivation.revoked_at.is_(None),
+    ).with_for_update().all()
+    for item in previous:
+        item.token_hash = None
+        item.revoked_at = now
+
+    raw_token = secrets.token_urlsafe(32)  # 256 bits; raw token exists only in this response.
+    db.add(ClinicAccountActivation(
+        clinic_id=clinic.id,
+        created_by_admin_id=admin.id,
+        token_hash=hashlib.sha256(raw_token.encode("utf-8")).hexdigest(),
+        expires_at=now + timedelta(hours=48),
+    ))
+    return f"/clinic/activate#token={raw_token}"
 
 
 def _add_iran_business_days(start_utc: datetime, days: int) -> datetime:
@@ -303,6 +329,7 @@ def list_registrations(
     out = []
     for c in rows:
         item = RegistrationAdminOut.model_validate(c)
+        item.account_activated = bool(c.password_hash)
         item.doctors = [DoctorOut.model_validate(d) for d in
                         db.query(Doctor).filter(Doctor.clinic_id == c.id).all()]
         out.append(item)
@@ -318,6 +345,7 @@ def get_registration(
     if not c:
         raise HTTPException(404, "درخواست یافت نشد")
     item = RegistrationAdminOut.model_validate(c)
+    item.account_activated = bool(c.password_hash)
     item.doctors = [DoctorOut.model_validate(d) for d in
                     db.query(Doctor).filter(Doctor.clinic_id == c.id).all()]
     return item
@@ -422,22 +450,27 @@ def license_review_history(
 
 @router.post("/admin/registrations/{request_id}/approve")
 def approve_registration(
-    request_id: int, data: ApproveIn,
+    request_id: int, data: ApproveIn, request: Request, response: Response,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """تأیید مرکز + ساخت حساب manager پنل مرکز. ثبت‌نام ≠ تأیید خودکار."""
-    clinic = db.query(Clinic).filter(Clinic.id == request_id).first()
+    """تأیید ثبت‌نام و صدور لینک یک‌بارمصرف برای ساخت رمز توسط مدیر مرکز."""
+    if data.password is not None:
+        # Avoid validation responses echoing a legacy caller's submitted password.
+        raise HTTPException(422, "رمز را در درخواست تأیید ارسال نکنید؛ مدیر مرکز خودش از لینک امن تنظیم می‌کند.")
+    clinic = db.query(Clinic).filter(Clinic.id == request_id).with_for_update().first()
     if not clinic:
         raise HTTPException(404, "درخواست یافت نشد")
     if clinic.status != ClinicStatus.pending:
-        raise HTTPException(400, "این درخواست در وضعیت انتظار نیست")
+        raise HTTPException(409, "این درخواست قبلاً بررسی شده یا در وضعیت انتظار نیست")
     if clinic.revision_requested:
         raise HTTPException(409, "درخواست تا دریافت فرم اصلاح‌شده قابل تأیید نیست")
     if clinic.license_review_status != "verified":
         raise HTTPException(409, "پیش از تأیید ثبت‌نام، بررسی مجوزها باید تکمیل و تأیید شود")
     if not clinic.license_review_notified_at:
         raise HTTPException(409, "پیش از نهایی‌سازی، نتیجه باید واقعاً به مرکز اطلاع داده و ثبت شود")
+    if clinic.password_hash:
+        raise HTTPException(409, "برای این درخواست از قبل رمز حساب ثبت شده است")
     exists = db.query(Clinic).filter(
         Clinic.login_username == data.login_username.strip(),
         Clinic.id != clinic.id,
@@ -449,19 +482,108 @@ def approve_registration(
     clinic.revision_requested = False
     clinic.status_note = None
     clinic.login_username = data.login_username.strip()
-    clinic.password_hash = hash_password(data.password)
     clinic.subscription_status = SubscriptionStatus.active
     clinic.subscription_expires_at = datetime.utcnow() + __import__("datetime").timedelta(days=30)
-    # هر مرکز تأییدشده حداقل یک حساب manager دارد (حساب اصلی مرکز)
-    if not db.query(ClinicStaff).filter(ClinicStaff.clinic_id == clinic.id).first():
-        db.add(ClinicStaff(
-            clinic_id=clinic.id, username=data.login_username.strip(),
-            password_hash=clinic.password_hash, role="manager",
-        ))
+    activation_path = _issue_clinic_activation_link(db, clinic, admin)
     db.commit()
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
     LOG.info("registration approved id=%s by admin=%s", clinic.id, admin.id)
-    return {"message": "مرکز تأیید شد", "clinic_id": clinic.id,
-            "tracking_code": clinic.tracking_code}
+    record_security_event(
+        "clinic_activation_link_issued", username=admin.username,
+        ip=client_ip(request), detail=f"clinic_id={clinic.id}",
+    )
+    return {"message": "مرکز تأیید شد؛ لینک امن تعیین رمز صادر شد.",
+            "clinic_id": clinic.id, "tracking_code": clinic.tracking_code,
+            "activation_path": activation_path, "expires_in_hours": 48}
+
+
+@router.post("/admin/registrations/{request_id}/activation-link")
+def reissue_clinic_activation_link(
+    request_id: int, request: Request, response: Response,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """ابطال لینک قبلی و صدور مجدد برای مرکز تأییدشده‌ای که هنوز رمز نساخته است."""
+    clinic = db.query(Clinic).filter(Clinic.id == request_id).with_for_update().first()
+    if (not clinic or clinic.status != ClinicStatus.approved or not clinic.is_enabled
+            or not clinic.login_username or clinic.password_hash):
+        raise HTTPException(409, "حساب قابل فعال‌سازی نیست یا قبلاً فعال شده است")
+    activation_path = _issue_clinic_activation_link(db, clinic, admin)
+    db.commit()
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    record_security_event(
+        "clinic_activation_link_issued", username=admin.username,
+        ip=client_ip(request), detail=f"clinic_id={clinic.id};reissued=1",
+    )
+    return {"message": "لینک قبلی باطل شد و لینک تازه صادر شد.",
+            "activation_path": activation_path, "expires_in_hours": 48}
+
+
+@router.post("/clinic/account/activate")
+def activate_clinic_account(
+    data: ClinicAccountActivateIn, request: Request, response: Response,
+    db: Session = Depends(get_db),
+):
+    """مصرف اتمیک لینک ۲۵۶-bit و ساخت رمز مدیر مرکز؛ توکن خام ذخیره/لاگ نمی‌شود."""
+    now = _utc_now_naive()
+    token_hash = hashlib.sha256(data.token.encode("utf-8")).hexdigest()
+    candidate = db.query(
+        ClinicAccountActivation.id, ClinicAccountActivation.clinic_id
+    ).filter(
+        ClinicAccountActivation.token_hash == token_hash,
+        ClinicAccountActivation.consumed_at.is_(None),
+        ClinicAccountActivation.revoked_at.is_(None),
+    ).first()
+    invalid = HTTPException(400, "لینک فعال‌سازی نامعتبر، مصرف‌شده یا منقضی شده است")
+    if not candidate:
+        raise invalid
+
+    # Lock order is always Clinic -> Activation (same as approval/reissue).
+    # The initial lookup is non-locking only to obtain clinic_id; the token is
+    # re-validated under lock after the clinic row is held.
+    clinic = db.query(Clinic).filter(Clinic.id == candidate.clinic_id).with_for_update().first()
+    activation = db.query(ClinicAccountActivation).filter(
+        ClinicAccountActivation.id == candidate.id,
+        ClinicAccountActivation.token_hash == token_hash,
+        ClinicAccountActivation.consumed_at.is_(None),
+        ClinicAccountActivation.revoked_at.is_(None),
+    ).with_for_update().first()
+    if not activation or activation.expires_at <= now:
+        raise invalid
+    if (not clinic or clinic.status != ClinicStatus.approved or not clinic.is_enabled
+            or not clinic.login_username or clinic.password_hash):
+        raise invalid
+
+    staff = db.query(ClinicStaff).filter(
+        ClinicStaff.username == clinic.login_username
+    ).with_for_update().first()
+    if staff and (staff.clinic_id != clinic.id or staff.role != "manager"):
+        raise HTTPException(409, "حساب مدیر با وضعیت متناقض است؛ با پشتیبانی تماس بگیرید")
+
+    password_hash = hash_password(data.password)
+    clinic.password_hash = password_hash
+    if staff:
+        staff.password_hash = password_hash
+        staff.is_active = True
+    else:
+        db.add(ClinicStaff(
+            clinic_id=clinic.id, username=clinic.login_username,
+            password_hash=password_hash, role="manager", is_active=True,
+        ))
+    activation.token_hash = None
+    activation.consumed_at = now
+    db.commit()
+
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    record_security_event(
+        "clinic_account_activated", username=clinic.login_username,
+        ip=client_ip(request), detail=f"clinic_id={clinic.id}",
+    )
+    LOG.info("clinic account activated id=%s", clinic.id)
+    return {"message": "رمز مدیر مرکز با موفقیت تعیین شد؛ اکنون می‌توانید وارد پنل شوید."}
 
 
 @router.post("/admin/registrations/{request_id}/reject")

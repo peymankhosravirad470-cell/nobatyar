@@ -20,7 +20,7 @@
 #
 # هیچ تماسی با دیتابیس تولیدی ندارد؛ آزمون‌های PG فقط با دیتابیس‌های اختصاصیِ
 # «nobatyar_migration_test»، «nobatyar_race_test»، «nobatyar_conc_test» و
-# «nobatyar_br_matrix» کار می‌کنند (drop/create).
+# «nobatyar_br_matrix»، «nobatyar_activation_race_test» کار می‌کنند (drop/create).
 # ============================================================================
 set -u
 cd "$(dirname "$0")" || exit 9

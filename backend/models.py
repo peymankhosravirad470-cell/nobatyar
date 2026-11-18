@@ -208,6 +208,11 @@ class Clinic(Base):
     available_slots = relationship("AvailableSlot", back_populates="clinic", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="clinic", cascade="all, delete-orphan")
 
+    @property
+    def account_activated(self) -> bool:
+        """No separate state column: an active manager password is the source of truth."""
+        return bool(self.password_hash)
+
     __table_args__ = (
         Index("ix_clinics_status_sub", "status", "subscription_status"),
     )
@@ -228,6 +233,25 @@ class ClinicReviewEvent(Base):
     public_note = Column(Text, nullable=True)
     internal_note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class ClinicAccountActivation(Base):
+    """One-time clinic-manager activation; raw bearer tokens are never stored."""
+    __tablename__ = "clinic_account_activations"
+
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_by_admin_id = Column(Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True, index=True)
+    token_hash = Column(String(64), nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("uq_clinic_account_activations_token_hash", "token_hash", unique=True),
+        Index("ix_clinic_activation_clinic_state", "clinic_id", "consumed_at", "revoked_at"),
+    )
 
 
 class WorkingHour(Base):

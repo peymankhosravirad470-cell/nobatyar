@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+sys.path.insert(0, os.path.dirname(__file__))
 os.environ["NOBATYAR_DB"] = "/tmp/nobatyar_center_flow_test.db"
 if os.path.exists("/tmp/nobatyar_center_flow_test.db"):
     os.remove("/tmp/nobatyar_center_flow_test.db")
@@ -18,6 +19,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from main import app  # noqa: E402
 from database import Base, engine, init_db  # noqa: E402
 from centers import _add_iran_business_days  # noqa: E402
+from clinic_registration_helpers import approve_and_activate  # noqa: E402
 
 Base.metadata.drop_all(bind=engine)
 init_db()
@@ -155,7 +157,6 @@ check("مسیر قدیمی ادمین درخواست‌های دارای کد پ
           for x in legacy_pending.json()))
 legacy_approve = client.post("/api/admin/clinics/approve", headers=ah, json={
     "clinic_id": office_req["request_id"], "login_username": "safe_clinic_user",
-    "password": "SafeInitialPass#2026",
 })
 check("مسیر قدیمی نمی‌تواند درخواست جدید را تأیید کند", legacy_approve.status_code == 409)
 r = client.get("/api/admin/registrations", headers=ah)
@@ -247,15 +248,15 @@ check("resubmit دریافت قرارداد/تماس/موعد قبلی را پا
       and r.json()["license_review_notified_at"] is None
       and r.json()["license_review_due_at"] is None)
 r = client.post(f"/api/admin/registrations/{office_revision_req['request_id']}/approve",
-                headers=ah, json={"login_username": "office_after_revision", "password": "Office#12345"})
+                headers=ah, json={"login_username": "office_after_revision"})
 check("تماس قبلی برای تأیید پس از resubmit معتبر نیست", r.status_code == 409)
 
 # ==================== ۵) تأیید مرکز ====================
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
                 json={"login_username": "pars_center", "password": "WeakPass123"}, headers=ah)
-check("رمز ۱۱ نویسه‌ای در endpoint تأیید جدید رد می‌شود", r.status_code == 422)
+check("endpoint تأیید جدید هیچ رمز اولیه‌ای از ادمین نمی‌پذیرد", r.status_code == 422)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
-                json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
+                json={"login_username": "pars_center"}, headers=ah)
 check("تأیید ثبت‌نام پیش از بررسی مجوز مسدود است", r.status_code == 409)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/start",
                 headers=ah, json={"target_business_days": 3, "internal_note": "فقط یادداشت داخلی"})
@@ -270,7 +271,7 @@ r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-re
                                   "internal_note": "یادداشت محرمانهٔ آزمایشی"})
 check("نتیجهٔ بررسی مجوز برای متقاضی ثبت شد", r.status_code == 200)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
-                json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
+                json={"login_username": "pars_center"}, headers=ah)
 check("نهایی‌سازی تا ثبت اطلاع‌رسانی به مرکز مسدود است", r.status_code == 409)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/notified",
                 headers=ah, json={"channel": "phone", "note": "تماس آزمایشی"})
@@ -289,7 +290,7 @@ check("درخواست اصلاح نتیجه و مهر تماس قبلی را ف�
       and r.json()["license_review_status"] == "not_started"
       and r.json()["license_review_notified_at"] is None)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
-                headers=ah, json={"login_username": "pars_center", "password": "CenterPass#123"})
+                headers=ah, json={"login_username": "pars_center"})
 check("endpoint جدید هنگام اصلاح باز مرکز را فعال نمی‌کند", r.status_code == 409)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/start",
                 headers=ah, json={"target_business_days": 3})
@@ -300,7 +301,7 @@ r = client.post(f"/api/clinics/requests/{center_req['request_id']}/resubmit",
 check("فرم اصلاح‌شده همان درخواست را بازمی‌گرداند", r.status_code == 200
       and r.json()["request_id"] == center_req["request_id"])
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
-                headers=ah, json={"login_username": "pars_center", "password": "CenterPass#123"})
+                headers=ah, json={"login_username": "pars_center"})
 check("resubmit نیز تا review تازه قابل تأیید نیست", r.status_code == 409)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/start",
                 headers=ah, json={"target_business_days": 3})
@@ -311,9 +312,10 @@ check("نتیجهٔ چرخهٔ تازه ثبت می‌شود", r.status_code == 
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/notified",
                 headers=ah, json={"channel": "phone", "note": "ابلاغ نتیجهٔ اصلاح‌شده"})
 check("ابلاغ چرخهٔ تازه ثبت می‌شود", r.status_code == 200)
-r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
-                json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
-check("۱۲. تأیید مرکز + ساخت حساب مدیر پس از review", r.status_code == 200, r.text[:200])
+approval_payload, activation_payload = approve_and_activate(
+    client, center_req["request_id"], "pars_center", "CenterPass#123", ah)
+check("۱۲. تأیید مرکز بدون رمز ادمین و فعال‌سازی یک‌بارمصرف حساب مدیر",
+      bool(approval_payload.get("activation_path")) and bool(activation_payload.get("message")))
 
 # ثبت‌نام ≠ تأیید خودکار: درخواست دومِ در انتظار در نمایش عمومی نیست
 r = client.get("/api/clinics/public")
@@ -624,9 +626,10 @@ o2 = r.json()
 ah2 = admin_token()
 r = complete_license_review(o2["request_id"], ah2)
 check("۳۸.۱ بررسی مجوز مطب مستقل تکمیل شد", r.status_code == 200)
-r = client.post(f"/api/admin/registrations/{o2['request_id']}/approve",
-                json={"login_username": "office_two", "password": "Office#12345"}, headers=ah2)
-check("۳۹. مطب مستقل تأیید شد", r.status_code == 200)
+approval_payload, activation_payload = approve_and_activate(
+    client, o2["request_id"], "office_two", "Office#12345", ah2)
+check("۳۹. مطب مستقل پس از فعال‌سازی یک‌بارمصرف تأیید شد",
+      bool(approval_payload.get("activation_path")) and bool(activation_payload.get("message")))
 r = client.post("/api/clinic/login", json={"username": "office_two", "password": "Office#12345"})
 oh = {"Authorization": f"Bearer {r.json()['access_token']}"}
 r = client.put("/api/clinic/public-menu", headers=oh, json={

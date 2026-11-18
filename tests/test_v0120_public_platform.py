@@ -9,12 +9,14 @@
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi.testclient import TestClient
 from main import app
 from database import init_db, SessionLocal, engine, Base
 from models import Admin
 from auth import hash_password
+from clinic_registration_helpers import approve_and_activate
 
 # ریست دیتابیس برای تست تمیز
 Base.metadata.drop_all(bind=engine)
@@ -139,9 +141,10 @@ r = client.post(f"/api/admin/registrations/{rid}/license-review/notified", heade
                 json={"channel": "phone", "note": "تماس تستی"})
 check("ثبت تماس پیش از تأیید مرکز", r.status_code == 200)
 
-r = client.post(f"/api/admin/registrations/{rid}/approve", headers=admin_headers,
-                json={"login_username": "testcardio1", "password": "Str0ngPass!9"})
-check("تأیید مرکز آزمون", r.status_code == 200, r.text[:200])
+approval, activation = approve_and_activate(
+    client, rid, "testcardio1", "Str0ngPass!9", admin_headers)
+check("تأیید و فعال‌سازی یک‌بارمصرف مرکز آزمون",
+      bool(approval.get("activation_path")) and bool(activation.get("message")))
 
 r = client.get("/api/clinics/public")
 clinics = r.json()

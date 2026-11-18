@@ -597,6 +597,15 @@ def clinic_login_page():
     return _html("clinic_login.html")
 
 
+@app.get("/clinic/activate", response_class=HTMLResponse, include_in_schema=False)
+def clinic_activate_page():
+    response = _html("clinic_activate.html")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
 @app.get("/clinic/panel", response_class=HTMLResponse)
 def clinic_panel_page():
     return _html("clinic_panel.html")
@@ -1445,16 +1454,22 @@ def list_pending_clinics(
 @app.post("/api/admin/clinics/approve")
 def approve_clinic(
     data: ClinicApprove,
+    request: Request,
+    response: Response,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    clinic = db.query(Clinic).filter(Clinic.id == data.clinic_id).first()
+    if data.password is not None:
+        raise HTTPException(422, "رمز را در درخواست تأیید ارسال نکنید؛ مدیر مرکز خودش از لینک امن تنظیم می‌کند.")
+    clinic = db.query(Clinic).filter(Clinic.id == data.clinic_id).with_for_update().first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد")
     if clinic.tracking_code is not None:
         raise HTTPException(409, "این درخواست کد پیگیری دارد؛ از بخش ثبت‌نام‌های جدید ادمین استفاده کنید")
     if clinic.status != ClinicStatus.pending:
         raise HTTPException(400, "این مطب در وضعیت انتظار نیست")
+    if clinic.password_hash:
+        raise HTTPException(409, "این مطب از قبل رمز حساب دارد و از این مسیر قابل تأیید مجدد نیست")
     if clinic.revision_requested:
         raise HTTPException(409, "درخواست تا دریافت فرم اصلاح‌شده قابل تأیید نیست")
     if clinic.license_review_status != "verified":
@@ -1462,23 +1477,35 @@ def approve_clinic(
     if not clinic.license_review_notified_at:
         raise HTTPException(409, "پیش از نهایی‌سازی، نتیجه باید واقعاً به مرکز اطلاع داده و ثبت شود")
 
-    login_username = data.login_username.strip()
-    if len(login_username) < 4:
-        raise HTTPException(422, "نام کاربری باید حداقل ۴ نویسه داشته باشد")
+    login_username = data.login_username
     # یکتایی حساب در هر دو سازوکار قدیمی و staff جدید.
-    exists = db.query(Clinic).filter(Clinic.login_username == login_username).first()
+    exists = db.query(Clinic).filter(
+        Clinic.login_username == login_username, Clinic.id != clinic.id
+    ).first()
     staff_exists = db.query(ClinicStaff).filter(ClinicStaff.username == login_username).first()
     if exists or staff_exists:
         raise HTTPException(400, "این نام کاربری قبلاً استفاده شده")
     
     clinic.status = ClinicStatus.approved
     clinic.login_username = login_username
-    clinic.password_hash = hash_password(data.password)
-    # برای تست اولیه: اشتراک را فعال می‌کنیم
+    # The clinic manager sets the password from a one-time activation link;
+    # admins never create or transmit the clinic's initial password.
     clinic.subscription_status = SubscriptionStatus.active
     clinic.subscription_expires_at = datetime.utcnow() + timedelta(days=30)
+    activation_path = centers._issue_clinic_activation_link(db, clinic, admin)
     db.commit()
-    return {"message": "مطب تأیید شد", "clinic_id": clinic.id}
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    record_security_event(
+        "clinic_activation_link_issued", username=admin.username,
+        ip=client_ip(request), detail=f"clinic_id={clinic.id}",
+    )
+    return {
+        "message": "مطب تأیید شد؛ لینک فعال‌سازی یک‌بارمصرف را از کانال خصوصی تحویل دهید.",
+        "clinic_id": clinic.id,
+        "activation_path": activation_path,
+        "expires_in_hours": 48,
+    }
 
 
 @app.post("/api/admin/clinics/{clinic_id}/reject")

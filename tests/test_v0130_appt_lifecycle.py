@@ -13,6 +13,7 @@
 import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+sys.path.insert(0, os.path.dirname(__file__))
 os.environ["NOBATYAR_DB"] = "/tmp/nobatyar_v0130_test.db"
 if os.path.exists("/tmp/nobatyar_v0130_test.db"):
     os.remove("/tmp/nobatyar_v0130_test.db")
@@ -20,6 +21,7 @@ if os.path.exists("/tmp/nobatyar_v0130_test.db"):
 from fastapi.testclient import TestClient  # noqa: E402
 from main import app  # noqa: E402
 from database import Base, engine, init_db, SessionLocal  # noqa: E402
+from clinic_registration_helpers import approve_and_activate  # noqa: E402
 
 Base.metadata.drop_all(bind=engine)
 init_db()
@@ -81,10 +83,10 @@ check("۰-۱.۲ تأیید مجوز", r.status_code == 200)
 r = client.post(f"/api/admin/registrations/{req_id}/license-review/notified", headers=ah,
                 json={"channel": "phone", "note": "تماس تستی"})
 check("۰-۱.۳ ثبت تماس", r.status_code == 200)
-r = client.post(f"/api/admin/registrations/{req_id}/approve",
-                json={"login_username": "lifecycle_office", "password": "OfficePass#130"},
-                headers=ah)
-check("۰-۲. تأیید مطب + ساخت حساب", r.status_code == 200, r.text[:200])
+approval, activation = approve_and_activate(
+    client, req_id, "lifecycle_office", "OfficePass#130", ah)
+check("۰-۲. تأیید مطب و فعال‌سازی یک‌بارمصرف مدیر",
+      bool(approval.get("activation_path")) and bool(activation.get("message")))
 
 r = client.post("/api/clinic/login", json={"username": "lifecycle_office", "password": "OfficePass#130"})
 check("۰-۳. ورود مرکز", r.status_code == 200)
