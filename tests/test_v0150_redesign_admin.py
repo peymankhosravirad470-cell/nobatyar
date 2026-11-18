@@ -62,31 +62,33 @@ _db.close()
 # ==================== ۱) صفحهٔ اصلی بازطراحی — سرو-رندر ====================
 r = client.get("/")
 check("صفحهٔ اصلی ۲۰۰", r.status_code == 200)
-check("نوار بالایی با تاریخ شمسی + ساعت تهران", "v15-topbar" in r.text
-      and "v15JalaliDate" in r.text and "v15Clock" in r.text
-      and "Asia/Tehran" in r.text)
-check("ساعت در نوار بالایی است — نه وسط منوی اصلی", "meta-clock" not in r.text)
+css = client.get("/static/css/portal-redesign.css")
+check("نوار ساعت تکراری در پوستهٔ بیمار نمایش داده نمی‌شود", css.status_code == 200
+      and ".v15-topbar { display: none !important; }" in css.text)
 check("هیرو: عنوان پیش‌فرض + جست‌وجوی زنده", "نوبتیار؛ سامانه هوشمند" in r.text
       and "heroSearch" in r.text)
-check("هیرو: بلوک رنگی برند + آیکون خطی استاندارد (بدون عکس)",
-      "imgph imgph-navy" in r.text and 'aria-label="نماد رزرو آنلاین نوبت"' in r.text)
-check("دستور کارفرما: هیچ مرجع تصویر v0150 در صفحهٔ اصلی نیست", "/static/img/v0150/" not in r.text)
-check("ترتیب بخش‌ها: هیرو ← تبلیغات ← تخصص‌ها ← خدمات ← پنل‌ها ← پزشکان ← رویکرد ← شیراز ← مجله",
+check("سایت بیمار به پنل خصوصی ادمین/مرکز لینک مستقیم ندارد",
+      'href="/admin/login"' not in r.text and 'href="/clinic/login"' not in r.text
+      and 'href="/partners"' in r.text)
+check("هیرو: تصویر 3D انتزاعی تزئینی + سرچ و بدون دادهٔ ساختگی",
+      "v15-hero-visual" in r.text and "/static/img/hero-3d-appointments.webp" in r.text
+      and 'aria-hidden="true"' in r.text and 'alt=""' in r.text and "heroSearch" in r.text)
+check("تصویر هیرو، عکس انسان/مرکز یا دارایی قدیمی نیست", "/static/img/v0150/" not in r.text
+      and "v14-section-doctors" not in r.text and "v14-section-shiraz" not in r.text)
+check("ترتیب بخش‌ها: هیرو ← تبلیغ واقعی ← تخصص‌ها ← مراکز زنده ← مراحل رزرو ← مجله",
       r.text.find("v15-hero") < r.text.find("adBillboard") < r.text.find('id="specialties"')
-      < r.text.find('id="services"') < r.text.find('id="panels"') < r.text.find('id="doctors"')
-      < r.text.find('id="approach"') < r.text.find('id="shiraz"') < r.text.find('id="magazine"'))
+      < r.text.find('id="doctors"') < r.text.find('id="how-booking-works"')
+      < r.text.find('id="magazine"'))
 check("۸ کارت تخصص‌ها با بلوک آیکونی + شمارش واقعی", r.text.count("v15-cat-card") == 8
       and r.text.count("imgph imgph-cat") == 8 and "imgph-tint-" in r.text
       and "۷ تخصص" in r.text and "۳ تخصص" in r.text)
 check("دکمهٔ مشاهدهٔ همهٔ ۵۱ تخصص", "مشاهدهٔ همهٔ ۵۱ تخصص" in r.text)
-check("۶ کارت خدمات با بلوک آیکونی", r.text.count('class="v15-service"') == 6
-      and r.text.count("imgph imgph-service") == 6)
-check("۳ کارت پنل (بیمار/پزشک/مدیریت)", r.text.count("v15-panel-card") == 3)
-check("رویکرد: بلوک آیکونی + آمار (بدون عکس پزشک)", r.text.count("imgph-navy") == 3
-      and "۵۱" in r.text and "۱۸" in r.text)
-check("شیراز: بلوک آیکونی — بدون عکس بیمارستان و بدون خط انتساب",
-      r.text.count("imgph-navy") == 3 and "CC BY-SA 3.0" not in r.text
-      and "Ahura21" not in r.text)
+check("سکشن‌های خدمات/پنل تکراری از خانه حذف شده‌اند",
+      'id="services"' not in r.text and 'id="panels"' not in r.text
+      and 'class="v15-service"' not in r.text and "v15-panel-card" not in r.text)
+check("بخش مراحل رزرو از محتوای جاری مدیریت استفاده می‌کند",
+      'id="how-booking-works"' in r.text and "رویکرد نوبتیار؛ اطلاعات واقعی، مسیر روشن" in r.text
+      and "زمان‌های خالی که می‌بینید از تقویم واقعی مرکز می‌آید" in r.text)
 check("فوتر: بدون خط اعتبارنامهٔ تصاویر عکس — خط جایگزین آیکون‌ها", "ATTRIBUTIONS.txt" not in r.text
       and "Material Symbols" in r.text)
 check("هیچ تصویر «واقعی‌نما»ی مصنوعی v14 باقی نمانده", "v14-section-doctors" not in r.text

@@ -40,8 +40,8 @@ def check(name, cond, detail=""):
     print(("✅" if cond else "❌") + f" {name}" + (f" — {detail}" if (detail and not cond) else ""))
 
 
-# ==================== ۱) هدر برند و فوتر نو در همهٔ صفحات ====================
-for path in ["/", "/specialties", "/book", "/faq", "/contact", "/partners", "/about"]:
+# ==================== ۱) پوستهٔ بیمار در صفحات عمومی ====================
+for path in ["/", "/specialties", "/book", "/faq", "/contact", "/about"]:
     r = client.get(path)
     check(f"{path}: هدر برند v3 (لوگو + شعار)", r.status_code == 200
           and "brand-lockup-text" in r.text and "همراه هوشمند سلامت در شیراز" in r.text)
@@ -56,6 +56,14 @@ for path in ["/", "/specialties", "/book", "/faq", "/contact", "/partners", "/ab
           and "بدون ذکر منبع و کسب مجوز ممنوع است" in r.text)
     check(f"{path}: لینک‌های قانونی مرتب", "/terms" in r.text and "/privacy" in r.text
           and "/cancellation" in r.text)
+
+# ==================== درگاه مرکز: پوسته و مسیرهای جدا ====================
+r = client.get("/partners")
+check("/partners: درگاه مستقل مراکز با مسیرهای ثبت‌نام و ورود",
+      r.status_code == 200 and "portal-header" in r.text and "درگاه همکاری مراکز درمانی" in r.text
+      and "/register/office" in r.text and "/register/clinic" in r.text
+      and "/clinic/login" in r.text and "main-nav" not in r.text
+      and "/admin/login" not in r.text)
 
 # ==================== مسیر همکاری مراکز — CTA، شفافیت قیمت و حداقل‌سازی داده ====================
 r = client.get("/partners")

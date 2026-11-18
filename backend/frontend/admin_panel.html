@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <script>(function(){try{var f=location.search.indexOf('app=1')>-1||window.NOBATYAR_APP===true||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());if(f){document.documentElement.classList.add('app-mode');document.addEventListener('click',function(ev){try{var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;if(!a)return;var href=a.getAttribute('href')||'';if(!href||href.charAt(0)!=='/'||href.charAt(1)==='/'||href.indexOf('app=1')>-1||href.indexOf(':')>-1)return;a.setAttribute('href',href+(href.indexOf('?')>-1?'&app=1':'?app=1'));}catch(e){}},true);}}catch(e){}})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
   <title>پنل ادمین | نوبتیار</title>
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0111" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/style.css?v=0161">
+  <link rel="stylesheet" href="/static/css/portal-redesign.css?v=0172">
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -20,7 +22,7 @@
     gtag('config', 'G-NVWBWMF1E4');
   </script>
 </head>
-<body>
+<body class="portal-body portal-admin portal-private portal-dashboard">
   <!-- v0.16.0: نوار بالای native اپ — فقط داخل WebView اپ نمایش داده می‌شود -->
   <div id="app-topbar" class="app-topbar">
     <img src="/static/img/favicon-64.png" alt="لوگوی نوبتیار" class="app-topbar-mark" width="30" height="30">
@@ -68,12 +70,14 @@
       <div id="regDetail" style="margin-top:1rem;"></div>
     </div>
 
-    <div class="card">
-      <h2>🎬 دادهٔ نمایشی (نسخهٔ ارائه به مراکز)</h2>
-      <p class="alert alert-info" style="margin-bottom:.6rem;">ساخت درمانگاه و مطب «نمونه — نسخه نمایشی» با پزشکان و اسلات‌های آزاد برای ارائهٔ حضوری؛ نوبت آزمایشی ثبت نمی‌شود و مراکز واقعی دست‌نخورده می‌مانند.</p>
-      <button class="btn-sm btn-success" onclick="seedDemo()">ساخت دادهٔ نمایشی</button>
-      <button class="btn-sm btn-danger" onclick="clearDemo()">پاک‌کردن دادهٔ نمایشی</button>
-      <span id="demoMsg" style="margin-right:.6rem;"></span>
+    <div class="card" id="admin-clinic-management">
+      <h2>🏥 مدیریت مراکز</h2>
+      <p class="alert alert-info">افزودن مرکز از مسیر ثبت‌نام و پس از بررسی مجوز انجام می‌شود. برای حذف، دسترسی را غیرفعال کنید؛ اطلاعات، نوبت‌ها و سوابق مرکز پاک نمی‌شوند.</p>
+      <button class="btn-sm" onclick="loadManagedClinics()">بروزرسانی فهرست</button>
+      <table>
+        <thead><tr><th>مرکز</th><th>نوع</th><th>شهر/تخصص</th><th>پرونده</th><th>اشتراک</th><th>دسترسی</th><th>عملیات</th></tr></thead>
+        <tbody id="managedClinicBody"></tbody>
+      </table>
     </div>
 
     <div class="card">
@@ -263,7 +267,7 @@
       <h2>جایگاه تبلیغات (v0.14.0)</h2>
       <button class="btn-sm" onclick="loadAds()">بروزرسانی</button>
       <div id="adsBox" style="margin-top:10px;max-width:640px;display:grid;gap:8px"></div>
-      <p style="color:#666;font-size:0.85em">جایگاه تبلیغات مستقل از هویت برند است؛ تا زمان فعال‌سازی، «جای تبلیغات برند شما» نمایش داده می‌شود و هیچ اسپانسر جعلی منتشر نمی‌شود.</p>
+      <p style="color:#666;font-size:0.85em">تبلیغ فقط وقتی در سایت عمومی نمایش داده می‌شود که کمپین واقعی، تأییدشده و در بازهٔ اجرا باشد؛ جایگاه خالی پنهان می‌ماند و اسپانسر ساختگی منتشر نمی‌شود.</p>
     </div>
 
     <div class="card">
@@ -662,6 +666,7 @@
     const LICENSE_REVIEW_FA = { not_started: 'شروع‌نشده', in_review: 'در حال بررسی', needs_info: 'نیازمند اطلاعات', verified: 'تأییدشده', rejected: 'تأییدنشده' };
     const MENU_STATUS_FA = { not_configured: 'تنظیم‌نشده', pending_review: 'منتظر تأیید', approved: 'منتشرشده', needs_changes: 'نیازمند اصلاح' };
     const MENU_FEATURES_FA = { show_doctors: 'پزشکان', show_services: 'خدمات', show_phone: 'تلفن', show_directions: 'مسیریابی', show_online_booking: 'رزرو آنلاین', show_address: 'نشانی', show_working_hours: 'ساعات کاری' };
+    const CLINIC_SUBSCRIPTION_FA = { active: 'فعال', inactive: 'غیرفعال' };
     let _regCache = [];
     let _regState = 'pending';
 
@@ -691,6 +696,41 @@
           </td>
         </tr>`).join('') || '<tr><td colspan="7">درخواستی در این وضعیت نیست</td></tr>';
       document.getElementById('regDetail').innerHTML = '';
+    }
+
+    async function loadManagedClinics() {
+      const tbody = document.getElementById('managedClinicBody');
+      const res = await fetch('/api/admin/clinics?limit=500', { headers });
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="7">خطا در دریافت فهرست مراکز</td></tr>'; return; }
+      const rows = await res.json();
+      tbody.innerHTML = rows.map(c => `
+        <tr>
+          <td>${esc(c.name)}</td>
+          <td>${c.type === 'clinic' ? 'درمانگاه' : 'مطب'}</td>
+          <td>${esc([c.city, c.specialty].filter(Boolean).join(' — ') || '—')}</td>
+          <td>${esc(REG_STATUS_FA[c.status] || c.status)}</td>
+          <td>${esc(CLINIC_SUBSCRIPTION_FA[c.subscription_status] || c.subscription_status)}</td>
+          <td>${c.is_enabled ? 'فعال' : 'غیرفعال'}</td>
+          <td><button class="btn-sm ${c.is_enabled ? 'btn-danger' : 'btn-success'}" onclick="setClinicEnabled(${Number(c.id)}, ${!c.is_enabled})">${c.is_enabled ? 'غیرفعال‌سازی' : 'فعال‌سازی'}</button></td>
+        </tr>`).join('') || '<tr><td colspan="7">مرکزی ثبت نشده است</td></tr>';
+    }
+
+    async function setClinicEnabled(id, enabled) {
+      const action = enabled ? 'فعال‌سازی' : 'غیرفعال‌سازی';
+      const message = enabled
+        ? 'دسترسی این مرکز دوباره فعال شود؟'
+        : 'دسترسی این مرکز قطع شود؟ سوابق و اطلاعات آن حفظ می‌شود.';
+      if (!confirm(message)) return;
+      const res = await fetch(`/api/admin/clinics/${id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ is_enabled: enabled })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
+      document.getElementById('msg').innerHTML = res.ok
+        ? `<div class="alert alert-success">${esc(action)} مرکز انجام شد؛ سوابق حفظ شده‌اند.</div>`
+        : _errHtml(json);
+      if (res.ok) loadManagedClinics();
     }
 
     function _fmtAdminUtc(value) {
@@ -850,23 +890,6 @@
         ? '<div class="alert alert-success">درخواست اصلاح ثبت شد.</div>'
         : _errHtml(j);
       loadRegistrations('pending');
-    }
-
-    // ==================== v0.11: دادهٔ نمایشی ====================
-    async function seedDemo() {
-      const res = await fetch('/api/admin/demo/seed', { method: 'POST', headers });
-      const j = await res.json().catch(() => ({}));
-      document.getElementById('demoMsg').innerHTML = res.ok
-        ? `<span class="alert alert-success" style="padding:.2rem .6rem; display:inline-block;">${esc(j.message || 'انجام شد')} — مراکز: ${j.clinics || 0}، پزشکان: ${j.doctors || 0}، اسلات‌ها: ${j.slots || 0}</span>`
-        : _errHtml(j);
-    }
-    async function clearDemo() {
-      if (!confirm('پاک‌کردن همهٔ مراکز «نمونه — نسخه نمایشی»؟')) return;
-      const res = await fetch('/api/admin/demo/seed', { method: 'DELETE', headers });
-      const j = await res.json().catch(() => ({}));
-      document.getElementById('demoMsg').innerHTML = res.ok
-        ? `<span class="alert alert-success" style="padding:.2rem .6rem; display:inline-block;">${esc(j.message)}</span>`
-        : _errHtml(j);
     }
 
     // ==================== v0.11: همراه بیمار (نمای آمار) ====================
@@ -1124,18 +1147,15 @@
     const _SITE_LABELS = {
       heroTitle1: 'تیتر اصلی — بخش ۱', heroTitle2: 'تیتر اصلی — بخش ۲ (رنگی)', heroLead: 'متن معرفی زیر تیتر',
       specialtiesTitle: 'عنوان بخش تخصص‌ها', specialtiesSub: 'توضیح بخش تخصص‌ها',
-      servicesTitle: 'عنوان خدمات و مراکز', servicesSub: 'توضیح خدمات و مراکز',
-      panelsTitle: 'عنوان پنل‌ها', panelsSub: 'توضیح پنل‌ها',
       doctorsTitle: 'عنوان پزشکان و مراکز', doctorsSub: 'توضیح پزشکان و مراکز',
-      approachTitle: 'عنوان رویکرد نوبتیار', approachText: 'متن معرفی نوبتیار',
-      shirazTitle: 'عنوان بخش شیراز', shirazText: 'متن بخش شیراز',
+      approachTitle: 'عنوان شفافیت و مراحل رزرو', approachText: 'توضیح رویکرد و وضعیت نوبت',
       magazineTitle: 'عنوان مجله سلامت', magazineSub: 'توضیح مجله سلامت',
       footerAbout: 'متن معرفی فوتر',
       phone: 'تلفن تماس', email: 'ایمیل رسمی', address: 'نشانی',
       telegram: 'تلگرام (بدون @)', baleBot: 'ربات بله (بدون @)', copyright: 'متن کپی‌رایت',
     };
-    const _SITE_LONG = ['heroLead', 'specialtiesSub', 'servicesSub', 'panelsSub', 'doctorsSub',
-      'approachTitle', 'approachText', 'shirazTitle', 'shirazText', 'magazineSub', 'footerAbout', 'copyright'];
+    const _SITE_LONG = ['heroLead', 'specialtiesSub', 'doctorsSub', 'approachTitle', 'approachText',
+      'magazineSub', 'footerAbout', 'copyright'];
 
     async function loadSiteContent() {
       const res = await fetch('/api/admin/site-content', { headers });
@@ -1236,6 +1256,7 @@
 
     loadPending();
     loadRegistrations('pending');
+    loadManagedClinics();
     loadCompanions();
     loadFeedback();
     loadLabs();
@@ -1247,6 +1268,27 @@
     loadSiteContent();
     loadSpecAdmin();
     loadAudit();
+  </script>
+  <script>
+    (function () {
+      const main = document.querySelector('main');
+      if (!main) return;
+      const sections = Array.from(main.querySelectorAll(':scope > .card')).filter((card) => card.querySelector(':scope > h2'));
+      if (!sections.length) return;
+      const nav = document.createElement('nav');
+      nav.className = 'portal-section-nav';
+      nav.setAttribute('aria-label', 'میانبرهای بخش‌های مدیریت');
+      sections.forEach((card, index) => {
+        const heading = card.querySelector(':scope > h2');
+        const id = card.id || `admin-section-${index + 1}`;
+        card.id = id;
+        const link = document.createElement('a');
+        link.href = `#${id}`;
+        link.textContent = heading.textContent.trim();
+        nav.appendChild(link);
+      });
+      main.insertBefore(nav, main.children[1] || null);
+    })();
   </script>
 </body>
 </html>

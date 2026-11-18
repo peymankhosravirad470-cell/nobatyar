@@ -56,9 +56,10 @@ check("جست‌وجوی برجسته هیرو موجود", "heroSearch" in r.te
 check("ساعت رسمی ایران (Asia/Tehran) پویا", "Asia/Tehran" in r.text)
 check("فوتر سازمانی با معرفی نوبتیار (v0.14 footer-grid)", "معرفی نوبتیار" in r.text and "site-footer-v2" in r.text)
 check("فهرست‌های واقعی فوتر (ul/li — رفع WAVE/ARIA)", "footer-grid" in r.text and 'role="list"' not in r.text)
-check("دسترسی ربات بله حفظ شده (نوار بالایی/CTA/فوتر — بازطراحی تأییدشدهٔ 0.15.0)",
-      r.text.count("ble.ir/nobatyarshirazbot") >= 2 and 'class="cta-title"' in r.text)
-check("CTA بدون heading غیرضروری (رفع WAVE)", 'class="cta-title"' in r.text)
+check("ربات بله برای بیمار در دسترس است و لینک آن حفظ شده",
+      r.text.count("ble.ir/nobatyarshirazbot") >= 1 and "ربات بله" in r.text)
+check("CTA رزرو روشن و غیرتکراری در hero", 'href="/book"' in r.text
+      and "جست‌وجو و رزرو نوبت" in r.text and 'class="cta-title"' not in r.text)
 check("بخش تخصص‌ها در صفحه اصلی (کارت‌های تصویری بازطراحی 0.15.0)",
       "v15-cats" in r.text and r.text.count("v15-cat-card") == 8)
 check("بخش مراکز زنده از Backend", "centerCards" in r.text and "/api/clinics/public" in r.text)

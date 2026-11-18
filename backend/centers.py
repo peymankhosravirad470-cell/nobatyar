@@ -19,7 +19,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from sqlalchemy.orm import Session
 
 from database import get_db
-from clinic_menu import effective_public_menu as _effective_public_menu
+from clinic_menu import (
+    effective_public_menu as _effective_public_menu,
+    public_clinic_visibility_clause,
+)
 from models import (
     Admin, Clinic, Doctor, ClinicStaff, WorkingHour, AvailableSlot, Appointment,
     ClinicReviewEvent, ClinicStatus, SubscriptionStatus,
@@ -514,6 +517,8 @@ def _role_from_token(credentials, db: Session) -> tuple[Clinic, str, Optional[Cl
         clinic = db.query(Clinic).filter(Clinic.id == int(payload.get("sub"))).first()
         if not clinic:
             raise HTTPException(401, "مرکز یافت نشد")
+        if clinic.status != ClinicStatus.approved or not clinic.is_enabled:
+            raise HTTPException(403, "دسترسی مرکز غیرفعال یا تأییدنشده است")
         return clinic, "manager", None
     if role == "clinic_staff":
         staff = db.query(ClinicStaff).filter(
@@ -521,8 +526,8 @@ def _role_from_token(credentials, db: Session) -> tuple[Clinic, str, Optional[Cl
         if not staff:
             raise HTTPException(401, "حساب کارمند فعال نیست")
         clinic = db.query(Clinic).filter(Clinic.id == staff.clinic_id).first()
-        if not clinic or clinic.status != ClinicStatus.approved:
-            raise HTTPException(403, "مرکز تأیید نشده است")
+        if not clinic or clinic.status != ClinicStatus.approved or not clinic.is_enabled:
+            raise HTTPException(403, "مرکز غیرفعال یا تأیید نشده است")
         if staff.role == "doctor":
             doctor = None
             if staff.doctor_id is not None:
@@ -617,8 +622,8 @@ def staff_login(data: StaffLogin, request: Request, db: Session = Depends(get_db
         login_register_fail(data.username, ip)
         raise HTTPException(401, "نام کاربری یا رمز اشتباه است")
     clinic = db.query(Clinic).filter(Clinic.id == staff.clinic_id).first()
-    if not clinic or clinic.status != ClinicStatus.approved:
-        raise HTTPException(403, "مرکز تأیید نشده است")
+    if not clinic or clinic.status != ClinicStatus.approved or not clinic.is_enabled:
+        raise HTTPException(403, "مرکز غیرفعال یا تأیید نشده است")
     login_clear(data.username, ip)
     token = create_access_token({"sub": staff.id, "role": "clinic_staff"})
     return {"access_token": token, "token_type": "bearer", "role": staff.role}
@@ -778,6 +783,7 @@ def public_clinic_full(clinic_id: int, db: Session = Depends(get_db)):
         Clinic.id == clinic_id,
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).first()
     if not clinic:
         raise HTTPException(404, "مرکز یافت نشد یا غیرفعال است")
@@ -834,6 +840,7 @@ def public_search(q: str = "", specialty: str = "", db: Session = Depends(get_db
     rows = db.query(Clinic).filter(
         Clinic.status == ClinicStatus.approved,
         Clinic.subscription_status == SubscriptionStatus.active,
+        public_clinic_visibility_clause(),
     ).all()
     ns_filter = _nf(specialty or "")
     if ns_filter:

@@ -12,6 +12,7 @@
 """
 
 from time_utils import tehran_now_naive
+from clinic_menu import public_clinic_visibility_clause
 
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
@@ -54,6 +55,7 @@ def book_slot_atomic(
             Clinic.id == clinic_id,
             Clinic.status == ClinicStatus.approved,
             Clinic.subscription_status == SubscriptionStatus.active,
+            public_clinic_visibility_clause(),
         ).first()
         if not clinic:
             raise BookingError("clinic_inactive", "مطب یافت نشد یا غیرفعال است")

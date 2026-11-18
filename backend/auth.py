@@ -310,4 +310,6 @@ def get_current_clinic(
         raise HTTPException(status_code=401, detail="مطب یافت نشد")
     if clinic.status != "approved":
         raise HTTPException(status_code=403, detail="مطب هنوز تأیید نشده")
+    if not clinic.is_enabled:
+        raise HTTPException(status_code=403, detail="دسترسی مرکز غیرفعال شده است")
     return clinic

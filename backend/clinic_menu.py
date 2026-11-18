@@ -30,3 +30,12 @@ def effective_public_menu(clinic) -> dict:
         ):
             restricted[key] = False
         return restricted
+
+
+LEGACY_DEMO_CLINIC_MARKER = "نمونه — نسخه نمایشی"
+
+
+def public_clinic_visibility_clause():
+    """SQLAlchemy clause for enabled clinics, excluding retired demo-seeder rows."""
+    from models import Clinic
+    return Clinic.is_enabled.is_(True) & ~Clinic.name.like(f"%{LEGACY_DEMO_CLINIC_MARKER}%")

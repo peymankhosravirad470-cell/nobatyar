@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <script>(function(){try{var f=location.search.indexOf('app=1')>-1||window.NOBATYAR_APP===true||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());if(f){document.documentElement.classList.add('app-mode');document.addEventListener('click',function(ev){try{var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;if(!a)return;var href=a.getAttribute('href')||'';if(!href||href.charAt(0)!=='/'||href.charAt(1)==='/'||href.indexOf('app=1')>-1||href.indexOf(':')>-1)return;a.setAttribute('href',href+(href.indexOf('?')>-1?'&app=1':'?app=1'));}catch(e){}},true);}}catch(e){}})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
   <title>پنل مطب | نوبتیار</title>
   <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="/static/img/favicon-256.png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="preload" href="/static/fonts/Vazirmatn-Regular.woff2?v=0111" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/style.css?v=0161">
+  <link rel="stylesheet" href="/static/css/portal-redesign.css?v=0172">
 
   <!-- Google tag (gtag.js) — Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NVWBWMF1E4"></script>
@@ -20,7 +22,7 @@
     gtag('config', 'G-NVWBWMF1E4');
   </script>
 </head>
-<body>
+<body class="portal-body portal-center portal-private portal-dashboard portal-clinic-dashboard">
   <!-- v0.16.0: نوار بالای native اپ — فقط داخل WebView اپ نمایش داده می‌شود -->
   <div id="app-topbar" class="app-topbar">
     <img src="/static/img/favicon-64.png" alt="لوگوی نوبتیار" class="app-topbar-mark" width="30" height="30">
@@ -698,6 +700,27 @@
     loadWorkingHours();
     loadAppointments();
     loadWaitlist();
+  </script>
+  <script>
+    (function () {
+      const main = document.querySelector('main');
+      if (!main) return;
+      const sections = Array.from(main.querySelectorAll(':scope > .card')).filter((card) => card.querySelector(':scope > h2'));
+      if (!sections.length) return;
+      const nav = document.createElement('nav');
+      nav.className = 'portal-section-nav';
+      nav.setAttribute('aria-label', 'میانبرهای پنل مرکز');
+      sections.forEach((card, index) => {
+        const heading = card.querySelector(':scope > h2');
+        const id = card.id || `clinic-section-${index + 1}`;
+        card.id = id;
+        const link = document.createElement('a');
+        link.href = `#${id}`;
+        link.textContent = heading.textContent.trim();
+        nav.appendChild(link);
+      });
+      main.insertBefore(nav, main.children[1] || null);
+    })();
   </script>
 </body>
 </html>
