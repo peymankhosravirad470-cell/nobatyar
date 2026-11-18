@@ -71,6 +71,8 @@
         ثبت‌نام مطب و پزشک
       </h1>
       <p class="alert alert-info">فرم مخصوص پزشکان و مطب‌های تک‌پزشک است. اگر درمانگاه یا مرکز چندپزشکی دارید، از <a href="/register/clinic">فرم ثبت‌نام درمانگاه</a> استفاده کنید. پس از ارسال، کد پیگیری دریافت می‌کنید و درخواست شما «در انتظار بررسی» خواهد بود.</p>
+      <p class="alert alert-info" style="line-height:1.9;">این فرم برای درخواست همکاری مطب است، نه ثبت نوبت بیمار. اطلاعات بیماران یا پروندهٔ پزشکی را وارد نکنید. در این فرم فایل بارگذاری نمی‌شود؛ عنوان یا شمارهٔ مجوز را در بخش اختیاری بنویسید. پرسشی پیش از ثبت دارید؟ <a href="mailto:shiraznobatyar@gmail.com?subject=%D9%BE%D8%B1%D8%B3%D8%B4%20%D9%87%D9%85%DA%A9%D8%A7%D8%B1%DB%8C%20%D8%A8%D8%A7%20%D9%86%D9%88%D8%A8%D8%AA%DB%8C%D8%A7%D8%B1">به ایمیل رسمی نوبتیار پیام بدهید</a>.</p>
+      <p id="resubmitNote" class="alert alert-info" style="line-height:1.9;" hidden></p>
       <div id="msg" role="status" aria-live="polite"></div>
       <form id="regForm">
         <h2 style="font-size:1.05rem; margin:.8rem 0 .4rem;">اطلاعات پزشک و مطب</h2>
@@ -122,9 +124,9 @@
         <label for="f-capacity_note">ظرفیت و نکات رزرو (اختیاری)</label>
         <textarea name="capacity_note" id="f-capacity_note" rows="2" placeholder="مثلاً روزانه ۱۲ نوبت ۳۰ دقیقه‌ای" maxlength="500"></textarea>
 
-        <h2 style="font-size:1.05rem; margin:1rem 0 .4rem;">مدارک برای بررسی</h2>
-        <label for="f-documents_note">مدارک و مجوزها (شماره و عنوان)</label>
-        <textarea name="documents_note" id="f-documents_note" rows="2" placeholder="مثلاً پروانه مطب شماره ...، کارت نظام پزشکی شماره ..." maxlength="1000"></textarea>
+        <h2 style="font-size:1.05rem; margin:1rem 0 .4rem;">اطلاعات مجوز (اختیاری)</h2>
+        <label for="f-documents_note">عنوان یا شمارهٔ مجوز — بدون ارسال فایل</label>
+        <textarea name="documents_note" id="f-documents_note" rows="2" placeholder="در صورت تمایل، عنوان یا شمارهٔ پروانهٔ مطب را بنویسید" maxlength="1000"></textarea>
 
         <button type="submit" style="margin-top:1rem;">ارسال درخواست ثبت‌نام مطب</button>
       </form>
@@ -239,6 +241,18 @@
       } else if (json && typeof json.detail === 'string') t = json.detail;
       return `<div class="alert alert-error">${esc(t)}</div>`;
     }
+    const RESUBMIT_KEY = 'nobatyar_registration_resubmit_v1';
+    let resubmitData = null;
+    try {
+      const pending = JSON.parse(sessionStorage.getItem(RESUBMIT_KEY) || 'null');
+      if (pending && pending.type === 'office' && Number.isInteger(Number(pending.request_id))
+          && Number(pending.request_id) > 0 && /^NB-[A-Z2-9]{8}$/i.test(String(pending.code || ''))) {
+        resubmitData = { request_id: Number(pending.request_id), code: String(pending.code).trim() };
+        const note = document.getElementById('resubmitNote');
+        note.hidden = false;
+        note.textContent = `در حال اصلاح درخواست شمارهٔ ${resubmitData.request_id} هستید؛ اطلاعات را دوباره کامل کنید تا همان درخواست به‌روزرسانی شود.`;
+      }
+    } catch (err) { /* sessionStorage is optional; ordinary registration still works */ }
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target, msg = document.getElementById('msg');
@@ -259,15 +273,19 @@
         working_days: f.working_days.value.trim(),
       };
       try {
-        const res = await fetch('/api/clinics/register/office', {
+        const endpoint = resubmitData
+          ? `/api/clinics/requests/${encodeURIComponent(resubmitData.request_id)}/resubmit?code=${encodeURIComponent(resubmitData.code)}`
+          : '/api/clinics/register/office';
+        const res = await fetch(endpoint, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
         const j = await res.json();
         if (!res.ok) { msg.innerHTML = _errHtml(j); window.scrollTo({top:0, behavior:'smooth'}); return; }
+        if (resubmitData) sessionStorage.removeItem(RESUBMIT_KEY);
         f.style.display = 'none';
         msg.innerHTML = `<div class="alert alert-success">
-          <h2 style="font-size:1.1rem;">درخواست شما ثبت شد</h2>
+          <h2 style="font-size:1.1rem;">${resubmitData ? 'اصلاح درخواست ارسال شد' : 'درخواست شما ثبت شد'}</h2>
           <p>کد پیگیری: <b dir="ltr" style="font-size:1.2rem;">${esc(j.tracking_code)}</b> — شمارهٔ درخواست: <b>${j.request_id}</b></p>
           <p>وضعیت فعلی: «در انتظار بررسی». نتیجهٔ بررسی (تأیید، رد یا درخواست اصلاح) را می‌توانید با کد پیگیری از صفحهٔ <a href="/register">استعلام وضعیت</a> ببینید.</p>
           <p>پس از تأیید، اطلاعات ورود به پنل مطب برای شما تنظیم و اعلام می‌شود.</p></div>`;

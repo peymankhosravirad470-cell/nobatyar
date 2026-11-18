@@ -71,6 +71,8 @@
         ثبت‌نام درمانگاه
       </h1>
       <p class="alert alert-info">فرم مخصوص درمانگاه‌ها و مراکز درمانی چندپزشکی است. اگر مطب تک‌پزشک دارید، از <a href="/register/office">فرم مطب و پزشک</a> استفاده کنید. درمانگاه می‌تواند چند پزشک و چند تخصص را زیرمجموعهٔ یک مرکز ثبت کند.</p>
+      <p class="alert alert-info" style="line-height:1.9;">این فرم برای درخواست همکاری درمانگاه است، نه ثبت نوبت بیمار. اطلاعات بیماران یا پروندهٔ پزشکی را وارد نکنید. در این فرم فایل بارگذاری نمی‌شود؛ عنوان یا شمارهٔ مجوز را در بخش اختیاری بنویسید. پرسشی پیش از ثبت دارید؟ <a href="mailto:shiraznobatyar@gmail.com?subject=%D9%BE%D8%B1%D8%B3%D8%B4%20%D9%87%D9%85%DA%A9%D8%A7%D8%B1%DB%8C%20%D8%A8%D8%A7%20%D9%86%D9%88%D8%A8%D8%AA%DB%8C%D8%A7%D8%B1">به ایمیل رسمی نوبتیار پیام بدهید</a>.</p>
+      <p id="resubmitNote" class="alert alert-info" style="line-height:1.9;" hidden></p>
       <div id="msg" role="status" aria-live="polite"></div>
       <form id="regForm">
         <h2 style="font-size:1.05rem; margin:.8rem 0 .4rem;">اطلاعات مرکز</h2>
@@ -125,9 +127,9 @@
         <div id="doctorsBox"></div>
         <button type="button" class="btn btn-outline btn-sm" id="addDoc">+ افزودن پزشک</button>
 
-        <h2 style="font-size:1.05rem; margin:1rem 0 .4rem;">مدارک و مجوزها</h2>
-        <label for="f-documents_note">مجوزهای مرکز (شماره و عنوان)</label>
-        <textarea name="documents_note" id="f-documents_note" rows="2" placeholder="مثلاً پروانه بهره‌برداری شماره ... از دانشگاه علوم پزشکی شیراز" maxlength="1000"></textarea>
+        <h2 style="font-size:1.05rem; margin:1rem 0 .4rem;">اطلاعات مجوز (اختیاری)</h2>
+        <label for="f-documents_note">عنوان یا شمارهٔ مجوز — بدون ارسال فایل</label>
+        <textarea name="documents_note" id="f-documents_note" rows="2" placeholder="در صورت تمایل، عنوان یا شمارهٔ پروانهٔ مرکز را بنویسید" maxlength="1000"></textarea>
 
         <button type="submit" style="margin-top:1rem;">ارسال درخواست ثبت‌نام درمانگاه</button>
       </form>
@@ -263,6 +265,19 @@
       return `<div class="alert alert-error">${esc(t)}</div>`;
     }
 
+    const RESUBMIT_KEY = 'nobatyar_registration_resubmit_v1';
+    let resubmitData = null;
+    try {
+      const pending = JSON.parse(sessionStorage.getItem(RESUBMIT_KEY) || 'null');
+      if (pending && pending.type === 'clinic' && Number.isInteger(Number(pending.request_id))
+          && Number(pending.request_id) > 0 && /^NB-[A-Z2-9]{8}$/i.test(String(pending.code || ''))) {
+        resubmitData = { request_id: Number(pending.request_id), code: String(pending.code).trim() };
+        const note = document.getElementById('resubmitNote');
+        note.hidden = false;
+        note.textContent = `در حال اصلاح درخواست شمارهٔ ${resubmitData.request_id} هستید؛ اطلاعات را دوباره کامل کنید تا همان درخواست به‌روزرسانی شود.`;
+      }
+    } catch (err) { /* sessionStorage is optional; ordinary registration still works */ }
+
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target, msg = document.getElementById('msg');
@@ -294,15 +309,19 @@
         return;
       }
       try {
-        const res = await fetch('/api/clinics/register/center', {
+        const endpoint = resubmitData
+          ? `/api/clinics/requests/${encodeURIComponent(resubmitData.request_id)}/resubmit?code=${encodeURIComponent(resubmitData.code)}`
+          : '/api/clinics/register/center';
+        const res = await fetch(endpoint, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
         const j = await res.json();
         if (!res.ok) { msg.innerHTML = _errHtml(j); window.scrollTo({top:0, behavior:'smooth'}); return; }
+        if (resubmitData) sessionStorage.removeItem(RESUBMIT_KEY);
         f.style.display = 'none';
         msg.innerHTML = `<div class="alert alert-success">
-          <h2 style="font-size:1.1rem;">درخواست درمانگاه شما ثبت شد</h2>
+          <h2 style="font-size:1.1rem;">${resubmitData ? 'اصلاح درخواست ارسال شد' : 'درخواست درمانگاه شما ثبت شد'}</h2>
           <p>کد پیگیری: <b dir="ltr" style="font-size:1.2rem;">${esc(j.tracking_code)}</b> — شمارهٔ درخواست: <b>${j.request_id}</b></p>
           <p>وضعیت: «در انتظار بررسی». نتیجه را از صفحهٔ <a href="/register">استعلام وضعیت</a> با کد پیگیری دنبال کنید.</p>
           <p>پس از تأیید، حساب مدیر مرکز ساخته می‌شود و می‌توانید پزشکان، بخش‌ها، ساعات و نوبت‌ها را در پنل مدیریت کنید.</p></div>`;

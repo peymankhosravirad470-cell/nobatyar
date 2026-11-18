@@ -57,6 +57,19 @@ for path in ["/", "/specialties", "/book", "/faq", "/contact", "/partners", "/ab
     check(f"{path}: لینک‌های قانونی مرتب", "/terms" in r.text and "/privacy" in r.text
           and "/cancellation" in r.text)
 
+# ==================== مسیر همکاری مراکز — CTA، شفافیت قیمت و حداقل‌سازی داده ====================
+r = client.get("/partners")
+check("همکاری: CTA مستقل برای مطب و درمانگاه + راه پرسش پیش از ثبت",
+      r.status_code == 200 and "/register/office" in r.text and "/register/clinic" in r.text
+      and "mailto:shiraznobatyar@gmail.com" in r.text)
+check("همکاری: رایگان‌بودن درخواست و درج‌نشدن تعرفه صریح است",
+      "ثبت درخواست همکاری رایگان است" in r.text and "تعرفهٔ دقیق و شرایط فعال‌سازی در این صفحه درج نشده‌اند" in r.text)
+for path in ["/register/office", "/register/clinic"]:
+    r = client.get(path)
+    check(f"{path}: هشدار عدم ارسال اطلاعات بیمار و نبود بارگذاری فایل",
+          r.status_code == 200 and "اطلاعات بیماران" in r.text
+          and "فایل بارگذاری نمی‌شود" in r.text and "ایمیل رسمی نوبتیار" in r.text)
+
 # ==================== ۲) بیلبورد تبلیغات — فقط نمونهٔ طراحی‌شده ====================
 r = client.get("/")
 check("بیلبورد در صفحه اصلی موجود", "adBillboard" in r.text and "data-position=\"billboard-home\"" in r.text)

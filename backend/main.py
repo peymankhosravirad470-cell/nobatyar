@@ -20,7 +20,7 @@ import os  # noqa: E402 — پیش از تنظیمات CORS استفاده می�
 
 from database import get_db, init_db, engine, SessionLocal, IS_POSTGRES
 from models import (
-    Admin, Clinic, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
+    Admin, Clinic, ClinicStaff, WorkingHour, AvailableSlot, Appointment, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
     FeedbackStatus, Doctor, AppointmentStatusHistory, WaitlistEntry,  # v0.13.0
     APPOINTMENT_CLINIC_STATUSES, WAITLIST_STATUSES,
@@ -1401,7 +1401,12 @@ def list_pending_clinics(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    return db.query(Clinic).filter(Clinic.status == ClinicStatus.pending).all()
+    # مسیر قدیمی فقط رکوردهای بدون tracking_code را مدیریت می‌کند؛
+    # درخواست‌های جدید در /api/admin/registrations دیده می‌شوند.
+    return db.query(Clinic).filter(
+        Clinic.status == ClinicStatus.pending,
+        Clinic.tracking_code.is_(None),
+    ).all()
 
 
 @app.post("/api/admin/clinics/approve")
@@ -1413,16 +1418,22 @@ def approve_clinic(
     clinic = db.query(Clinic).filter(Clinic.id == data.clinic_id).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد")
+    if clinic.tracking_code is not None:
+        raise HTTPException(409, "این درخواست کد پیگیری دارد؛ از بخش ثبت‌نام‌های جدید ادمین استفاده کنید")
     if clinic.status != ClinicStatus.pending:
         raise HTTPException(400, "این مطب در وضعیت انتظار نیست")
-    
-    # چک یکتایی یوزرنیم
-    exists = db.query(Clinic).filter(Clinic.login_username == data.login_username).first()
-    if exists:
+
+    login_username = data.login_username.strip()
+    if len(login_username) < 4:
+        raise HTTPException(422, "نام کاربری باید حداقل ۴ نویسه داشته باشد")
+    # یکتایی حساب در هر دو سازوکار قدیمی و staff جدید.
+    exists = db.query(Clinic).filter(Clinic.login_username == login_username).first()
+    staff_exists = db.query(ClinicStaff).filter(ClinicStaff.username == login_username).first()
+    if exists or staff_exists:
         raise HTTPException(400, "این نام کاربری قبلاً استفاده شده")
     
     clinic.status = ClinicStatus.approved
-    clinic.login_username = data.login_username
+    clinic.login_username = login_username
     clinic.password_hash = hash_password(data.password)
     # برای تست اولیه: اشتراک را فعال می‌کنیم
     clinic.subscription_status = SubscriptionStatus.active
@@ -1440,6 +1451,10 @@ def reject_clinic(
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد")
+    if clinic.tracking_code is not None:
+        raise HTTPException(409, "این درخواست باید از بخش ثبت‌نام‌های جدید ادمین مدیریت شود")
+    if clinic.status != ClinicStatus.pending:
+        raise HTTPException(400, "این مطب در وضعیت انتظار نیست")
     clinic.status = ClinicStatus.rejected
     db.commit()
     return {"message": "مطب رد شد"}

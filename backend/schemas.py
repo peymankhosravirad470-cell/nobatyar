@@ -63,8 +63,8 @@ class AdminLogin(BaseModel):
 
 class ClinicApprove(BaseModel):
     clinic_id: int
-    login_username: str
-    password: str  # رمز اولیه پنل مطب
+    login_username: str = Field(..., min_length=4, max_length=50)
+    password: str = Field(..., min_length=12, max_length=128)  # رمز اولیه؛ بدون مقدار پیش‌فرض قابل‌حدس
 
 
 # ---------- Working Hours & Slots ----------
@@ -419,6 +419,11 @@ class OfficeRegister(_BaseCenterRegister):
     registration_contact_name: Optional[str] = Field(None, max_length=100)
     registration_contact_phone: Optional[str] = None
 
+    @field_validator("registration_contact_phone")
+    @classmethod
+    def _norm_registration_contact_phone(cls, v):
+        return _norm_ir_phone(v)
+
 
 class CenterRegister(_BaseCenterRegister):
     """ثبت‌نام درمانگاه (فرم مستقل ۳.۳) — چند پزشک و چند تخصص زیرمجموعه."""
@@ -444,12 +449,13 @@ class RegistrationStatusOut(BaseModel):
     revision_requested: bool = False
     status_note: Optional[str] = None
     name: str
+    type: Optional[str] = None
     submitted_at: datetime
 
 
 class ApproveIn(BaseModel):
     login_username: str = Field(..., min_length=4, max_length=50)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=12, max_length=128)
 
 
 class RejectIn(BaseModel):
@@ -515,11 +521,16 @@ class RegistrationAdminOut(BaseModel):
     doctor_name: Optional[str] = None
     manager_name: Optional[str] = None
     manager_mobile: Optional[str] = None
+    registration_contact_name: Optional[str] = None
+    registration_contact_phone: Optional[str] = None
     landline_phone: Optional[str] = None
     province: Optional[str] = None
     city: Optional[str] = None
     working_hours_text: Optional[str] = None
+    working_days: Optional[str] = None
     services_text: Optional[str] = None
+    center_type: Optional[str] = None
+    departments: Optional[str] = None
     booking_method: Optional[str] = None
     capacity_note: Optional[str] = None
     documents_note: Optional[str] = None

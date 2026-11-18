@@ -67,6 +67,13 @@ def test_register_and_approve_flow():
     admin_token = r.json()["access_token"]
     print("✅ ورود ادمین")
 
+    # رمز اولیهٔ ضعیف باید در API هم رد شود، نه فقط در رابط کاربری.
+    r = client.post("/api/admin/clinics/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "pass123"})
+    assert r.status_code == 422
+    print("✅ رمز اولیهٔ کوتاه در API رد شد")
+
     # تأیید
     r = client.post("/api/admin/clinics/approve",
         headers={"Authorization": f"Bearer {admin_token}"},

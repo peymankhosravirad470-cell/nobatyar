@@ -36,7 +36,7 @@
   <main class="container">
     <div id="msg"></div>
     <div class="card">
-      <h2>درخواست‌های در انتظار تأیید</h2>
+      <h2>درخواست‌های قدیمیِ در انتظار تأیید (بدون کد پیگیری)</h2>
       <button class="btn-sm" onclick="loadPending()">بروزرسانی</button>
       <table>
         <thead>
@@ -302,12 +302,12 @@
   </main>
 
   <div id="approveModal" class="card hidden" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);max-width:400px;z-index:100;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
-    <h2>تأیید مطب و ایجاد حساب</h2>
+    <h2>تأیید درخواست قدیمی و ایجاد حساب</h2>
     <input type="hidden" id="approveClinicId">
     <label>نام کاربری ورود مطب</label>
     <input type="text" id="approveUsername" placeholder="مثلاً clinic1">
-    <label>رمز عبور اولیه</label>
-    <input type="text" id="approvePassword" placeholder="رمز موقت">
+    <label>رمز عبور اولیه (حداقل ۱۲ نویسه)</label>
+    <input type="password" id="approvePassword" placeholder="رمز قوی را تعیین کنید" minlength="12" autocomplete="new-password">
     <button id="confirmApprove">تأیید و فعال‌سازی</button>
     <button class="btn-outline" onclick="document.getElementById('approveModal').classList.add('hidden')">انصراف</button>
   </div>
@@ -427,7 +427,7 @@
     function openApprove(id) {
       document.getElementById('approveClinicId').value = id;
       document.getElementById('approveUsername').value = 'clinic' + id;
-      document.getElementById('approvePassword').value = 'pass' + id;
+      document.getElementById('approvePassword').value = '';
       document.getElementById('approveModal').classList.remove('hidden');
     }
 
@@ -437,6 +437,7 @@
         login_username: document.getElementById('approveUsername').value.trim(),
         password: document.getElementById('approvePassword').value
       };
+      if (data.password.length < 12) { alert('رمز عبور اولیه باید حداقل ۱۲ نویسه باشد'); return; }
       const res = await fetch('/api/admin/clinics/approve', {
         method: 'POST', headers, body: JSON.stringify(data)
       });
@@ -693,13 +694,18 @@
         <div class="alert alert-info">
           <h3>${esc(r.name)} — ${REG_STATUS_FA[r.status] || esc(r.status)}</h3>
           ${row('نوع', r.type === 'clinic' ? 'درمانگاه' : 'مطب')}
+          ${row('نوع مرکز', r.center_type)}
           ${row('تخصص', r.specialty)}
           ${row('مدیر / مسئول', r.manager_name)}
           ${row('همراه مسئول', r.manager_mobile)}
+          ${row('مسئول ثبت‌نام', r.registration_contact_name)}
+          ${row('تلفن مسئول ثبت‌نام', r.registration_contact_phone)}
           ${row('تلفن ثابت', r.landline_phone)}
           ${row('استان / شهر', (r.province || '') + ' / ' + (r.city || ''))}
           ${row('نشانی', r.address)}
           ${row('ساعات کاری', r.working_hours_text)}
+          ${row('روزهای فعالیت', r.working_days)}
+          ${row('بخش‌ها', r.departments)}
           ${row('خدمات', r.services_text)}
           ${row('شیوهٔ نوبت‌دهی', r.booking_method === 'slot' ? 'آنلاین (اسلات)' : r.booking_method === 'phone' ? 'تلفنی' : 'حضوری')}
           ${row('ظرفیت', r.capacity_note)}
@@ -714,8 +720,8 @@
     async function regApprove(id) {
       const username = prompt('نام کاربری ورود مدیر مرکز:', 'center' + id);
       if (!username) return;
-      const password = prompt('رمز اولیه پنل مرکز (حداقل ۸ نویسه):');
-      if (!password || password.length < 8) { alert('رمز باید حداقل ۸ نویسه باشد'); return; }
+      const password = prompt('رمز اولیه پنل مرکز (حداقل ۱۲ نویسه):');
+      if (!password || password.length < 12) { alert('رمز باید حداقل ۱۲ نویسه باشد'); return; }
       const res = await fetch(`/api/admin/registrations/${id}/approve`, { method: 'POST', headers, body: JSON.stringify({ login_username: username.trim(), password }) });
       const j = await res.json();
       document.getElementById('msg').innerHTML = res.ok
