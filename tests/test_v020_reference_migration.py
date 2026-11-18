@@ -66,4 +66,4 @@ else:
 assert null_rejected, "قید NOT NULL باید نوبت بدون مرجع را رد کند"
 
 engine.dispose()
-print("✅ migration 0019→0020 رکوردهای قدیمی را backfill کرد و duplicate را رد کرد")
+print("✅ migration 0019→0020 backfill، NOT NULL و رد کد مرجع تکراری را تأیید کرد")
