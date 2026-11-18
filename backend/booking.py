@@ -22,6 +22,7 @@ from models import (
     Clinic, AvailableSlot, Appointment,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
 )
+from appointment_reference import generate_patient_reference
 
 MAX_ACTIVE_APPTS = 3  # سقف نوبت فعال برای هر کد ملی (یکسان با ربات)
 APPT_ACTIVE_STATUSES = (AppointmentStatus.pending, AppointmentStatus.confirmed)
@@ -99,6 +100,7 @@ def book_slot_atomic(
             raise BookingError("slot_taken", "متأسفانه این اسلات هم‌اکنون رزرو شد.")
 
         appt = Appointment(
+            patient_reference=generate_patient_reference(),
             clinic_id=clinic_id,
             slot_id=slot.id,
             doctor_id=slot.doctor_id,  # v0.11.0: پزشک نوبت از اسلات (درمانگاه چندپزشکی)
@@ -219,6 +221,7 @@ def reschedule_appointment_atomic(
 
         # ---------- ۳) نوبت جایگزین ----------
         new_appt = Appointment(
+            patient_reference=generate_patient_reference(),
             clinic_id=appointment.clinic_id,
             slot_id=new_slot.id,
             doctor_id=new_slot.doctor_id,

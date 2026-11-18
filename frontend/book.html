@@ -6,6 +6,14 @@
   <title>رزرو نوبت | نوبتیار</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+  <style>
+    .appointment-receipt{margin:1rem 0;padding:1.25rem;border:1px solid #b7ded5;border-radius:18px;background:#f6fffc}
+    .appointment-receipt h2{color:#12675e}.receipt-reference{direction:ltr;display:inline-block;font:700 1.1rem ui-monospace,monospace;letter-spacing:.08em;padding:.55rem .8rem;background:#e7f7f2;border-radius:10px}
+    .receipt-fields{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin:1rem 0}.receipt-field{padding:.65rem;background:#fff;border:1px solid #e7efed;border-radius:12px}
+    .receipt-field dt{font-size:.8rem;color:#64736f}.receipt-field dd{margin:.25rem 0 0;font-weight:600}.receipt-note{font-size:.9rem;line-height:1.8}
+    @media(max-width:520px){.receipt-fields{grid-template-columns:1fr}}
+    @media print{body *{visibility:hidden!important}#msg,#msg *{visibility:visible!important}#msg{position:fixed;inset:0}.receipt-actions{display:none!important}}
+  </style>
 </head>
 <body>
   <header>
@@ -100,6 +108,26 @@
       });
     });
 
+    function renderPatientReceipt(target, data) {
+      const card = document.createElement('section'); card.className = 'appointment-receipt';
+      const title = document.createElement('h2'); title.textContent = 'درخواست نوبت ثبت شد';
+      const code = document.createElement('p'); code.textContent = 'کد مرجع: ';
+      const ref = document.createElement('span'); ref.className = 'receipt-reference'; ref.textContent = data.patient_reference; code.appendChild(ref);
+      const fields = document.createElement('dl'); fields.className = 'receipt-fields';
+      [['مرکز درمانی', data.clinic_name], ['پزشک', data.doctor_name || '—'], ['زمان نوبت', data.appointment_datetime_label], ['وضعیت', data.status_label]].forEach(([label, value]) => {
+        const item = document.createElement('div'); item.className = 'receipt-field';
+        const dt = document.createElement('dt'); dt.textContent = label; const dd = document.createElement('dd'); dd.textContent = value || '—';
+        item.append(dt, dd); fields.appendChild(item);
+      });
+      const note = document.createElement('p'); note.className = 'receipt-note';
+      note.textContent = 'این کد برای پیگیری با مرکز است و به‌تنهایی به معنی تأیید نوبت نیست. اطلاعات شخصی در رسید چاپی نمایش داده نمی‌شود.';
+      const actions = document.createElement('div'); actions.className = 'receipt-actions';
+      const print = document.createElement('button'); print.type = 'button'; print.textContent = 'چاپ رسید'; print.onclick = () => window.print();
+      const openReceipt = document.createElement('a'); openReceipt.href = `/receipt/${encodeURIComponent(data.patient_reference)}`; openReceipt.rel = 'noreferrer'; openReceipt.textContent = 'مشاهدهٔ صفحهٔ رسید';
+      actions.append(print, openReceipt);
+      card.append(title, code, fields, note, actions); target.replaceChildren(card);
+    }
+
     document.getElementById('bookBtn').addEventListener('click', async () => {
       const name = document.getElementById('patientName').value.trim();
       const phone = document.getElementById('patientPhone').value.trim();
@@ -108,7 +136,7 @@
         msg.innerHTML = '<div class="alert alert-error">همه فیلدها را پر کنید</div>';
         return;
       }
-      const res = await fetch('/api/appointments', {
+      const res = await fetch('/api/public/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,10 +149,15 @@
       });
       const json = await res.json();
       if (!res.ok) {
-        msg.innerHTML = `<div class="alert alert-error">${json.detail || 'خطا'}</div>`;
+        msg.textContent = json.detail || 'خطا در ثبت نوبت';
         return;
       }
-      msg.innerHTML = `<div class="alert alert-success">نوبت شما ثبت شد (کد: ${json.id}). وضعیت: در انتظار تأیید مطب</div>`;
+      if (!json.patient_reference) {
+        msg.textContent = 'درخواست ثبت شد؛ رسید کامل دریافت نشد. لطفاً دوباره نوبت ثبت نکنید و با مرکز پیگیری کنید.';
+        document.getElementById('patientForm').classList.add('hidden');
+        return;
+      }
+      renderPatientReceipt(msg, json);
       document.getElementById('patientForm').classList.add('hidden');
       // رفرش اسلات‌ها
       document.getElementById('clinicSelect').dispatchEvent(new Event('change'));

@@ -119,6 +119,8 @@ def book(slot, seed, name="بیمار تستی"):
 r = book(s1, 1)
 check("۱-۱. رزرو نوبت اول", r.status_code == 200, r.text[:200])
 appt1 = r.json()
+check("۱-۱-ب. رزرو جدید کد مرجع دارد",
+      bool(appt1.get("patient_reference", "").startswith("NBY-")))
 
 r = client.get(f"/api/clinic/appointments/{appt1['id']}/history", headers=ch)
 check("۱-۲. پس از رزرو، تاریخچه خالی است (رزرو گذار وضعیت نیست)",
@@ -179,7 +181,9 @@ res = r.json()
 new_appt = res.get("new_appointment", {})
 check("۳-۳. نوبت جایگزین روی اسلات جدید ساخته شد",
       new_appt.get("appointment_datetime") == s3["start_datetime"]
-      and new_appt.get("patient_phone") == appt2["patient_phone"], str(res)[:300])
+      and new_appt.get("patient_phone") == appt2["patient_phone"]
+      and new_appt.get("patient_reference")
+      and new_appt.get("patient_reference") != appt2.get("patient_reference"), str(res)[:300])
 
 dbs = SessionLocal()
 old_row = dbs.query(ApptModel).filter(ApptModel.id == appt2["id"]).first()

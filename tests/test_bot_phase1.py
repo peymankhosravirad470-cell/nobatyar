@@ -191,7 +191,9 @@ check("رزرو: خلاصه با نرمال‌سازی ارقام (نمایش ف
 asyncio.run(bale_bot.handle_callback(CHAT + 1, 20, "confirm"))
 txt = last_text("editMessageText")
 btns = kb_texts("editMessageText")
-check("رزرو: ثبت موفق + کد نوبت", "نوبت شما ثبت شد" in txt and "کد نوبت" in txt)
+check("رزرو: رسید با کد مرجع و بدون اطلاعات هویتی",
+      "نوبت شما ثبت شد" in txt and "کد مرجع" in txt
+      and VALID_NC not in txt and "09171234567" not in txt and "علی رضایی" not in txt)
 check("رزرو: بعد از ثبت، دکمه مسیریابی و تاکسی",
       any("مسیریابی" in b for b in btns) and any("تاکسی" in b for b in btns))
 
@@ -199,7 +201,8 @@ db = SessionLocal()
 appt = db.query(Appointment).filter(Appointment.bale_chat_id == str(CHAT + 1)).first()
 check("رزرو: رکورد نوبت با منبع بله ذخیره شد",
       appt is not None and appt.patient_phone == "09171234567"
-      and appt.patient_national_code == VALID_NC)
+      and appt.patient_national_code == VALID_NC
+      and appt.patient_reference and appt.patient_reference in txt)
 s = db.query(AvailableSlot).filter(AvailableSlot.id == SID).first()
 check("رزرو: اسلات قفل شد", s.is_booked is True)
 db.close()

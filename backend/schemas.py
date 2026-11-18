@@ -143,6 +143,7 @@ class AppointmentCreate(BaseModel):
 
 class AppointmentOut(BaseModel):
     id: int
+    patient_reference: str
     clinic_id: int
     doctor_id: Optional[int] = None  # v0.11.0
     patient_name: str
@@ -157,6 +158,17 @@ class AppointmentOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PatientAppointmentReceiptOut(BaseModel):
+    """پاسخ عمومی رزرو: اطلاعات رسید، بدون شناسهٔ داخلی یا اطلاعات بیمار."""
+    patient_reference: str
+    clinic_name: str
+    doctor_name: Optional[str] = None
+    appointment_datetime: datetime
+    appointment_datetime_label: str
+    status: str
+    status_label: str
 
 
 class AppointmentStatusUpdate(BaseModel):
@@ -770,12 +782,13 @@ class DeviceTokenRegister(BaseModel):
     - token: توکن FCM (از لایهٔ native اپ یا پلاگین Capacitor در WebView)
     - phone: شمارهٔ بیمار — «اختیاری»؛ ثبت اولیهٔ بی‌صدا از اپ بدون شماره می‌آید؛
       پیوند شماره از جریان نوبت‌گیری اپ (book.html) انجام می‌شود.
-    - appointment_id: اختیاری — اگر داده شود، باید phone با صاحبِ همان نوبت
-      مطابقت کند (راستی‌آزمایی تطابق بیمارِ نوبت).
+    - patient_reference: کد تصادفی نوبت برای اتصال WebView؛ شماره نیز باید تطبیق داشته باشد.
     """
     token: str = Field(..., min_length=20, max_length=256)
     phone: Optional[str] = None
-    appointment_id: Optional[int] = None
+    patient_reference: Optional[str] = Field(
+        None, pattern=r"^NBY-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{26}$"
+    )
     platform: Optional[str] = Field(None, pattern="^(android|ios)$")
 
     @field_validator("phone")
