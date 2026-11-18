@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date, time
 from typing import List, Optional
 import logging  # v0.11.2: رفع باگ NameError در هُک‌های پس از تغییر وضعیت نوبت
 
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Security
 from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
@@ -632,12 +632,15 @@ def specialty_page(slug: str, request: _Request, db: Session = Depends(get_db)):
     matched = [c for c in clinics if _clinic_matches_specialty(c, sp)]
     centers_out, doctors_out = [], []
     for c in matched:
+        public_menu = centers._effective_public_menu(c)
         docs = db.query(Doctor).filter(
-            Doctor.clinic_id == c.id, Doctor.is_active == True).all()  # noqa: E712
+            Doctor.clinic_id == c.id, Doctor.is_active == True).all() if public_menu["show_doctors"] else []  # noqa: E712
         centers_out.append({
             "id": c.id, "name": c.name, "type": c.type,
-            "address": c.address, "phone": c.phone, "specialty": c.specialty,
-            "doctors_count": len(docs),
+            "address": c.address if public_menu["show_address"] else None,
+            "phone": c.phone if public_menu["show_phone"] else None,
+            "specialty": c.specialty, "show_doctors": public_menu["show_doctors"],
+            "doctors_count": len(docs) if public_menu["show_doctors"] else None,
         })
         for d in docs:
             doctors_out.append({
@@ -674,18 +677,22 @@ def doctor_page(doctor_id: int, request: _Request, db: Session = Depends(get_db)
         ).first()
     if not doc or not clinic:
         return _not_found(request, "پروفایل پزشک یافت نشد یا فعال نیست")
+    public_menu = centers._effective_public_menu(clinic)
+    if not public_menu["show_doctors"]:
+        return _not_found(request, "این مرکز پروفایل پزشکان را در نوبتیار منتشر نمی‌کند")
     from datetime import datetime as _dt
     free_slots = db.query(AvailableSlot).filter(
         AvailableSlot.doctor_id == doc.id,
         AvailableSlot.is_booked == False,  # noqa: E712
         AvailableSlot.start_datetime >= _dt.utcnow(),
-    ).count()
+    ).count() if public_menu["show_online_booking"] and clinic.booking_method in (None, "slot") else 0
     return templates.TemplateResponse(
         request=request, name="doctor.html",
         context={
             "doc": doc, "clinic": clinic, "free_slots": free_slots,
+            "public_menu": public_menu,
             "page_title": f"دکتر {doc.full_name} — {doc.specialty} در شیراز | نوبتیار",
-            "page_desc": f"پروفایل، خدمات و نوبت‌دهی دکتر {doc.full_name} ({doc.specialty}) در {clinic.name} شیراز",
+            "page_desc": f"اطلاعات پزشک و شیوهٔ دریافت نوبت از {clinic.name} مطابق تنظیمات منتشرشدهٔ مرکز.",
         },
     )
 
@@ -700,22 +707,25 @@ def center_page(clinic_id: int, request: _Request, db: Session = Depends(get_db)
     ).first()
     if not clinic:
         return _not_found(request, "مرکز مورد نظر یافت نشد یا فعال نیست")
+    from centers import _effective_public_menu
+    public_menu = _effective_public_menu(clinic)
     docs = db.query(Doctor).filter(
-        Doctor.clinic_id == clinic.id, Doctor.is_active == True).all()  # noqa: E712
+        Doctor.clinic_id == clinic.id, Doctor.is_active == True).all() if public_menu["show_doctors"] else []  # noqa: E712
     from datetime import datetime as _dt
     from urllib.parse import quote as _q
     addr = f"{clinic.province or 'فارس'}، {clinic.city or 'شیراز'}، {clinic.address}"
-    maps = {
+    maps = ({
         "google": f"https://www.google.com/maps/dir/?api=1&destination={_q(addr)}",
         "neshan": f"https://neshan.org/maps/search/{_q(addr)}",
         "balad": f"https://balad.ir/search?query={_q(addr)}",
-    }
+    } if public_menu["show_directions"] and public_menu["show_address"] else {})
     return templates.TemplateResponse(
         request=request, name="center.html",
         context={
             "clinic": clinic, "doctors": docs, "maps": maps,
+            "public_menu": public_menu,
             "page_title": f"{clinic.name} — {clinic.specialty or 'خدمات درمانی'} در شیراز | نوبتیار",
-            "page_desc": f"آدرس، تلفن، پزشکان و نوبت‌دهی آنلاین {clinic.name} در شیراز",
+            "page_desc": f"پروفایل عمومی {clinic.name} در نوبتیار؛ اطلاعات تماس، خدمات و دریافت نوبت مطابق تنظیمات همین مرکز.",
         },
     )
 
@@ -806,9 +816,10 @@ def sitemap_xml():
                 entries.append(
                     f"<url><loc>{base}/centers/{cid}</loc><lastmod>{today}</lastmod>"
                     f"<changefreq>daily</changefreq><priority>0.8</priority></url>")
-            if ids:
+            visible_doctor_ids = [c.id for c in clinics if centers._effective_public_menu(c)["show_doctors"]]
+            if visible_doctor_ids:
                 docs = db.query(Doctor.id).filter(
-                    Doctor.clinic_id.in_(ids), Doctor.is_active == True).all()  # noqa: E712
+                    Doctor.clinic_id.in_(visible_doctor_ids), Doctor.is_active == True).all()  # noqa: E712
                 for (did,) in docs:
                     entries.append(
                         f"<url><loc>{base}/doctors/{did}</loc><lastmod>{today}</lastmod>"
@@ -861,6 +872,20 @@ def register_clinic(data: ClinicRegister, request: Request, db: Session = Depend
     return clinic
 
 
+def _public_clinic_projection(clinic: Clinic) -> ClinicOut:
+    """نمای عمومی مرکز؛ بدون draft و مطابق تنظیمات منتشرشدهٔ همان مرکز."""
+    item = ClinicOut.model_validate(clinic)
+    config = centers._effective_public_menu(clinic)
+    if not config["show_address"]:
+        item.address = None
+    if not config["show_phone"]:
+        item.phone = None
+    if not config["show_doctors"]:
+        item.doctor_name = None
+    item.public_menu = config
+    return item
+
+
 @app.get("/api/clinics/public", response_model=List[ClinicOut])
 def list_public_clinics(
     type: Optional[str] = None,
@@ -882,11 +907,11 @@ def list_public_clinics(
             items = [
                 c for c in items
                 if ns in normalize_fa(c.name)
-                or ns in normalize_fa(c.doctor_name or "")
+                or (centers._effective_public_menu(c)["show_doctors"] and ns in normalize_fa(c.doctor_name or ""))
                 or ns in normalize_fa(c.specialty or "")
-                or ns in normalize_fa(c.address or "")
+                or (centers._effective_public_menu(c)["show_address"] and ns in normalize_fa(c.address or ""))
             ]
-    return items
+    return [_public_clinic_projection(c) for c in items]
 
 
 @app.get("/api/clinics/{clinic_id}", response_model=ClinicOut)
@@ -903,7 +928,7 @@ def get_clinic(clinic_id: int, db: Session = Depends(get_db)):
     ).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد یا غیرفعال است")
-    return clinic
+    return _public_clinic_projection(clinic)
 
 
 # ==================== API: ادمین ====================
@@ -1422,6 +1447,12 @@ def approve_clinic(
         raise HTTPException(409, "این درخواست کد پیگیری دارد؛ از بخش ثبت‌نام‌های جدید ادمین استفاده کنید")
     if clinic.status != ClinicStatus.pending:
         raise HTTPException(400, "این مطب در وضعیت انتظار نیست")
+    if clinic.revision_requested:
+        raise HTTPException(409, "درخواست تا دریافت فرم اصلاح‌شده قابل تأیید نیست")
+    if clinic.license_review_status != "verified":
+        raise HTTPException(409, "پیش از تأیید، بررسی مجوزها باید تکمیل و تأیید شود")
+    if not clinic.license_review_notified_at:
+        raise HTTPException(409, "پیش از نهایی‌سازی، نتیجه باید واقعاً به مرکز اطلاع داده و ثبت شود")
 
     login_username = data.login_username.strip()
     if len(login_username) < 4:
@@ -1516,9 +1547,10 @@ def get_working_hours(
 @app.post("/api/clinic/working-hours", response_model=WorkingHourOut)
 def set_working_hour(
     data: WorkingHourIn,
-    clinic: Clinic = Depends(get_current_clinic),
+    credentials=Security(centers.security),
     db: Session = Depends(get_db)
 ):
+    clinic, _staff = centers.require_manager(credentials, db)
     if data.start_time >= data.end_time:
         raise HTTPException(400, "ساعت شروع باید قبل از پایان باشد")
     
@@ -1551,10 +1583,11 @@ def set_working_hour(
 @app.post("/api/clinic/slots/generate")
 def generate_slots(
     data: GenerateSlotsRequest,
-    clinic: Clinic = Depends(get_current_clinic),
+    credentials=Security(centers.security),
     db: Session = Depends(get_db)
 ):
     """تولید اسلات‌های خالی بر اساس ساعات کاری برای بازه مشخص"""
+    clinic, _staff = centers.require_manager(credentials, db)
     if data.from_date > data.to_date:
         raise HTTPException(400, "بازه تاریخ نامعتبر")
     
@@ -1659,6 +1692,8 @@ def public_free_slots(
     ).first()
     if not clinic:
         raise HTTPException(404, "مطب یافت نشد یا غیرفعال است")
+    if not centers.public_online_booking_enabled(clinic):
+        return []
     
     q = db.query(AvailableSlot).filter(
         AvailableSlot.clinic_id == clinic_id,
@@ -1682,6 +1717,15 @@ def create_appointment(data: AppointmentCreate, request: Request, db: Session = 
     قفل شرطی اسلات + بررسی rowcount + محدودیت یکتای جزئی slot_id در دیتابیس:
     دو درخواست هم‌زمان هرگز یک اسلات را نمی‌برند و نوبت تکراری غیرممکن است."""
     _throttle(request, _appointment_limit)
+    clinic = db.query(Clinic).filter(
+        Clinic.id == data.clinic_id,
+        Clinic.status == ClinicStatus.approved,
+        Clinic.subscription_status == SubscriptionStatus.active,
+    ).first()
+    if not clinic:
+        raise HTTPException(404, "مرکز یافت نشد یا غیرفعال است")
+    if not centers.public_online_booking_enabled(clinic):
+        raise HTTPException(409, "این مرکز در حال حاضر نوبت‌گیری آنلاین ندارد")
     source = AppointmentSource.web if data.source == "web" else AppointmentSource.bale
     try:
         appt = book_slot_atomic(

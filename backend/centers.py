@@ -11,21 +11,26 @@
 import logging
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timedelta, time, timezone
 from typing import List, Optional, Union
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from sqlalchemy.orm import Session
 
 from database import get_db
+from clinic_menu import effective_public_menu as _effective_public_menu
 from models import (
     Admin, Clinic, Doctor, ClinicStaff, WorkingHour, AvailableSlot, Appointment,
-    ClinicStatus, SubscriptionStatus,
+    ClinicReviewEvent, ClinicStatus, SubscriptionStatus,
 )
 from schemas import (
     OfficeRegister, CenterRegister, RegistrationCreated, RegistrationStatusOut,
     RegistrationAdminOut, RejectIn, RevisionIn, ApproveIn, DoctorIn, DoctorOut,
     DoctorUpdate, StaffCreate, StaffOut, StaffLogin, ClinicMeOut,
+    LicenseReviewStartIn, LicenseReviewDecisionIn, LicenseReviewNotifiedIn,
+    ClinicPublicMenuConfig, ClinicMenuDecisionIn, ClinicMenuSettingsOut,
+    ClinicReviewEventOut,
 )
 from auth import (
     hash_password, verify_password, create_access_token, get_current_admin,
@@ -39,6 +44,67 @@ router = APIRouter(prefix="/api", tags=["centers"])
 LOG = logging.getLogger("nobatyar.centers")
 
 STAFF_ROLES = ("manager", "reception", "doctor")
+TEHRAN = ZoneInfo("Asia/Tehran")
+
+
+def public_online_booking_enabled(clinic: Clinic) -> bool:
+    """آیا رزرو اسلات آنلاین برای این مرکز در منوی منتشرشده مجاز است؟"""
+    menu = _effective_public_menu(clinic)
+    return bool(menu["show_online_booking"] and clinic.booking_method in (None, "slot"))
+
+
+def _utc_now_naive() -> datetime:
+    """زمان UTC بدون tzinfo، مطابق قرارداد فعلی ستون‌های DateTime پروژه."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _add_iran_business_days(start_utc: datetime, days: int) -> datetime:
+    """محاسبهٔ موعد هدف داخلی: جمعه حذف می‌شود، موعد ساعت ۱۷ تهران است.
+
+    تقویم تعطیلات رسمی به سامانه متصل نیست؛ ادمین باید تعطیلات موردی را در
+    برنامه‌ریزی بررسی لحاظ کند. مقدار ذخیره‌شده UTC-naive است.
+    """
+    aware = start_utc.replace(tzinfo=timezone.utc) if start_utc.tzinfo is None else start_utc
+    local_start = aware.astimezone(TEHRAN)
+    due_day = local_start.date()
+    counted = 0
+    while counted < days:
+        due_day += timedelta(days=1)
+        if due_day.weekday() != 4:  # جمعه در تقویم Python
+            counted += 1
+    local_due = datetime.combine(due_day, time(17, 0), tzinfo=TEHRAN)
+    return local_due.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _record_review_event(
+    db: Session, clinic: Clinic, admin: Optional[Admin], action: str,
+    *, public_note: Optional[str] = None, internal_note: Optional[str] = None,
+    notification_channel: Optional[str] = None,
+) -> None:
+    db.add(ClinicReviewEvent(
+        clinic_id=clinic.id,
+        admin_id=admin.id if admin else None,
+        action=action,
+        review_status=clinic.license_review_status or "not_started",
+        target_business_days=clinic.license_review_target_business_days,
+        due_at=clinic.license_review_due_at,
+        notification_channel=notification_channel,
+        public_note=public_note,
+        internal_note=internal_note,
+    ))
+
+
+def _reset_license_review_cycle(clinic: Clinic) -> None:
+    """ابطال نتیجه/ابلاغ قبلی تا پروندهٔ اصلاح‌شده دوباره بررسی شود."""
+    clinic.license_review_status = "not_started"
+    clinic.contract_received_at = None
+    clinic.license_review_started_at = None
+    clinic.license_review_due_at = None
+    clinic.license_review_target_business_days = None
+    clinic.license_review_completed_at = None
+    clinic.license_review_notified_at = None
+    clinic.license_review_public_note = None
+    clinic.license_review_internal_note = None
 
 
 def _gen_tracking_code(db: Session) -> str:
@@ -170,6 +236,8 @@ def request_status(request_id: int, code: str, db: Session = Depends(get_db)):
         status=clinic.status.value if hasattr(clinic.status, "value") else str(clinic.status),
         revision_requested=bool(clinic.revision_requested),
         status_note=clinic.status_note,
+        license_review_status=clinic.license_review_status or "not_started",
+        license_review_public_note=clinic.license_review_public_note,
         name=clinic.name,
         type=clinic.type,
         submitted_at=clinic.created_at,
@@ -203,6 +271,10 @@ def request_resubmit(
     clinic.revision_requested = False
     clinic.status_note = None
     clinic.status = ClinicStatus.pending
+    if clinic.tracking_code:
+        # هر resubmit یک پروندهٔ جدید برای بررسی است، حتی اگر چرخه قبلاً با درخواست اصلاح ابطال شده باشد.
+        _reset_license_review_cycle(clinic)
+        _record_review_event(db, clinic, None, "applicant_resubmitted")
     db.commit()
     LOG.info("registration resubmitted id=%s", clinic.id)
     return RegistrationCreated(request_id=clinic.id, tracking_code=clinic.tracking_code,
@@ -213,12 +285,14 @@ def request_resubmit(
 
 @router.get("/admin/registrations", response_model=List[RegistrationAdminOut])
 def list_registrations(
-    state: Optional[str] = None,   # pending | approved | rejected | all
+    state: Optional[str] = None,   # pending | approved | rejected | menu_pending | all
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
     q = db.query(Clinic)
-    if state in ("pending", "approved", "rejected"):
+    if state == "menu_pending":
+        q = q.filter(Clinic.public_menu_status == "pending_review")
+    elif state in ("pending", "approved", "rejected"):
         q = q.filter(Clinic.status == ClinicStatus(state))
     elif state != "all":
         q = q.filter(Clinic.status == ClinicStatus.pending)
@@ -246,6 +320,103 @@ def get_registration(
     return item
 
 
+@router.post("/admin/registrations/{request_id}/license-review/start")
+def start_license_review(
+    request_id: int, data: LicenseReviewStartIn,
+    admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db),
+):
+    """ثبت دریافت قرارداد/پروندهٔ کامل و آغاز چرخهٔ بررسی با هدف داخلی."""
+    clinic = db.query(Clinic).filter(Clinic.id == request_id).first()
+    if not clinic:
+        raise HTTPException(404, "درخواست یافت نشد")
+    if clinic.status != ClinicStatus.pending:
+        raise HTTPException(409, "بررسی مجوز فقط برای درخواستِ در انتظار قابل شروع است")
+    if clinic.revision_requested:
+        raise HTTPException(409, "ابتدا باید فرم اصلاح‌شده از متقاضی دریافت شود")
+    if clinic.license_review_status != "not_started":
+        raise HTTPException(409, "چرخهٔ بررسی قبلاً آغاز شده؛ برای شروع دوباره، ابتدا پروندهٔ اصلاح‌شده از مرکز دریافت شود")
+    now = _utc_now_naive()
+    clinic.contract_received_at = now
+    clinic.license_review_started_at = now
+    clinic.license_review_target_business_days = data.target_business_days
+    clinic.license_review_due_at = _add_iran_business_days(now, data.target_business_days)
+    clinic.license_review_status = "in_review"
+    clinic.license_review_completed_at = None
+    clinic.license_review_public_note = None
+    clinic.license_review_internal_note = data.internal_note
+    _record_review_event(db, clinic, admin, "review_started", internal_note=data.internal_note)
+    db.commit()
+    return {
+        "message": "شروع بررسی ثبت شد. موعد نمایش‌داده‌شده فقط هدف داخلی است؛ تعطیلات رسمی در تقویم خودکار لحاظ نمی‌شوند.",
+        "license_review_status": clinic.license_review_status,
+        "due_at": clinic.license_review_due_at,
+        "target_business_days": clinic.license_review_target_business_days,
+    }
+
+
+@router.post("/admin/registrations/{request_id}/license-review/decision")
+def decide_license_review(
+    request_id: int, data: LicenseReviewDecisionIn,
+    admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db),
+):
+    clinic = db.query(Clinic).filter(Clinic.id == request_id).first()
+    if not clinic:
+        raise HTTPException(404, "درخواست یافت نشد")
+    if clinic.license_review_status != "in_review":
+        raise HTTPException(409, "ابتدا چرخهٔ بررسی را شروع کنید")
+    if data.status in ("needs_info", "rejected") and not (data.public_note or "").strip():
+        raise HTTPException(422, "برای درخواست اطلاعات یا رد، پیام قابل‌نمایش به متقاضی لازم است")
+    clinic.license_review_status = data.status
+    clinic.license_review_public_note = (data.public_note or "").strip() or None
+    clinic.license_review_internal_note = (data.internal_note or "").strip() or None
+    clinic.license_review_completed_at = _utc_now_naive()
+    if data.status == "needs_info":
+        # اعلام «نیاز به اطلاعات» باید فرم اصلاحی را برای متقاضی باز کند.
+        clinic.revision_requested = True
+        clinic.status_note = clinic.license_review_public_note
+    _record_review_event(
+        db, clinic, admin, "review_decision",
+        public_note=clinic.license_review_public_note,
+        internal_note=clinic.license_review_internal_note,
+    )
+    db.commit()
+    return {"message": "نتیجهٔ بررسی ذخیره شد و از طریق استعلام کد پیگیری قابل مشاهده است.",
+            "license_review_status": clinic.license_review_status}
+
+
+@router.post("/admin/registrations/{request_id}/license-review/notified")
+def mark_license_review_notified(
+    request_id: int, data: LicenseReviewNotifiedIn,
+    admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db),
+):
+    """ثبت دستی اطلاع‌رسانی؛ این endpoint پیامک/ایمیل ارسال نمی‌کند."""
+    clinic = db.query(Clinic).filter(Clinic.id == request_id).first()
+    if not clinic:
+        raise HTTPException(404, "درخواست یافت نشد")
+    if clinic.license_review_status in (None, "not_started", "in_review"):
+        raise HTTPException(409, "پس از ثبت نتیجهٔ بررسی، اطلاع‌رسانی را ثبت کنید")
+    clinic.license_review_notified_at = _utc_now_naive()
+    _record_review_event(
+        db, clinic, admin, "center_notified",
+        notification_channel=data.channel,
+        internal_note=(data.note or "").strip() or None,
+    )
+    db.commit()
+    return {"message": "ثبت شد؛ این اقدام فقط سابقه‌سازی است و پیام خودکار ارسال نمی‌کند."}
+
+
+@router.get("/admin/registrations/{request_id}/license-review/history",
+            response_model=List[ClinicReviewEventOut])
+def license_review_history(
+    request_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db),
+):
+    if not db.query(Clinic.id).filter(Clinic.id == request_id).first():
+        raise HTTPException(404, "درخواست یافت نشد")
+    return db.query(ClinicReviewEvent).filter(
+        ClinicReviewEvent.clinic_id == request_id
+    ).order_by(ClinicReviewEvent.created_at.asc(), ClinicReviewEvent.id.asc()).all()
+
+
 @router.post("/admin/registrations/{request_id}/approve")
 def approve_registration(
     request_id: int, data: ApproveIn,
@@ -258,6 +429,12 @@ def approve_registration(
         raise HTTPException(404, "درخواست یافت نشد")
     if clinic.status != ClinicStatus.pending:
         raise HTTPException(400, "این درخواست در وضعیت انتظار نیست")
+    if clinic.revision_requested:
+        raise HTTPException(409, "درخواست تا دریافت فرم اصلاح‌شده قابل تأیید نیست")
+    if clinic.license_review_status != "verified":
+        raise HTTPException(409, "پیش از تأیید ثبت‌نام، بررسی مجوزها باید تکمیل و تأیید شود")
+    if not clinic.license_review_notified_at:
+        raise HTTPException(409, "پیش از نهایی‌سازی، نتیجه باید واقعاً به مرکز اطلاع داده و ثبت شود")
     exists = db.query(Clinic).filter(
         Clinic.login_username == data.login_username.strip(),
         Clinic.id != clinic.id,
@@ -314,8 +491,10 @@ def request_revision(
         raise HTTPException(404, "درخواست یافت نشد")
     if clinic.status != ClinicStatus.pending:
         raise HTTPException(400, "این درخواست در وضعیت انتظار نیست")
+    _record_review_event(db, clinic, admin, "revision_requested", public_note=data.reason.strip())
     clinic.revision_requested = True
     clinic.status_note = data.reason.strip()
+    _reset_license_review_cycle(clinic)
     db.commit()
     LOG.info("revision requested id=%s by admin=%s", clinic.id, admin.id)
     return {"message": "درخواست اصلاح برای متقاضی ثبت شد."}
@@ -366,6 +545,62 @@ def require_manager(credentials=None, db: Session = None) -> tuple:
     return clinic, staff
 
 
+@router.get("/clinic/public-menu", response_model=ClinicMenuSettingsOut)
+def clinic_public_menu_settings(credentials=Security(security), db: Session = Depends(get_db)):
+    clinic, _staff = require_manager(credentials, db)
+    return ClinicMenuSettingsOut(
+        status=clinic.public_menu_status or "not_configured",
+        published_config=clinic.public_menu_config,
+        draft_config=clinic.public_menu_draft_config,
+        note=clinic.public_menu_note,
+    )
+
+
+@router.put("/clinic/public-menu", response_model=ClinicMenuSettingsOut)
+def submit_clinic_public_menu(
+    data: ClinicPublicMenuConfig,
+    credentials=Security(security), db: Session = Depends(get_db),
+):
+    """مدیر فقط پیش‌نویس مرکز خودش را ثبت می‌کند؛ انتشار نیازمند تأیید ادمین است."""
+    clinic, _staff = require_manager(credentials, db)
+    clinic.public_menu_draft_config = data.model_dump(mode="json")
+    clinic.public_menu_status = "pending_review"
+    clinic.public_menu_note = None
+    db.commit()
+    return ClinicMenuSettingsOut(
+        status=clinic.public_menu_status,
+        published_config=clinic.public_menu_config,
+        draft_config=clinic.public_menu_draft_config,
+        note=clinic.public_menu_note,
+    )
+
+
+@router.post("/admin/clinics/{clinic_id}/public-menu/decision")
+def decide_clinic_public_menu(
+    clinic_id: int, data: ClinicMenuDecisionIn,
+    admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db),
+):
+    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+    if not clinic:
+        raise HTTPException(404, "مرکز یافت نشد")
+    if clinic.public_menu_status != "pending_review" or not clinic.public_menu_draft_config:
+        raise HTTPException(409, "پیش‌نویس منوی منتظر بررسی برای این مرکز وجود ندارد")
+    if data.action == "approve":
+        clinic.public_menu_config = clinic.public_menu_draft_config
+        clinic.public_menu_draft_config = None
+        clinic.public_menu_status = "approved"
+        clinic.public_menu_note = None
+    else:
+        if not (data.note or "").strip():
+            raise HTTPException(422, "برای درخواست اصلاح منو، توضیح لازم است")
+        clinic.public_menu_status = "needs_changes"
+        clinic.public_menu_note = data.note.strip()
+    db.commit()
+    LOG.info("clinic public menu %s clinic=%s admin=%s", data.action, clinic.id, admin.id)
+    return {"message": "تغییر منو منتشر شد." if data.action == "approve" else "درخواست اصلاح منو ثبت شد.",
+            "status": clinic.public_menu_status}
+
+
 def clinic_context(credentials=Security(security), db: Session = Depends(get_db)) -> tuple:
     """وابستگی مسیرهای نوبت‌ها: توکن مرکز یا کارمند → (clinic, role, staff)."""
     return _role_from_token(credentials, db)
@@ -391,6 +626,13 @@ def staff_login(data: StaffLogin, request: Request, db: Session = Depends(get_db
 
 def _me_payload(db: Session, clinic: Clinic) -> ClinicMeOut:
     item = ClinicMeOut.model_validate(clinic)
+    # موعد SLA، زمان دریافت قرارداد و یادداشت داخلی فقط برای ادمین مجاز است.
+    for field in (
+        "contract_received_at", "license_review_started_at", "license_review_due_at",
+        "license_review_target_business_days", "license_review_completed_at",
+        "license_review_internal_note", "license_review_notified_at",
+    ):
+        setattr(item, field, None)
     item.doctors = [DoctorOut.model_validate(d) for d in
                     db.query(Doctor).filter(Doctor.clinic_id == clinic.id).all()]
     return item
@@ -400,13 +642,31 @@ def _me_payload(db: Session, clinic: Clinic) -> ClinicMeOut:
 def clinic_me(credentials=Security(security), db: Session = Depends(get_db)):
     """اطلاعات کامل مرکز برای پنل (وضعیت بررسی/اصلاح هم داخل آن است)."""
     clinic, role, staff = _role_from_token(credentials, db)
-    return _me_payload(db, clinic)
+    item = _me_payload(db, clinic)
+    if role != "manager":
+        # اطلاعات مالک/پروندهٔ onboarding به توکن‌های کاری پذیرش و پزشک نمی‌رسد.
+        for field in (
+            "phone", "manager_name", "manager_mobile", "registration_contact_name",
+            "registration_contact_phone", "documents_note", "followup_name",
+            "followup_phone", "status_note", "tracking_code",
+            "license_review_public_note", "public_menu_draft_config", "public_menu_note",
+        ):
+            setattr(item, field, None)
+    if role == "doctor":
+        assigned_id = staff.doctor_id if staff else None
+        item.doctors = [doctor for doctor in item.doctors if doctor.id == assigned_id]
+    return item
 
 
 @router.get("/clinic/doctors", response_model=List[DoctorOut])
 def list_doctors(credentials=Security(security), db: Session = Depends(get_db)):
     clinic, role, staff = _role_from_token(credentials, db)
-    return db.query(Doctor).filter(Doctor.clinic_id == clinic.id).order_by(Doctor.id).all()
+    query = db.query(Doctor).filter(Doctor.clinic_id == clinic.id)
+    if role == "doctor":
+        if not staff or not staff.doctor_id:
+            return []
+        query = query.filter(Doctor.id == staff.doctor_id)
+    return query.order_by(Doctor.id).all()
 
 
 @router.post("/clinic/doctors", response_model=DoctorOut)
@@ -521,18 +781,28 @@ def public_clinic_full(clinic_id: int, db: Session = Depends(get_db)):
     ).first()
     if not clinic:
         raise HTTPException(404, "مرکز یافت نشد یا غیرفعال است")
+    public_menu = _effective_public_menu(clinic)
     doctors = db.query(Doctor).filter(
-        Doctor.clinic_id == clinic.id, Doctor.is_active == True).all()  # noqa: E712
+        Doctor.clinic_id == clinic.id, Doctor.is_active == True).all() if public_menu["show_doctors"] else []  # noqa: E712
     return {
         "id": clinic.id, "name": clinic.name, "specialty": clinic.specialty,
-        "type": clinic.type, "address": clinic.address, "phone": clinic.phone,
-        "doctor_name": clinic.doctor_name, "latitude": clinic.latitude,
-        "longitude": clinic.longitude,
-        "city": clinic.city, "province": clinic.province,
-        "working_hours_text": clinic.working_hours_text,
-        "services_text": clinic.services_text,
-        "booking_method": clinic.booking_method,
-        "capacity_note": clinic.capacity_note,
+        "type": clinic.type,
+        "address": clinic.address if public_menu["show_address"] else None,
+        "phone": clinic.phone if public_menu["show_phone"] else None,
+        "doctor_name": clinic.doctor_name if public_menu["show_doctors"] else None,
+        "latitude": clinic.latitude if public_menu["show_directions"] and public_menu["show_address"] else None,
+        "longitude": clinic.longitude if public_menu["show_directions"] and public_menu["show_address"] else None,
+        "city": clinic.city if public_menu["show_address"] else None,
+        "province": clinic.province if public_menu["show_address"] else None,
+        "working_hours_text": clinic.working_hours_text if public_menu["show_working_hours"] else None,
+        "services_text": clinic.services_text if public_menu["show_services"] else None,
+        "booking_method": (
+            clinic.booking_method
+            if public_menu["show_online_booking"] or clinic.booking_method in ("phone", "walkin")
+            else None
+        ),
+        "capacity_note": clinic.capacity_note if public_menu["show_online_booking"] else None,
+        "public_menu": public_menu,
         "doctors": [DoctorOut.model_validate(d).model_dump(mode="json") for d in doctors],
     }
 
@@ -568,15 +838,17 @@ def public_search(q: str = "", specialty: str = "", db: Session = Depends(get_db
     ns_filter = _nf(specialty or "")
     if ns_filter:
         rows = [c for c in rows if ns_filter in _nf(c.specialty or "")]
-    doctors = {c.id: db.query(Doctor).filter(
-        Doctor.clinic_id == c.id, Doctor.is_active == True).all() for c in rows}  # noqa: E712
+    configs = {c.id: _effective_public_menu(c) for c in rows}
+    doctors = {c.id: (db.query(Doctor).filter(
+        Doctor.clinic_id == c.id, Doctor.is_active == True).all() if configs[c.id]["show_doctors"] else [])
+        for c in rows}  # noqa: E712
     ns = normalize_fa(q or "")
     results = []
     for c in rows:
         match_center = (not ns) or ns in normalize_fa(c.name) \
             or ns in normalize_fa(c.specialty or "") \
-            or ns in normalize_fa(c.address or "") \
-            or ns in normalize_fa(c.doctor_name or "")
+            or (configs[c.id]["show_address"] and ns in normalize_fa(c.address or "")) \
+            or (configs[c.id]["show_doctors"] and ns in normalize_fa(c.doctor_name or ""))
         matched_doctors = []
         for d in doctors.get(c.id, []):
             if ns and (ns in normalize_fa(d.full_name) or ns in normalize_fa(d.specialty or "")):
@@ -584,7 +856,10 @@ def public_search(q: str = "", specialty: str = "", db: Session = Depends(get_db
         if match_center or matched_doctors:
             results.append({
                 "id": c.id, "name": c.name, "specialty": c.specialty,
-                "type": c.type, "address": c.address, "city": c.city,
+                "type": c.type,
+                "address": c.address if configs[c.id]["show_address"] else None,
+                "city": c.city if configs[c.id]["show_address"] else None,
+                "public_menu": configs[c.id],
                 "url": f"/centers/{c.id}",
                 "matched_doctors": [
                     dict(DoctorOut.model_validate(d).model_dump(mode="json"),

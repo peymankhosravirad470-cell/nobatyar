@@ -74,14 +74,40 @@ def test_register_and_approve_flow():
     assert r.status_code == 422
     print("✅ رمز اولیهٔ کوتاه در API رد شد")
 
-    # تأیید
+    # مسیر قدیمی هم باید قبل از فعال‌سازی از همان workflow مجوز عبور کند.
+    auth_headers = {"Authorization": f"Bearer {admin_token}"}
+    r = client.post(f"/api/admin/registrations/{clinic_id}/approve",
+        headers=auth_headers,
+        json={"login_username": "testclinic", "password": "clinicpass123"})
+    assert r.status_code == 409
+    print("✅ endpoint جدید هم ثبت legacy را پیش از review مسدود کرد")
     r = client.post("/api/admin/clinics/approve",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers=auth_headers,
         json={
             "clinic_id": clinic_id,
             "login_username": "testclinic",
             "password": "clinicpass123"
         })
+    assert r.status_code == 409
+    print("✅ تأیید legacy بدون بررسی مجوز مسدود شد")
+
+    r = client.post(f"/api/admin/registrations/{clinic_id}/license-review/start",
+        headers=auth_headers, json={"target_business_days": 3})
+    assert r.status_code == 200
+    r = client.post(f"/api/admin/registrations/{clinic_id}/license-review/decision",
+        headers=auth_headers, json={"status": "verified"})
+    assert r.status_code == 200
+    r = client.post("/api/admin/clinics/approve",
+        headers=auth_headers,
+        json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "clinicpass123"})
+    assert r.status_code == 409
+    print("✅ تأیید legacy تا ثبت اطلاع‌رسانی واقعی مسدود ماند")
+    r = client.post(f"/api/admin/registrations/{clinic_id}/license-review/notified",
+        headers=auth_headers, json={"channel": "phone", "note": "تماس آزمایشی"})
+    assert r.status_code == 200
+    r = client.post("/api/admin/clinics/approve",
+        headers=auth_headers,
+        json={"clinic_id": clinic_id, "login_username": "testclinic", "password": "clinicpass123"})
     assert r.status_code == 200
     print("✅ تأیید مطب")
 
@@ -154,6 +180,35 @@ def test_register_and_approve_flow():
         json={"status": "confirmed"})
     assert r.status_code == 200
     print("✅ نوبت تأیید شد")
+
+    # حتی رکورد legacy بدون tracking_code پس از درخواست اصلاح نباید از مهر ابلاغ قبلی عبور کند.
+    r = client.post("/api/clinics/register", json={
+        "name": "مطب legacy برای آزمون اصلاح",
+        "specialty": "عمومی",
+        "address": "شیراز",
+        "phone": "07135556677",
+    })
+    revision_id = r.json()["id"]
+    r = client.post(f"/api/admin/registrations/{revision_id}/license-review/start",
+        headers=auth_headers, json={"target_business_days": 3})
+    assert r.status_code == 200
+    r = client.post(f"/api/admin/registrations/{revision_id}/license-review/decision",
+        headers=auth_headers, json={"status": "verified"})
+    assert r.status_code == 200
+    r = client.post(f"/api/admin/registrations/{revision_id}/license-review/notified",
+        headers=auth_headers, json={"channel": "phone", "note": "ابلاغ پیش از اصلاح"})
+    assert r.status_code == 200
+    r = client.post(f"/api/admin/registrations/{revision_id}/revision",
+        headers=auth_headers, json={"reason": "نسخهٔ تازهٔ مجوز لازم است."})
+    assert r.status_code == 200
+    r = client.post("/api/admin/clinics/approve", headers=auth_headers, json={
+        "clinic_id": revision_id, "login_username": "legacy_revision", "password": "LegacyPass#12345"})
+    assert r.status_code == 409
+    print("✅ مسیر legacy بعد از درخواست اصلاح از مهر ابلاغ قبلی عبور نمی‌کند")
+    r = client.post(f"/api/admin/registrations/{revision_id}/approve", headers=auth_headers, json={
+        "login_username": "legacy_revision", "password": "LegacyPass#12345"})
+    assert r.status_code == 409
+    print("✅ endpoint جدید نیز درخواست اصلاح باز را تأیید نمی‌کند")
 
     print("\n🎉 همه تست‌های جریان اصلی پاس شدند.")
 

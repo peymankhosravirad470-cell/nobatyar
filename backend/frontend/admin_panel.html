@@ -55,6 +55,7 @@
     <div class="card">
       <h2>📋 درخواست‌های ثبت‌نام مراکز (مطب / درمانگاه)</h2>
       <button class="btn-sm" onclick="loadRegistrations('pending')">در انتظار بررسی</button>
+      <button class="btn-sm" onclick="loadRegistrations('menu_pending')">منوهای منتظر تأیید</button>
       <button class="btn-sm" onclick="loadRegistrations('all')">همه</button>
       <table>
         <thead>
@@ -656,12 +657,17 @@
       }
     };
 
-    // ==================== v0.11: درخواست‌های ثبت‌نام مراکز ====================
+    // ==================== v0.11+: ثبت‌نام، بررسی مجوز و منوی مرکز ====================
     const REG_STATUS_FA = { pending: 'در انتظار بررسی', approved: 'تأییدشده', rejected: 'ردشده' };
+    const LICENSE_REVIEW_FA = { not_started: 'شروع‌نشده', in_review: 'در حال بررسی', needs_info: 'نیازمند اطلاعات', verified: 'تأییدشده', rejected: 'تأییدنشده' };
+    const MENU_STATUS_FA = { not_configured: 'تنظیم‌نشده', pending_review: 'منتظر تأیید', approved: 'منتشرشده', needs_changes: 'نیازمند اصلاح' };
+    const MENU_FEATURES_FA = { show_doctors: 'پزشکان', show_services: 'خدمات', show_phone: 'تلفن', show_directions: 'مسیریابی', show_online_booking: 'رزرو آنلاین', show_address: 'نشانی', show_working_hours: 'ساعات کاری' };
     let _regCache = [];
+    let _regState = 'pending';
 
     async function loadRegistrations(state = 'pending') {
-      const res = await fetch(`/api/admin/registrations?state=${state}`, { headers });
+      _regState = state;
+      const res = await fetch(`/api/admin/registrations?state=${encodeURIComponent(state)}`, { headers });
       if (res.status === 401) { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; return; }
       if (!res.ok) { document.getElementById('regBody').innerHTML = '<tr><td colspan="7">خطا در دریافت</td></tr>'; return; }
       _regCache = await res.json();
@@ -673,23 +679,50 @@
           <td>${esc(r.manager_name || '—')}</td>
           <td dir="ltr">${esc(r.manager_mobile || r.phone || '—')}</td>
           <td>${r.doctors && r.doctors.length ? esc(r.doctors.map(d => d.full_name).join('، ')) : '—'}</td>
-          <td><span class="alert ${r.status === 'pending' ? 'alert-info' : r.status === 'approved' ? 'alert-success' : 'alert-error'}" style="padding:.2rem .5rem; margin:0; display:inline-block;">${REG_STATUS_FA[r.status] || esc(r.status)}${r.revision_requested ? ' + اصلاح' : ''}</span></td>
+          <td><span class="alert ${r.status === 'pending' ? 'alert-info' : r.status === 'approved' ? 'alert-success' : 'alert-error'}" style="padding:.2rem .5rem; margin:0; display:inline-block;">${REG_STATUS_FA[r.status] || esc(r.status)}${r.revision_requested ? ' + اصلاح' : ''}</span><br><small>منو: ${MENU_STATUS_FA[r.public_menu_status] || esc(r.public_menu_status || 'تنظیم‌نشده')}</small></td>
           <td>
             <button class="btn-sm" onclick="showRegDetail(${r.id})">جزئیات</button>
-            ${r.status === 'pending' ? `
-              <button class="btn-sm btn-success" onclick="regApprove(${r.id})">تأیید</button>
-              <button class="btn-sm btn-danger" onclick="regReject(${r.id})">رد با دلیل</button>
-              <button class="btn-sm" onclick="regRevision(${r.id})">درخواست اصلاح</button>` : ''}
+            ${r.public_menu_status === 'pending_review' ? `<button class="btn-sm" onclick="showRegDetail(${r.id})">بررسی منو</button>` : ''}
+            ${r.status === 'pending' && r.revision_requested ? '<small>منتظر ارسال فرم اصلاح‌شده از متقاضی</small>' : ''}
+            ${r.status === 'pending' && !r.revision_requested && !(r.license_review_status === 'verified' && r.license_review_notified_at) ? '<small>تأیید فقط پس از بررسیِ تأییدشده و ابلاغ ممکن است</small>' : ''}
+            ${r.status === 'pending' && !r.revision_requested && r.license_review_status === 'verified' && r.license_review_notified_at ? `<button class="btn-sm btn-success" onclick="regApprove(${r.id})">تأیید</button>` : ''}
+            ${r.status === 'pending' ? `<button class="btn-sm btn-danger" onclick="regReject(${r.id})">رد با دلیل</button>` : ''}
+            ${r.status === 'pending' && !r.revision_requested ? `<button class="btn-sm" onclick="regRevision(${r.id})">درخواست اصلاح</button>` : ''}
           </td>
         </tr>`).join('') || '<tr><td colspan="7">درخواستی در این وضعیت نیست</td></tr>';
       document.getElementById('regDetail').innerHTML = '';
     }
 
-    function showRegDetail(id) {
+    function _fmtAdminUtc(value) {
+      if (!value) return '—';
+      const raw = String(value);
+      const iso = /Z$|[+-]\d\d:\d\d$/.test(raw) ? raw : raw + 'Z';
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? esc(raw) : d.toLocaleString('fa-IR', { timeZone: 'Asia/Tehran', dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    async function showRegDetail(id) {
       const r = _regCache.find(x => x.id === id);
       if (!r) return;
       const docs = (r.doctors || []).map(d => `<li>${esc(d.full_name)} — ${esc(d.specialty)}${d.medical_number ? ' (نظام ' + esc(d.medical_number) + ')' : ''}</li>`).join('');
       const row = (k, v) => v ? `<p><b>${k}:</b> ${esc(v)}</p>` : '';
+      const due = r.license_review_due_at ? new Date(String(r.license_review_due_at).replace(/Z$/, '') + 'Z') : null;
+      const overdue = r.license_review_status === 'in_review' && due && Date.now() > due.getTime();
+      const draft = r.public_menu_draft_config || r.public_menu_config;
+      const visibleFeatures = draft ? Object.keys(MENU_FEATURES_FA).filter(k => draft[k] !== false).map(k => MENU_FEATURES_FA[k]) : [];
+      const menuItems = draft && Array.isArray(draft.items) ? draft.items.map(i => `<li><b>${esc(i.title)}</b>${i.description ? ' — ' + esc(i.description) : ''}</li>`).join('') : '';
+      const tel = String(r.manager_mobile || r.phone || '').replace(/[^0-9+]/g, '');
+      const reviewActions = r.status === 'pending' ? `
+        ${r.license_review_status === 'not_started' && !r.revision_requested ? `<button class="btn-sm" onclick="startLicenseReview(${r.id})">ثبت دریافت قرارداد و شروع بررسی</button>` : ''}
+        ${r.license_review_status === 'needs_info' ? '<small>برای شروع بررسی مجدد، منتظر ارسال فرم اصلاح‌شده از متقاضی بمانید.</small>' : ''}
+        ${r.license_review_status === 'in_review' && !r.revision_requested ? `
+          <button class="btn-sm btn-success" onclick="saveLicenseReviewDecision(${r.id},'verified')">تأیید بررسی مجوز</button>
+          <button class="btn-sm" onclick="saveLicenseReviewDecision(${r.id},'needs_info')">درخواست اطلاعات</button>
+          <button class="btn-sm btn-danger" onclick="saveLicenseReviewDecision(${r.id},'rejected')">عدم تأیید</button>` : ''}
+        ${['verified', 'needs_info', 'rejected'].includes(r.license_review_status) && !r.license_review_notified_at ? `<button class="btn-sm" onclick="markLicenseReviewNotified(${r.id})">ثبت اطلاع‌رسانی انجام‌شده</button>` : ''}` : '';
+      const menuActions = r.public_menu_status === 'pending_review' ? `
+        <button class="btn-sm btn-success" onclick="decideClinicMenu(${r.id},'approve')">تأیید و انتشار منو</button>
+        <button class="btn-sm" onclick="decideClinicMenu(${r.id},'revision')">درخواست اصلاح منو</button>` : '';
       document.getElementById('regDetail').innerHTML = `
         <div class="alert alert-info">
           <h3>${esc(r.name)} — ${REG_STATUS_FA[r.status] || esc(r.status)}</h3>
@@ -698,6 +731,7 @@
           ${row('تخصص', r.specialty)}
           ${row('مدیر / مسئول', r.manager_name)}
           ${row('همراه مسئول', r.manager_mobile)}
+          ${tel ? `<p><a class="btn-sm" href="tel:${esc(tel)}">تماس با مسئول مرکز</a></p>` : ''}
           ${row('مسئول ثبت‌نام', r.registration_contact_name)}
           ${row('تلفن مسئول ثبت‌نام', r.registration_contact_phone)}
           ${row('تلفن ثابت', r.landline_phone)}
@@ -709,12 +743,78 @@
           ${row('خدمات', r.services_text)}
           ${row('شیوهٔ نوبت‌دهی', r.booking_method === 'slot' ? 'آنلاین (اسلات)' : r.booking_method === 'phone' ? 'تلفنی' : 'حضوری')}
           ${row('ظرفیت', r.capacity_note)}
-          ${row('مدارک', r.documents_note)}
+          ${row('مدارک/شمارهٔ اعلامی مرکز', r.documents_note)}
           ${row('مسئول پیگیری', (r.followup_name || '') + ' ' + (r.followup_phone || ''))}
           ${docs ? `<p><b>پزشکان (${r.doctors.length}):</b></p><ul>${docs}</ul>` : ''}
-          ${r.status_note ? `<p><b>یادداشت بررسی قبلی:</b> ${esc(r.status_note)}</p>` : ''}
+          ${r.status_note ? `<p><b>یادداشت ثبت‌نام:</b> ${esc(r.status_note)}</p>` : ''}
+        </div>
+        <div class="card">
+          <h3>بررسی مجوز و قرارداد — فقط گردش‌کار داخلی</h3>
+          <p><b>وضعیت:</b> ${LICENSE_REVIEW_FA[r.license_review_status] || esc(r.license_review_status || 'شروع‌نشده')} ${overdue ? '<span class="alert alert-error" style="padding:.15rem .4rem;">از موعد هدف گذشته</span>' : ''}</p>
+          <p>دریافت پرونده: ${_fmtAdminUtc(r.contract_received_at)} — شروع: ${_fmtAdminUtc(r.license_review_started_at)} — موعد هدف داخلی: ${_fmtAdminUtc(r.license_review_due_at)} (${r.license_review_target_business_days || '—'} روز کاری)</p>
+          <p class="muted">هدف پیش‌فرض ۳ روز کاری است؛ جمعه حذف می‌شود و تعطیلات رسمی به‌طور خودکار محاسبه نمی‌شوند. این موعد تعهد عمومی/قراردادی نیست؛ موارد تعطیل را دستی در نظر بگیرید. برنامه مجوز را خودکار استعلام نمی‌کند؛ بررسی مدارک باید توسط مسئول انجام شود.</p>
+          ${r.license_review_public_note ? `<p><b>پیام قابل مشاهده برای مرکز:</b> ${esc(r.license_review_public_note)}</p>` : ''}
+          ${r.license_review_internal_note ? `<p><b>یادداشت داخلی:</b> ${esc(r.license_review_internal_note)}</p>` : ''}
+          ${r.license_review_notified_at ? `<p>اطلاع‌رسانی دستی ثبت‌شده: ${_fmtAdminUtc(r.license_review_notified_at)}</p>` : '<p class="muted">ثبت «اطلاع‌رسانی انجام‌شده» پیامک/ایمیل نمی‌فرستد؛ ابتدا واقعاً با مرکز تماس بگیرید یا از مسیر مورد توافق مطلعش کنید.</p>'}
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0;">${reviewActions}</div>
+          <div id="reviewHistory${r.id}" class="muted">در حال دریافت سوابق…</div>
+        </div>
+        <div class="card">
+          <h3>منوی اختصاصی مرکز — ${MENU_STATUS_FA[r.public_menu_status] || esc(r.public_menu_status || 'تنظیم‌نشده')}</h3>
+          ${r.public_menu_note ? `<p><b>پیام برای مدیر مرکز:</b> ${esc(r.public_menu_note)}</p>` : ''}
+          ${draft ? `<p><b>عنوان بخش:</b> ${esc(draft.menu_title || 'منوی اختصاصی مرکز')}</p><p><b>موارد قابل نمایش:</b> ${visibleFeatures.map(esc).join('، ') || 'هیچ‌کدام'}</p><ul>${menuItems || '<li>آیتم سفارشی ثبت نشده</li>'}</ul>` : '<p>منوی اختصاصی هنوز پیکربندی نشده؛ رفتار پیش‌فرض فعلی حفظ می‌شود.</p>'}
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0;">${menuActions}</div>
         </div>`;
       document.getElementById('regDetail').scrollIntoView({ behavior: 'smooth' });
+      const hres = await fetch(`/api/admin/registrations/${id}/license-review/history`, { headers });
+      const history = hres.ok ? await hres.json() : [];
+      const histEl = document.getElementById(`reviewHistory${id}`);
+      if (histEl) histEl.innerHTML = '<b>سوابق:</b> ' + (history.length ? history.map(h => `<div>• ${_fmtAdminUtc(h.created_at)} — ${esc(h.action)}${h.public_note ? ': ' + esc(h.public_note) : ''}${h.internal_note ? ' — داخلی: ' + esc(h.internal_note) : ''}</div>`).join('') : 'هنوز اقدامی ثبت نشده است.');
+    }
+
+    async function startLicenseReview(id) {
+      const daysRaw = prompt('هدف داخلی بررسی، به روز کاری (۱ تا ۱۰). پیش‌فرض: ۳', '3');
+      if (daysRaw === null) return;
+      const days = parseInt(daysRaw, 10);
+      if (!Number.isInteger(days) || days < 1 || days > 10) { alert('عدد باید بین ۱ تا ۱۰ باشد'); return; }
+      const internal_note = prompt('یادداشت داخلی اختیاری (مثلاً مرجع/مدرک مورد بررسی):') || '';
+      const res = await fetch(`/api/admin/registrations/${id}/license-review/start`, { method: 'POST', headers, body: JSON.stringify({ target_business_days: days, internal_note }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok ? `<div class="alert alert-success">${esc(j.message)}</div>` : _errHtml(j);
+      await loadRegistrations(_regState); showRegDetail(id);
+    }
+
+    async function saveLicenseReviewDecision(id, status) {
+      const statusFa = { verified: 'تأیید', needs_info: 'درخواست اطلاعات تکمیلی', rejected: 'عدم تأیید' }[status];
+      const public_note = prompt(`پیام قابل مشاهده برای مرکز — ${statusFa}${status === 'verified' ? ' (اختیاری)' : ''}:`, status === 'verified' ? 'بررسی مدارک ثبت شد؛ ادامهٔ فرایند از طریق کد پیگیری قابل مشاهده است.' : '');
+      if (public_note === null || (status !== 'verified' && public_note.trim().length < 2)) return;
+      const internal_note = prompt('یادداشت داخلی اختیاری:') || '';
+      const res = await fetch(`/api/admin/registrations/${id}/license-review/decision`, { method: 'POST', headers, body: JSON.stringify({ status, public_note: public_note.trim() || null, internal_note }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok ? `<div class="alert alert-success">${esc(j.message)}</div>` : _errHtml(j);
+      await loadRegistrations(_regState); showRegDetail(id);
+    }
+
+    async function markLicenseReviewNotified(id) {
+      if (!confirm('آیا واقعاً نتیجه را از طریق تماس حضوری/تلفنی یا روش توافق‌شده به مرکز اطلاع داده‌اید؟ سامانه پیامک یا ایمیل ارسال نمی‌کند.')) return;
+      const note = prompt('یادداشت کوتاه دربارهٔ تماس اختیاری:') || '';
+      const res = await fetch(`/api/admin/registrations/${id}/license-review/notified`, { method: 'POST', headers, body: JSON.stringify({ channel: 'phone', note }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok ? `<div class="alert alert-success">${esc(j.message)}</div>` : _errHtml(j);
+      await loadRegistrations(_regState); showRegDetail(id);
+    }
+
+    async function decideClinicMenu(id, action) {
+      let note = null;
+      if (action === 'approve' && !confirm('منوی سفارشی این مرکز منتشر شود؟')) return;
+      if (action === 'revision') {
+        note = prompt('چه چیزی باید اصلاح شود؟ این پیام به مدیر مرکز نمایش داده می‌شود:');
+        if (!note || note.trim().length < 2) return;
+      }
+      const res = await fetch(`/api/admin/clinics/${id}/public-menu/decision`, { method: 'POST', headers, body: JSON.stringify({ action, note }) });
+      const j = await res.json();
+      document.getElementById('msg').innerHTML = res.ok ? `<div class="alert alert-success">${esc(j.message)}</div>` : _errHtml(j);
+      await loadRegistrations(_regState); showRegDetail(id);
     }
 
     async function regApprove(id) {

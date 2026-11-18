@@ -72,6 +72,15 @@ check("۰-۱. ثبت‌نام مطب", r.status_code == 200, r.text[:200])
 req_id = r.json()["request_id"]
 
 ah = {"Authorization": f"Bearer {client.post('/api/admin/login', json=ADMIN).json()['access_token']}"}
+r = client.post(f"/api/admin/registrations/{req_id}/license-review/start", headers=ah,
+                json={"target_business_days": 3})
+check("۰-۱.۱ شروع بررسی مجوز", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{req_id}/license-review/decision", headers=ah,
+                json={"status": "verified", "public_note": "بررسی انجام شد."})
+check("۰-۱.۲ تأیید مجوز", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{req_id}/license-review/notified", headers=ah,
+                json={"channel": "phone", "note": "تماس تستی"})
+check("۰-۱.۳ ثبت تماس", r.status_code == 200)
 r = client.post(f"/api/admin/registrations/{req_id}/approve",
                 json={"login_username": "lifecycle_office", "password": "OfficePass#130"},
                 headers=ah)

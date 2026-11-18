@@ -126,7 +126,17 @@ admin_headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 r = client.get("/api/admin/registrations", headers=admin_headers)
 check("فهرست ثبت‌نام‌ها شامل مطب آزمون", r.status_code == 200 and len(r.json()) >= 1)
-rid = r.json()[0]["id"]
+rid = request_id
+
+r = client.post(f"/api/admin/registrations/{rid}/license-review/start", headers=admin_headers,
+                json={"target_business_days": 3})
+check("شروع بررسی مجوز در جریان پروفایل", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{rid}/license-review/decision", headers=admin_headers,
+                json={"status": "verified", "public_note": "مدارک بررسی شد."})
+check("تأیید مجوز در جریان پروفایل", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{rid}/license-review/notified", headers=admin_headers,
+                json={"channel": "phone", "note": "تماس تستی"})
+check("ثبت تماس پیش از تأیید مرکز", r.status_code == 200)
 
 r = client.post(f"/api/admin/registrations/{rid}/approve", headers=admin_headers,
                 json={"login_username": "testcardio1", "password": "Str0ngPass!9"})

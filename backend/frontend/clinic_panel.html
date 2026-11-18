@@ -44,6 +44,27 @@
       <div id="statusBody"></div>
     </div>
 
+    <div class="card" id="publicMenuCard" style="display:none;">
+      <h2>منوی اختصاصی مرکز در سایت و ربات</h2>
+      <p class="alert alert-info">موارد و بخش‌هایی را که با قرارداد مرکز شما هماهنگ است انتخاب کنید. تغییرات ابتدا برای بررسی نوبتیار ارسال می‌شود و تا تأیید ادمین، نسخهٔ منتشرشده تغییر نمی‌کند. متن‌ها فقط نمایشی هستند؛ لینک یا HTML دلخواه پذیرفته نمی‌شود.</p>
+      <p id="publicMenuStatus" aria-live="polite"></p>
+      <div class="grid-2">
+        <label><input type="checkbox" id="menuShowDoctors" checked> نمایش پزشکان</label>
+        <label><input type="checkbox" id="menuShowServices" checked> نمایش خدمات متنی</label>
+        <label><input type="checkbox" id="menuShowPhone" checked> نمایش تلفن</label>
+        <label><input type="checkbox" id="menuShowDirections" checked> نمایش مسیریابی</label>
+        <label><input type="checkbox" id="menuShowOnlineBooking" checked> نمایش رزرو آنلاین (اگر روش مرکز آنلاین باشد)</label>
+        <label><input type="checkbox" id="menuShowAddress" checked> نمایش نشانی</label>
+        <label><input type="checkbox" id="menuShowWorkingHours" checked> نمایش ساعات کاری</label>
+      </div>
+      <label for="menuTitle">عنوان منوی مرکز</label>
+      <input type="text" id="menuTitle" maxlength="60" value="منوی اختصاصی مرکز">
+      <h3 style="margin:.8rem 0 .4rem;">گزینه‌های اختصاصی (حداکثر ۸ مورد)</h3>
+      <div id="menuItemsEditor"></div>
+      <button type="button" class="btn-sm" id="addMenuItemBtn">افزودن گزینه</button>
+      <button type="button" class="btn-sm btn-success" id="savePublicMenuBtn">ارسال برای بررسی و انتشار</button>
+    </div>
+
     <div class="card">
       <h2>🩺 پزشکان مرکز</h2>
       <table>
@@ -459,6 +480,80 @@
     const ROLE_FA = { manager: 'مدیر', reception: 'مسئول پذیرش', doctor: 'پزشک' };
     let _myDoctors = [];
 
+    const MENU_STATUS_FA = { not_configured: 'پیش‌فرض فعلی', pending_review: 'در انتظار بررسی نوبتیار', approved: 'منتشرشده', needs_changes: 'نیازمند اصلاح' };
+    function addMenuItemRow(item = {}) {
+      const editor = document.getElementById('menuItemsEditor');
+      if (editor.children.length >= 8) { alert('حداکثر ۸ گزینه می‌توانید اضافه کنید'); return; }
+      const row = document.createElement('div');
+      row.className = 'grid-2';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 2fr auto;gap:.5rem;margin:.5rem 0;';
+      const title = document.createElement('input');
+      title.className = 'menu-item-title'; title.maxLength = 40; title.placeholder = 'عنوان گزینه'; title.value = item.title || '';
+      const description = document.createElement('input');
+      description.className = 'menu-item-description'; description.maxLength = 240; description.placeholder = 'توضیح کوتاه (اختیاری)'; description.value = item.description || '';
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'btn-sm btn-danger'; remove.textContent = 'حذف';
+      remove.addEventListener('click', () => row.remove());
+      row.append(title, description, remove);
+      editor.appendChild(row);
+    }
+
+    async function loadPublicMenu() {
+      const card = document.getElementById('publicMenuCard');
+      const res = await fetch('/api/clinic/public-menu', { headers });
+      if (res.status === 401) { window.location.href = '/clinic/login'; return; }
+      if (res.status === 403) { card.style.display = 'none'; return; }
+      if (!res.ok) { card.style.display = ''; document.getElementById('publicMenuStatus').textContent = 'بارگذاری تنظیمات منو انجام نشد.'; return; }
+      const data = await res.json();
+      const config = data.draft_config || data.published_config || {
+        menu_title: 'منوی اختصاصی مرکز', show_doctors: true, show_services: true,
+        show_phone: true, show_directions: true, show_online_booking: true,
+        show_address: true, show_working_hours: true, items: []
+      };
+      card.style.display = '';
+      document.getElementById('menuTitle').value = config.menu_title || 'منوی اختصاصی مرکز';
+      document.getElementById('menuShowDoctors').checked = config.show_doctors !== false;
+      document.getElementById('menuShowServices').checked = config.show_services !== false;
+      document.getElementById('menuShowPhone').checked = config.show_phone !== false;
+      document.getElementById('menuShowDirections').checked = config.show_directions !== false;
+      document.getElementById('menuShowOnlineBooking').checked = config.show_online_booking !== false;
+      document.getElementById('menuShowAddress').checked = config.show_address !== false;
+      document.getElementById('menuShowWorkingHours').checked = config.show_working_hours !== false;
+      document.getElementById('menuItemsEditor').innerHTML = '';
+      (config.items || []).forEach(item => addMenuItemRow(item));
+      const status = MENU_STATUS_FA[data.status] || data.status || 'پیش‌فرض فعلی';
+      document.getElementById('publicMenuStatus').innerHTML = `<b>وضعیت منو:</b> ${esc(status)}${data.note ? `<br><b>پیام بررسی:</b> ${esc(data.note)}` : ''}`;
+    }
+
+    document.getElementById('addMenuItemBtn').onclick = () => addMenuItemRow();
+    document.getElementById('savePublicMenuBtn').onclick = async () => {
+      const rows = [...document.getElementById('menuItemsEditor').children];
+      const items = [];
+      for (const row of rows) {
+        const title = row.querySelector('.menu-item-title').value.trim();
+        const description = row.querySelector('.menu-item-description').value.trim();
+        if (!title || title.length < 2) { alert('برای هر گزینه عنوانی با حداقل ۲ نویسه وارد کنید'); return; }
+        items.push({ title, description: description || null });
+      }
+      const config = {
+        menu_title: document.getElementById('menuTitle').value.trim(),
+        show_doctors: document.getElementById('menuShowDoctors').checked,
+        show_services: document.getElementById('menuShowServices').checked,
+        show_phone: document.getElementById('menuShowPhone').checked,
+        show_directions: document.getElementById('menuShowDirections').checked,
+        show_online_booking: document.getElementById('menuShowOnlineBooking').checked,
+        show_address: document.getElementById('menuShowAddress').checked,
+        show_working_hours: document.getElementById('menuShowWorkingHours').checked,
+        items
+      };
+      const res = await fetch('/api/clinic/public-menu', { method: 'PUT', headers, body: JSON.stringify(config) });
+      const data = await res.json().catch(() => ({}));
+      document.getElementById('msg').innerHTML = res.ok
+        ? '<div class="alert alert-success">پیش‌نویس ذخیره و برای تأیید ارسال شد؛ تا آن زمان منوی منتشرشده تغییر نمی‌کند.</div>'
+        : _errHtml(data);
+      if (res.ok) loadPublicMenu();
+    };
+
     async function loadMe() {
       const res = await fetch('/api/clinic/me', { headers });
       if (res.status === 401) { window.location.href = '/clinic/login'; return null; }
@@ -597,6 +692,7 @@
     };
 
     loadMe();
+    loadPublicMenu();
     loadDoctors();
     loadStaff();
     loadWorkingHours();

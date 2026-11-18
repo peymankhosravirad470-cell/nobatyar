@@ -84,6 +84,7 @@
       <select id="clinicSelect">
         <option value="">— در حال بارگذاری —</option>
       </select>
+      <div id="clinicModeInfo" role="status" aria-live="polite" style="margin-top:.7rem;"></div>
 
       <div id="slotsSection" class="hidden">
       <div id="doctorBox" style="display:none; margin-bottom:1rem;">
@@ -197,6 +198,7 @@
   <script>
     let selectedSlotId = null;
     let selectedClinicId = null;
+    let selectedClinicInfo = null;
 
     // منوی موبایل — دکمهٔ واقعی با aria-expanded
     (function () {
@@ -239,8 +241,10 @@
 
     document.getElementById('clinicSelect').addEventListener('change', async (e) => {
       selectedClinicId = e.target.value;
+      selectedClinicInfo = null;
       selectedSlotId = null;
       document.getElementById('patientForm').classList.add('hidden');
+      document.getElementById('clinicModeInfo').innerHTML = '';
       const grid = document.getElementById('slotGrid');
       grid.innerHTML = '';
       if (!selectedClinicId) {
@@ -254,10 +258,26 @@
         const fr = await fetch(`/api/public/clinics/${selectedClinicId}/full`);
         if (fr.ok) {
           const full = await fr.json();
+          selectedClinicInfo = full;
           const docs = full.doctors || [];
           docBox.style.display = docs.length ? '' : 'none';
           docSel.innerHTML = '<option value="">همهٔ پزشکان مرکز</option>' +
             docs.map(d => `<option value="${d.id}">${esc(d.full_name)} — ${esc(d.specialty)}</option>`).join('');
+          const cfg = full.public_menu || {};
+          const onlineBooking = cfg.show_online_booking !== false && (!full.booking_method || full.booking_method === 'slot');
+          if (!onlineBooking) {
+            document.getElementById('slotsSection').classList.add('hidden');
+            const mode = full.booking_method || 'slot';
+            const showPhone = cfg.show_phone !== false && full.phone;
+            const phone = String(full.phone || '').replace(/[^0-9+]/g, '');
+            const message = mode === 'phone'
+              ? (showPhone ? `برای دریافت نوبت با مرکز تماس بگیرید: <a href="tel:${esc(phone)}" dir="ltr">${esc(full.phone)}</a>` : 'این مرکز نوبت را تلفنی ارائه می‌کند؛ اطلاعات تماس در منوی عمومی آن نمایش داده نشده است.')
+              : mode === 'walkin'
+                ? 'این مرکز پذیرش حضوری اعلام کرده است و در حال حاضر نوبت آنلاین ارائه نمی‌کند.'
+                : (showPhone ? `نوبت آنلاین برای این مرکز فعال نیست. تماس: <a href="tel:${esc(phone)}" dir="ltr">${esc(full.phone)}</a>` : 'نوبت آنلاین برای این مرکز فعال نیست.');
+            document.getElementById('clinicModeInfo').innerHTML = `<div class="alert alert-info">${message}</div>`;
+            return;
+          }
         } else { docBox.style.display = 'none'; }
       } catch (e) { docBox.style.display = 'none'; }
       await loadSlots();

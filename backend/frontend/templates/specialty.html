@@ -57,8 +57,8 @@
           <span class="avatar-letter" aria-hidden="true">{{ c.name[:1] }}</span>
           <span>
             <b>{{ c.name }}</b>
-            <span>{{ 'مطب' if c.type == 'office' else 'درمانگاه' }} — {{ c.address }}</span>
-            <span>{{ c.doctors_count }} پزشک فعال</span>
+            <span>{{ 'مطب' if c.type == 'office' else 'درمانگاه' }}{% if c.address %} — {{ c.address }}{% endif %}</span>
+            {% if c.show_doctors %}<span>{{ c.doctors_count }} پزشک فعال</span>{% endif %}
           </span>
         </a>
         {% endfor %}

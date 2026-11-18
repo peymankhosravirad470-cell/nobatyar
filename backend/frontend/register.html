@@ -210,6 +210,7 @@
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const STATUS_FA = { pending: 'در انتظار بررسی', approved: 'تأیید شده', rejected: 'رد شده' };
+    const LICENSE_REVIEW_FA = { not_started: 'هنوز آغاز نشده', in_review: 'در حال بررسی مدارک', needs_info: 'نیازمند اطلاعات تکمیلی', verified: 'بررسی و تأیید شده', rejected: 'تأیید نشد' };
     const RESUBMIT_KEY = 'nobatyar_registration_resubmit_v1';
     document.getElementById('stForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -220,12 +221,14 @@
         const j = await res.json();
         if (!res.ok) { out.innerHTML = `<div class="alert alert-error">${esc(typeof j.detail === 'string' ? j.detail : 'یافت نشد')}</div>`; return; }
         const note = j.status_note ? `<p><b>پاسخ تیم بررسی:</b> ${esc(j.status_note)}</p>` : '';
+        const review = `<p><b>بررسی مجوزهای مرکز:</b> ${LICENSE_REVIEW_FA[j.license_review_status] || esc(j.license_review_status || 'هنوز آغاز نشده')}</p>` +
+          (j.license_review_public_note ? `<p><b>پیام دربارهٔ بررسی مجوز:</b> ${esc(j.license_review_public_note)}</p>` : '');
         const canResume = j.revision_requested && (j.type === 'office' || j.type === 'clinic');
         const hint = (j.status === 'rejected') ? '<p>برای ثبت‌نام مجدد می‌توانید از فرم مربوطه استفاده کنید.</p>'
           : (canResume ? '<p>برای ارسال اصلاحات، اطلاعات فرم مربوطه را دوباره وارد کنید؛ درخواست قبلی به‌روزرسانی می‌شود، نه اینکه درخواست تازه‌ای ساخته شود.</p><button type="button" class="btn btn-outline btn-sm" id="resumeRegistration">اصلاح و ارسال مجدد</button>'
             : (j.revision_requested ? '<p>برای راهنمایی دربارهٔ اصلاح این درخواست با نوبتیار تماس بگیرید.</p>' : ''));
         out.innerHTML = `<div class="alert ${j.status === 'approved' ? 'alert-success' : 'alert-info'}">
-          <p><b>${esc(j.name)}</b> — وضعیت: <b>${STATUS_FA[j.status] || esc(j.status)}</b></p>${note}${hint}</div>`;
+          <p><b>${esc(j.name)}</b> — وضعیت: <b>${STATUS_FA[j.status] || esc(j.status)}</b></p>${note}${review}${hint}</div>`;
         if (canResume) {
           document.getElementById('resumeRegistration').addEventListener('click', () => {
             try {

@@ -6,7 +6,7 @@ Designed for hundreds of clinics in Shiraz.
 from datetime import datetime, date, time
 from sqlalchemy import (
     text,
-    Column, Integer, String, Text, Boolean, DateTime, Date, Time, Float,
+    Column, Integer, String, Text, Boolean, DateTime, Date, Time, Float, JSON,
     ForeignKey, Enum as SAEnum, Index, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
@@ -179,6 +179,24 @@ class Clinic(Base):
     revision_requested = Column(Boolean, nullable=False, default=False, server_default="0")
     tracking_code = Column(String(12), unique=True, nullable=True, index=True)  # کد پیگیری متقاضی
 
+    # گردش‌کار داخلی بررسی مجوزها پس از دریافت قرارداد/پروندهٔ کامل؛ موعد و یادداشت
+    # داخلی هرگز در API عمومی متقاضی منتشر نمی‌شوند.
+    contract_received_at = Column(DateTime, nullable=True)
+    license_review_status = Column(String(24), nullable=False, default="not_started", server_default="not_started")
+    license_review_started_at = Column(DateTime, nullable=True)
+    license_review_due_at = Column(DateTime, nullable=True)
+    license_review_target_business_days = Column(Integer, nullable=True)
+    license_review_completed_at = Column(DateTime, nullable=True)
+    license_review_public_note = Column(Text, nullable=True)
+    license_review_internal_note = Column(Text, nullable=True)
+    license_review_notified_at = Column(DateTime, nullable=True)
+
+    # تنظیمات نمایشی مختص هر مرکز؛ فقط نسخهٔ تأییدشده در سایت/ربات عمومی می‌شود.
+    public_menu_config = Column(JSON, nullable=True)
+    public_menu_draft_config = Column(JSON, nullable=True)
+    public_menu_status = Column(String(24), nullable=False, default="not_configured", server_default="not_configured")
+    public_menu_note = Column(String(500), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -189,6 +207,23 @@ class Clinic(Base):
     __table_args__ = (
         Index("ix_clinics_status_sub", "status", "subscription_status"),
     )
+
+
+class ClinicReviewEvent(Base):
+    """سجل ممیزی اقدام‌های مدیر؛ حذف از پنل ارائه نشده و حذف مرکز آن را cascade می‌کند."""
+    __tablename__ = "clinic_review_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clinic_id = Column(Integer, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    admin_id = Column(Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True, index=True)
+    action = Column(String(32), nullable=False, index=True)
+    review_status = Column(String(24), nullable=False)
+    target_business_days = Column(Integer, nullable=True)
+    due_at = Column(DateTime, nullable=True)
+    notification_channel = Column(String(20), nullable=True)
+    public_note = Column(Text, nullable=True)
+    internal_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
 class WorkingHour(Base):

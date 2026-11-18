@@ -39,7 +39,7 @@ from sqlalchemy import update
 
 from database import SessionLocal
 from models import (
-    Clinic, AvailableSlot, Appointment, Admin, Feedback, Lab,
+    Clinic, Doctor, AvailableSlot, Appointment, Admin, Feedback, Lab,
     ClinicStatus, SubscriptionStatus, AppointmentStatus, AppointmentSource,
     FeedbackStatus, MedicationReminder, MedReminderLog, ApptReminderLog,
 )
@@ -340,6 +340,9 @@ def get_active_center(clinic_id: int):
 def get_free_slots(clinic_id: int, page: int = 1, per_page: int = PER_PAGE_SLOTS):
     db = SessionLocal()
     try:
+        clinic = _active_query(db).filter(Clinic.id == clinic_id).first()
+        if not _clinic_online_booking_enabled(clinic):
+            return [], 0, 1
         q = db.query(AvailableSlot).filter(
             AvailableSlot.clinic_id == clinic_id,
             AvailableSlot.is_booked == False,  # noqa: E712
@@ -379,10 +382,11 @@ def search_centers(query: str, ctype: str | None = None, limit: int = 10):
         db.close()
     scored = []
     for c in rows:
+        config = _clinic_menu_config(c)
         n_name = _loosen(normalize_fa(c.name))
-        n_doc = _loosen(normalize_fa(c.doctor_name or ""))
+        n_doc = _loosen(normalize_fa(c.doctor_name or "")) if config["show_doctors"] else ""
         n_spec = normalize_fa(c.specialty or "")
-        n_addr = normalize_fa(c.address or "")
+        n_addr = normalize_fa(c.address or "") if config["show_address"] else ""
         score = 0
         if ns in n_name:
             score = 3
@@ -472,9 +476,15 @@ def try_book(slot_id: int, name: str, phone: str, national_code: str,
     from booking import book_slot_atomic, BookingError, AppointmentSource
     db = SessionLocal()
     try:
+        slot = db.query(AvailableSlot).filter(AvailableSlot.id == slot_id).first()
+        if not slot:
+            return None, "این نوبت دیگر در دسترس نیست."
+        clinic = _active_query(db).filter(Clinic.id == slot.clinic_id).first()
+        if not _clinic_online_booking_enabled(clinic):
+            return None, "نوبت‌گیری آنلاین این مرکز در حال حاضر فعال نیست."
         appt = book_slot_atomic(
             db,
-            clinic_id=_clinic_id_of_slot(slot_id),
+            clinic_id=clinic.id,
             slot_id=slot_id,
             patient_name=name,
             patient_phone=phone,
@@ -864,9 +874,9 @@ def kb_pager(prefix: str, page: int, pages: int, extra_rows: list | None = None)
 
 
 def center_label(c: Clinic) -> str:
-    """نام نمایشی مرکز: نام پزشک (در صورت ثبت) + نام مرکز."""
+    """نام نمایشی مرکز طبق اجازهٔ نمایش نام پزشک در تنظیمات منتشرشده."""
     icon = "🏥" if (c.type or "clinic") == "clinic" else "🩺"
-    if c.doctor_name:
+    if _clinic_menu_config(c)["show_doctors"] and c.doctor_name:
         return f"{icon} {c.doctor_name} — {c.name}"
     return f"{icon} {c.name} — {c.specialty}"
 
@@ -902,7 +912,22 @@ def centers_list_screen(ctype: str, page: int = 1, mode: str = "book",
     پیشوند صفحه‌بندی عمداً با پیشوند انتخاب مرکز متفاوت است تا callbackها تداخل نکنند.
     """
     tval = "clinic" if ctype == "c" else "office"
-    items, total, pages = list_active_paged(tval, page)
+    if mode == "book":
+        items, total, pages = list_active_paged(tval, page)
+        active_total = total
+    else:
+        db = SessionLocal()
+        try:
+            active_query = _active_query(db).filter(Clinic.type == tval)
+            active_total = active_query.count()
+            eligible = [c for c in active_query.order_by(Clinic.name).all()
+                        if _clinic_menu_config(c)["show_directions"] and _clinic_menu_config(c)["show_address"]]
+            total = len(eligible)
+            pages = max(1, (total + PER_PAGE_CENTERS - 1) // PER_PAGE_CENTERS)
+            page = min(max(1, page), pages)
+            items = eligible[(page - 1) * PER_PAGE_CENTERS:page * PER_PAGE_CENTERS]
+        finally:
+            db.close()
     if mode == "book":
         list_prefix, pager_prefix, back_target = "clin", "scl", "book"
         title = ("🏥 درمانگاه‌های فعال — یکی را انتخاب کنید:"
@@ -923,7 +948,9 @@ def centers_list_screen(ctype: str, page: int = 1, mode: str = "book",
             [{"text": "🔙 بازگشت", "callback_data": back_target}],
             [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
         ])
-        return empty_center_message(tval), kb
+        if mode == "book" or active_total == 0:
+            return empty_center_message(tval), kb
+        return "در حال حاضر مرکزی در این نوع، نشانی و مسیریابی را در منوی عمومی خود منتشر نکرده است.", kb
 
     text = f"{title}\n(مجموع: {fa_digits(total)} مرکز)"
     rows = [[{"text": center_label(c), "callback_data": f"{list_prefix}:{c.id}"}] for c in items]
@@ -1014,43 +1041,94 @@ def specialty_list_screen(cat_idx: int) -> tuple:
     return text, rows
 
 
+def _clinic_menu_config(clinic) -> dict:
+    """خواندن فقط منوی منتشرشده و اعتبارسنجی دوباره پیش از نمایش در ربات."""
+    from clinic_menu import effective_public_menu
+    return effective_public_menu(clinic)
+
+
+def _clinic_online_booking_enabled(clinic) -> bool:
+    if not clinic:
+        return False
+    config = _clinic_menu_config(clinic)
+    return bool(config["show_online_booking"] and clinic.booking_method in (None, "slot"))
+
+
 def clinic_screen(clinic_id: int, page: int = 1) -> tuple:
-    """اطلاعات مرکز + اسلات‌های خالی + دکمه‌های مسیریابی/تاکسی."""
+    """پروفایل و منوی تنظیم‌شدهٔ همان مرکز؛ منوی اصلی ربات سراسری باقی می‌ماند."""
     clinic = get_active_center(clinic_id)
     if not clinic:
         return "❌ این مرکز فعال نیست یا یافت نشد.", [
             [{"text": "🔙 دریافت نوبت", "callback_data": "book"}],
             [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
         ]
+    config = _clinic_menu_config(clinic)
     ctype = clinic.type or "clinic"
     ctype_fa = "درمانگاه" if ctype == "clinic" else "مطب"
-    slots, total, pages = get_free_slots(clinic_id, page)
-    text = (
-        f"{'🏥' if ctype == 'clinic' else '🩺'} {clinic.name}\n"
-        + (f"• پزشک: {clinic.doctor_name}\n" if clinic.doctor_name else "")
-        + f"• نوع: {ctype_fa}\n"
-        f"• تخصص: {clinic.specialty}\n"
-        f"• آدرس: {clinic.address or '— ثبت نشده —'}\n"
-        f"• تلفن: {clinic.phone}\n"
-        f"• وضعیت نوبت‌دهی: {'🟢 نوبت آزاد دارد (' + fa_digits(total) + ' نوبت)' if total else '⌛ فعلاً نوبت خالی ندارد'}\n\n"
-    )
+    online_booking = _clinic_online_booking_enabled(clinic)
+    slots, total, pages = get_free_slots(clinic_id, page) if online_booking else ([], 0, 1)
+
+    lines = [f"{'🏥' if ctype == 'clinic' else '🩺'} {clinic.name}"]
+    if config["show_doctors"]:
+        db = SessionLocal()
+        try:
+            doctors = db.query(Doctor).filter(
+                Doctor.clinic_id == clinic_id, Doctor.is_active == True  # noqa: E712
+            ).order_by(Doctor.id).limit(20).all()
+            names = [d.full_name for d in doctors]
+        finally:
+            db.close()
+        if names:
+            lines.append("• پزشکان: " + "، ".join(names))
+        elif clinic.doctor_name:
+            lines.append(f"• پزشک: {clinic.doctor_name}")
+    lines += [f"• نوع: {ctype_fa}", f"• تخصص: {clinic.specialty or '—'}"]
+    if config["show_address"]:
+        lines.append(f"• آدرس: {clinic.address or '— ثبت نشده —'}")
+    if config["show_phone"]:
+        lines.append(f"• تلفن: {clinic.phone or '—'}")
+    if config["show_working_hours"] and clinic.working_hours_text:
+        lines.append(f"• ساعات کاری: {clinic.working_hours_text}")
+    if config["show_services"] and clinic.services_text:
+        lines.extend(["", "خدمات:", clinic.services_text])
+
+    menu_items = config.get("items") or []
+    if menu_items:
+        lines.extend(["", config.get("menu_title") or "منوی اختصاصی مرکز:"])
+        lines.extend([f"• {item['title']}" for item in menu_items])
+
     rows = []
-    if total:
-        text += "🗓 زمان دلخواه خود را انتخاب کنید:"
-        rows += [[{"text": f"🕐 {fmt_dt(s.start_datetime)}", "callback_data": f"slot:{s.id}"}]
-                 for s in slots]
+    if online_booking:
+        lines.extend([
+            "",
+            (f"• وضعیت نوبت‌دهی: 🟢 {fa_digits(total)} نوبت آزاد" if total else "• وضعیت نوبت‌دهی: ⌛ فعلاً نوبت خالی ندارد"),
+        ])
+        if total:
+            lines.append("🗓 زمان دلخواه خود را انتخاب کنید:")
+            rows += [[{"text": f"🕐 {fmt_dt(s.start_datetime)}", "callback_data": f"slot:{s.id}"}]
+                     for s in slots]
+        else:
+            lines.append("⌛ به‌محض باز شدن نوبت‌ها، اینجا نمایش داده می‌شود.")
+    elif clinic.booking_method == "phone":
+        lines.extend(["", "برای دریافت نوبت با مرکز تماس بگیرید." if config["show_phone"] else "این مرکز نوبت را تلفنی ارائه می‌کند."])
+    elif clinic.booking_method == "walkin":
+        lines.extend(["", "پذیرش این مرکز به‌صورت حضوری اعلام شده است."])
     else:
-        text += "⌛ به‌محض باز شدن نوبت‌ها، اینجا نمایش داده می‌شود."
-    rows.append([
-        {"text": "🗺 مسیریابی", "callback_data": f"navclin:{clinic_id}"},
-        {"text": "🚕 تاکسی", "callback_data": f"ridepickdest:{clinic_id}"},
-    ])
+        lines.extend(["", "نوبت آنلاین در منوی فعلی این مرکز فعال نیست."])
+
+    if config["show_directions"] and config["show_address"] and clinic.address:
+        rows.append([
+            {"text": "🗺 مسیریابی", "callback_data": f"navclin:{clinic_id}"},
+            {"text": "🚕 تاکسی", "callback_data": f"ridepickdest:{clinic_id}"},
+        ])
+    for index, item in enumerate(menu_items):
+        rows.append([{"text": f"ℹ️ {item['title'][:30]}", "callback_data": f"clmenu:{clinic_id}:{index}"}])
     extra = [
         [{"text": "🔁 مرکز دیگر", "callback_data": "book" if ctype == "clinic" else "booktype:o"}],
         [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
     ]
     kb = kb_pager(f"slots:{clinic_id}", page, pages, rows + extra)
-    return text, kb
+    return "\n".join(lines), kb
 
 
 # ---------- مسیریابی و تاکسی ----------
@@ -1081,6 +1159,12 @@ RIDE_APPS = {
 
 def nav_screen(clinic) -> tuple:
     """مسیریابی: دقیقاً سه نقشه + آدرس واقعی دیتابیس."""
+    config = _clinic_menu_config(clinic)
+    if not (config["show_directions"] and config["show_address"]):
+        return "این مرکز نمایش آدرس و مسیریابی را در منوی عمومی خود فعال نکرده است.", [
+            [{"text": "🔁 انتخاب مرکز دیگر", "callback_data": "navdest"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ]
     ctype_fa = "درمانگاه" if (clinic.type or "clinic") == "clinic" else "مطب"
     text = (
         "🗺 مسیریابی\n\n"
@@ -1088,7 +1172,8 @@ def nav_screen(clinic) -> tuple:
         f"• نوع: {ctype_fa}\n"
         f"• تخصص: {clinic.specialty}\n"
         f"• آدرس: {clinic.address or '— ثبت نشده —'}\n"
-        f"• تلفن: {clinic.phone}\n\n"
+        + (f"• تلفن: {clinic.phone}\n" if config["show_phone"] else "")
+        + "\n"
         "📍 آدرس بالا را می‌توانید با نگه‌داشتن انگشت کپی کنید.\n"
         "نقشه دلخواه خود را انتخاب کنید:"
     )
@@ -1098,7 +1183,7 @@ def nav_screen(clinic) -> tuple:
             "🗺 مسیریابی\n\n"
             f"{center_label(clinic)}\n\n"
             "⚠️ آدرس این مرکز در دیتابیس ثبت نشده است؛ بنابراین لینک مسیریابی قابل ساخت نیست.\n"
-            f"برای دریافت آدرس با مرکز تماس بگیرید: {clinic.phone}"
+            + (f"برای دریافت آدرس با مرکز تماس بگیرید: {clinic.phone}" if config["show_phone"] else "")
         )
         kb = [
             [{"text": "🔁 انتخاب مرکز دیگر", "callback_data": "navdest"}],
@@ -1123,6 +1208,9 @@ def nav_screen(clinic) -> tuple:
 
 def map_link_message(provider: str, clinic) -> str:
     """پیام لینک مسیریابی — آدرس واقعی دیتابیس؛ مختصات فقط اگر معتبر باشد (گوگل‌مپ)."""
+    config = _clinic_menu_config(clinic)
+    if not (config["show_directions"] and config["show_address"]):
+        return "این مرکز نمایش آدرس و مسیریابی را در منوی عمومی خود فعال نکرده است."
     label, builder = MAP_PROVIDERS[provider]
     use_coords = (
         provider == "google"
@@ -1286,13 +1374,20 @@ def lab_ride_message(provider: str, lab) -> str:
 
 def ride_screen(provider: str, clinic) -> tuple:
     """درخواست اسنپ/تپسی — مقصد = مرکز انتخابی (مسیر جایگزین صادقانه)."""
+    config = _clinic_menu_config(clinic)
+    if not (config["show_directions"] and config["show_address"]):
+        return "این مرکز مقصد و مسیریابی را در منوی عمومی خود نمایش نمی‌دهد.", [
+            [{"text": "🔁 انتخاب مقصد دیگر", "callback_data": f"ridepickdest:{provider}"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ]
     app = RIDE_APPS[provider]
     text = (
         f"{app['emoji']} درخواست {app['name']}\n\n"
         "📍 مقصد شما:\n"
         f"{center_label(clinic)}\n"
         f"• آدرس: {clinic.address}\n"
-        f"• تلفن: {clinic.phone}\n\n"
+        + (f"• تلفن: {clinic.phone}\n" if config["show_phone"] else "")
+        + "\n"
         "لینک مستقیمِ «تعیین مقصد از پیش» برای این سرویس به‌صورت رسمی و مستند عرضه نشده است؛ "
         "بنابراین مسیر جایگزین:\n"
         "۱️⃣ آدرس بالا را با نگه‌داشتن انگشت کپی کنید\n"
@@ -2375,6 +2470,27 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         await edit(chat_id, message_id, text, kb)
         return
 
+    if data.startswith("clmenu:"):
+        parts = data.split(":")
+        clinic_id = _int_or(parts[1], 0) if len(parts) > 1 else 0
+        item_index = _int_or(parts[2], -1) if len(parts) > 2 else -1
+        clinic = get_active_center(clinic_id) if clinic_id > 0 else None
+        config = _clinic_menu_config(clinic) if clinic else {}
+        items = config.get("items") or []
+        if item_index < 0 or item_index >= len(items):
+            await edit(chat_id, message_id, "❌ این گزینه دیگر در دسترس نیست.", [
+                [{"text": "🔙 بازگشت به مرکز", "callback_data": f"clin:{clinic_id}"}],
+                [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+            ])
+            return
+        item = items[item_index]
+        text = f"📋 {item['title']}\n\n{item.get('description') or 'برای این گزینه توضیحی ثبت نشده است.'}"
+        await edit(chat_id, message_id, text, [
+            [{"text": "🔙 بازگشت به مرکز", "callback_data": f"clin:{clinic_id}"}],
+            [{"text": "🏠 منوی اصلی", "callback_data": "home"}],
+        ])
+        return
+
     if data.startswith("clin:"):
         try:
             cid = int(data.split(":", 1)[1])
@@ -2399,6 +2515,7 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
         except ValueError:
             return
         db_slot = None
+        booking_enabled = False
         db = SessionLocal()
         try:
             db_slot = db.query(AvailableSlot).filter(
@@ -2408,11 +2525,19 @@ async def handle_callback(chat_id, message_id, data: str) -> None:
             if db_slot:
                 slot_dt = db_slot.start_datetime
                 clinic_id = db_slot.clinic_id
+                clinic = _active_query(db).filter(Clinic.id == clinic_id).first()
+                booking_enabled = _clinic_online_booking_enabled(clinic)
         finally:
             db.close()
         if not db_slot:
             await edit(chat_id, message_id,
                        "❌ این اسلات دیگر در دسترس نیست.",
+                       [[{"text": "🗓 دریافت نوبت", "callback_data": "book"}],
+                        [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
+            return
+        if not booking_enabled:
+            await edit(chat_id, message_id,
+                       "❌ نوبت‌گیری آنلاین این مرکز در حال حاضر فعال نیست.",
                        [[{"text": "🗓 دریافت نوبت", "callback_data": "book"}],
                         [{"text": "🏠 منوی اصلی", "callback_data": "home"}]])
             return

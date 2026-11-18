@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Clinic, Doctor, AvailableSlot, ClinicStatus, SubscriptionStatus
+from clinic_menu import effective_public_menu as _effective_public_menu
 from catalog_data import specialty_by_slug, search_symptoms, EMERGENCY_KEYS
 from catalog_data import SPECIALTIES
 from fa_utils import normalize_fa
@@ -91,7 +92,7 @@ def list_specialties(db: Session = Depends(get_db)):
     clinics = _approved_clinics(db)
     doctor_counts = {}
     for c in clinics:
-        n = db.query(Doctor).filter(Doctor.clinic_id == c.id, Doctor.is_active == True).count()  # noqa: E712
+        n = db.query(Doctor).filter(Doctor.clinic_id == c.id, Doctor.is_active == True).count() if _effective_public_menu(c)["show_doctors"] else 0  # noqa: E712
         doctor_counts[c.id] = n
     items = []
     for sp in _active_specialties(db):
@@ -119,17 +120,19 @@ def specialty_detail(slug: str, db: Session = Depends(get_db)):
     centers = []
     doctors_out = []
     for c in matched:
+        public_menu = _effective_public_menu(c)
         docs = db.query(Doctor).filter(
-            Doctor.clinic_id == c.id, Doctor.is_active == True).all()  # noqa: E712
+            Doctor.clinic_id == c.id, Doctor.is_active == True).all() if public_menu["show_doctors"] else []  # noqa: E712
         doc_spec = [d for d in docs if normalize_fa(d.specialty or "") and (
             normalize_fa(d.specialty) in [normalize_fa(n) for n in [sp["name"]] + sp.get("aliases", [])]
             or any(normalize_fa(n) in normalize_fa(d.specialty) for n in [sp["name"]] + sp.get("aliases", []))
         )]
         centers.append({
             "id": c.id, "name": c.name, "type": c.type,
-            "address": c.address, "phone": c.phone,
+            "address": c.address if public_menu["show_address"] else None,
+            "phone": c.phone if public_menu["show_phone"] else None,
             "specialty": c.specialty,
-            "doctors_count": len(docs),
+            "doctors_count": len(docs) if public_menu["show_doctors"] else None,
             "url": f"/centers/{c.id}",
         })
         for d in doc_spec:
@@ -187,21 +190,26 @@ def doctor_profile(doctor_id: int, db: Session = Depends(get_db)):
     ).first()
     if not clinic:
         raise HTTPException(404, "مرکز پزشک فعال نیست")
+    public_menu = _effective_public_menu(clinic)
+    if not public_menu["show_doctors"]:
+        raise HTTPException(404, "این مرکز پروفایل پزشکان را منتشر نمی‌کند")
     now = datetime.utcnow()
     free_slots = db.query(AvailableSlot).filter(
         AvailableSlot.doctor_id == doc.id,
         AvailableSlot.is_booked == False,  # noqa: E712
         AvailableSlot.start_datetime >= now,
-    ).count()
+    ).count() if public_menu["show_online_booking"] and clinic.booking_method in (None, "slot") else 0
     return {
         "id": doc.id, "full_name": doc.full_name, "specialty": doc.specialty,
         "medical_number": doc.medical_number,
         "clinic": {
             "id": clinic.id, "name": clinic.name, "type": clinic.type,
-            "address": clinic.address, "phone": clinic.phone,
-            "working_hours_text": clinic.working_hours_text,
-            "services_text": clinic.services_text,
+            "address": clinic.address if public_menu["show_address"] else None,
+            "phone": clinic.phone if public_menu["show_phone"] else None,
+            "working_hours_text": clinic.working_hours_text if public_menu["show_working_hours"] else None,
+            "services_text": clinic.services_text if public_menu["show_services"] else None,
             "booking_method": clinic.booking_method,
+            "public_menu": public_menu,
         },
         "free_slots_count": free_slots,
         "book_url": f"/book#clinic-{clinic.id}",

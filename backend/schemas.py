@@ -3,7 +3,7 @@ Pydantic schemas for API request/response.
 """
 
 from datetime import datetime, time, date
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field, field_validator
 import re
 
@@ -37,14 +37,15 @@ class ClinicOut(BaseModel):
     id: int
     name: str
     specialty: str
-    address: str
-    phone: str
+    address: Optional[str] = None
+    phone: Optional[str] = None
     status: str
     subscription_status: str
     subscription_expires_at: Optional[datetime] = None
     type: Optional[str] = None
     doctor_name: Optional[str] = None
     created_at: datetime
+    public_menu: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -448,6 +449,8 @@ class RegistrationStatusOut(BaseModel):
     status: str
     revision_requested: bool = False
     status_note: Optional[str] = None
+    license_review_status: str = "not_started"
+    license_review_public_note: Optional[str] = None
     name: str
     type: Optional[str] = None
     submitted_at: datetime
@@ -464,6 +467,102 @@ class RejectIn(BaseModel):
 
 class RevisionIn(BaseModel):
     reason: str = Field(..., min_length=5, max_length=1000)
+
+
+class LicenseReviewStartIn(BaseModel):
+    """ثبت دریافت پرونده/قرارداد و شروع مهلت هدف داخلی بررسی."""
+    target_business_days: int = Field(3, ge=1, le=10)
+    internal_note: Optional[str] = Field(None, max_length=2000)
+
+
+class LicenseReviewDecisionIn(BaseModel):
+    status: Literal["verified", "needs_info", "rejected"]
+    public_note: Optional[str] = Field(None, min_length=2, max_length=1000)
+    internal_note: Optional[str] = Field(None, max_length=2000)
+
+
+class LicenseReviewNotifiedIn(BaseModel):
+    channel: Literal["phone", "in_person", "portal"] = "phone"
+    note: Optional[str] = Field(None, max_length=500)
+
+
+class ClinicMenuItem(BaseModel):
+    title: str = Field(..., min_length=2, max_length=40)
+    description: Optional[str] = Field(None, max_length=240)
+
+    @field_validator("title")
+    @classmethod
+    def _menu_title(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if len(value) < 2:
+            raise ValueError("عنوان گزینه باید دست‌کم ۲ نویسه باشد")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def _menu_description(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        return value or None
+
+
+class ClinicPublicMenuConfig(BaseModel):
+    """منوی نمایشی مرکز؛ بدون URL، HTML یا رفتار اجرایی دلخواه."""
+    menu_title: str = Field("منوی اختصاصی مرکز", min_length=2, max_length=60)
+    show_doctors: bool = True
+    show_services: bool = True
+    show_phone: bool = True
+    show_directions: bool = True
+    show_online_booking: bool = True
+    show_address: bool = True
+    show_working_hours: bool = True
+    items: List[ClinicMenuItem] = Field(default_factory=list, max_length=8)
+
+    @field_validator("menu_title")
+    @classmethod
+    def _menu_heading(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if len(value) < 2:
+            raise ValueError("عنوان منو معتبر نیست")
+        return value
+
+    @field_validator("items")
+    @classmethod
+    def _unique_menu_items(cls, items: List[ClinicMenuItem]) -> List[ClinicMenuItem]:
+        titles = [item.title.casefold() for item in items]
+        if len(titles) != len(set(titles)):
+            raise ValueError("عنوان گزینه‌های منو باید یکتا باشد")
+        return items
+
+
+class ClinicMenuDecisionIn(BaseModel):
+    action: Literal["approve", "revision"]
+    note: Optional[str] = Field(None, max_length=500)
+
+
+class ClinicMenuSettingsOut(BaseModel):
+    status: str
+    published_config: Optional[ClinicPublicMenuConfig] = None
+    draft_config: Optional[ClinicPublicMenuConfig] = None
+    note: Optional[str] = None
+
+
+class ClinicReviewEventOut(BaseModel):
+    id: int
+    clinic_id: int
+    admin_id: Optional[int] = None
+    action: str
+    review_status: str
+    target_business_days: Optional[int] = None
+    due_at: Optional[datetime] = None
+    notification_channel: Optional[str] = None
+    public_note: Optional[str] = None
+    internal_note: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class DoctorOut(BaseModel):
@@ -514,8 +613,9 @@ class RegistrationAdminOut(BaseModel):
     specialty: str
     type: str
     address: str
-    phone: str
+    phone: Optional[str] = None
     status: str
+    tracking_code: Optional[str] = None
     revision_requested: bool = False
     status_note: Optional[str] = None
     doctor_name: Optional[str] = None
@@ -536,6 +636,19 @@ class RegistrationAdminOut(BaseModel):
     documents_note: Optional[str] = None
     followup_name: Optional[str] = None
     followup_phone: Optional[str] = None
+    contract_received_at: Optional[datetime] = None
+    license_review_status: str = "not_started"
+    license_review_started_at: Optional[datetime] = None
+    license_review_due_at: Optional[datetime] = None
+    license_review_target_business_days: Optional[int] = None
+    license_review_completed_at: Optional[datetime] = None
+    license_review_public_note: Optional[str] = None
+    license_review_internal_note: Optional[str] = None
+    license_review_notified_at: Optional[datetime] = None
+    public_menu_status: str = "not_configured"
+    public_menu_config: Optional[ClinicPublicMenuConfig] = None
+    public_menu_draft_config: Optional[ClinicPublicMenuConfig] = None
+    public_menu_note: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     doctors: List[DoctorOut] = []
@@ -550,6 +663,14 @@ class ClinicMeOut(RegistrationAdminOut):
     login_username: Optional[str] = None
     subscription_status: str = "inactive"
     subscription_expires_at: Optional[datetime] = None
+    # این فیلدهای عملیاتی فقط برای ادمین‌اند؛ موعد/یادداشت داخلی به مرکز نشت نمی‌کند.
+    contract_received_at: Optional[datetime] = None
+    license_review_started_at: Optional[datetime] = None
+    license_review_due_at: Optional[datetime] = None
+    license_review_target_business_days: Optional[int] = None
+    license_review_completed_at: Optional[datetime] = None
+    license_review_internal_note: Optional[str] = None
+    license_review_notified_at: Optional[datetime] = None
 
 
 # ---------- Complaints (v0.12.0 — بخش ۱۴ PRD) ----------

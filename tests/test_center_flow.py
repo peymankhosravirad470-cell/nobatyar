@@ -6,6 +6,8 @@
 همه داده‌ها آزمایشی و در SQLite محلی است.
 """
 import sys, os, threading
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 os.environ["NOBATYAR_DB"] = "/tmp/nobatyar_center_flow_test.db"
@@ -15,12 +17,17 @@ if os.path.exists("/tmp/nobatyar_center_flow_test.db"):
 from fastapi.testclient import TestClient  # noqa: E402
 from main import app  # noqa: E402
 from database import Base, engine, init_db  # noqa: E402
+from centers import _add_iran_business_days  # noqa: E402
 
 Base.metadata.drop_all(bind=engine)
 init_db()
 
 client = TestClient(app)
 PASS = []
+
+_due_thursday = _add_iran_business_days(datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc), 1)
+_due_local = _due_thursday.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Asia/Tehran"))
+assert _due_local.weekday() == 5 and _due_local.hour == 17
 
 
 def check(name, cond, extra=""):
@@ -48,6 +55,26 @@ assert _vnc(NCODE_VALID) and _vnc(NCODE_R2) and _vnc(NCODE_R3) and _vnc(NCODE_R4
 def admin_token():
     r = client.post("/api/admin/login", json=ADMIN)
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def complete_license_review(request_id, headers):
+    started = client.post(
+        f"/api/admin/registrations/{request_id}/license-review/start",
+        headers=headers, json={"target_business_days": 3, "internal_note": "آزمون داخلی"},
+    )
+    if started.status_code != 200:
+        return started
+    decision = client.post(
+        f"/api/admin/registrations/{request_id}/license-review/decision",
+        headers=headers,
+        json={"status": "verified", "public_note": "بررسی مدارک ثبت شد.", "internal_note": "کنترل آزمایشی انجام شد."},
+    )
+    if decision.status_code != 200:
+        return decision
+    return client.post(
+        f"/api/admin/registrations/{request_id}/license-review/notified",
+        headers=headers, json={"channel": "phone", "note": "تماس تستی"},
+    )
 
 
 def office_payload(**over):
@@ -196,13 +223,97 @@ check("۱۱.۱ فیلدهای اختصاصی درمانگاه پس از resubmit
       r.status_code == 200 and r.json()["center_type"] == "درمانگاه روزانه"
       and r.json()["departments"] == "داخلی، ارتوپدی")
 
+# درخواست اطلاعات باید فرم اصلاحی را باز کند؛ تماس قبلی پس از resubmit معتبر نیست.
+r = client.post(f"/api/admin/registrations/{office_revision_req['request_id']}/license-review/start",
+                headers=ah, json={"target_business_days": 3})
+check("شروع چرخهٔ بررسی برای درخواست اصلاح‌شدهٔ مطب", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{office_revision_req['request_id']}/license-review/decision",
+                headers=ah, json={"status": "needs_info", "public_note": "لطفاً نسخهٔ اصلاح‌شدهٔ پرونده را ارسال کنید."})
+check("درخواست اطلاعات مجوز به‌صورت خودکار فرم اصلاح را فعال می‌کند",
+      r.status_code == 200 and client.get(
+          f"/api/clinics/requests/{office_revision_req['request_id']}/status",
+          params={"code": office_revision_req["tracking_code"]}).json()["revision_requested"] is True)
+r = client.post(f"/api/admin/registrations/{office_revision_req['request_id']}/license-review/notified",
+                headers=ah, json={"channel": "phone", "note": "اطلاع‌رسانی پیش از اصلاح"})
+check("ثبت اطلاع‌رسانی پیش از ارسال نسخهٔ اصلاح‌شده", r.status_code == 200)
+r = client.post(f"/api/clinics/requests/{office_revision_req['request_id']}/resubmit",
+                params={"code": office_revision_req["tracking_code"]}, json=office_payload(name="مطب اصلاحی دور دوم"))
+check("ارسال اصلاحی دوم همان درخواست را نگه می‌دارد", r.status_code == 200
+      and r.json()["tracking_code"] == office_revision_req["tracking_code"])
+r = client.get(f"/api/admin/registrations/{office_revision_req['request_id']}", headers=ah)
+check("resubmit دریافت قرارداد/تماس/موعد قبلی را پاک می‌کند و چرخه را از نو می‌سازد",
+      r.status_code == 200 and r.json()["license_review_status"] == "not_started"
+      and r.json()["contract_received_at"] is None
+      and r.json()["license_review_notified_at"] is None
+      and r.json()["license_review_due_at"] is None)
+r = client.post(f"/api/admin/registrations/{office_revision_req['request_id']}/approve",
+                headers=ah, json={"login_username": "office_after_revision", "password": "Office#12345"})
+check("تماس قبلی برای تأیید پس از resubmit معتبر نیست", r.status_code == 409)
+
 # ==================== ۵) تأیید مرکز ====================
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
                 json={"login_username": "pars_center", "password": "WeakPass123"}, headers=ah)
 check("رمز ۱۱ نویسه‌ای در endpoint تأیید جدید رد می‌شود", r.status_code == 422)
 r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
                 json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
-check("۱۲. تأیید مرکز + ساخت حساب مدیر", r.status_code == 200, r.text[:200])
+check("تأیید ثبت‌نام پیش از بررسی مجوز مسدود است", r.status_code == 409)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/start",
+                headers=ah, json={"target_business_days": 3, "internal_note": "فقط یادداشت داخلی"})
+check("ثبت دریافت قرارداد و شروع بررسی مجوز", r.status_code == 200 and r.json().get("due_at"))
+r = client.get(f"/api/clinics/requests/{center_req['request_id']}/status",
+               params={"code": center_req["tracking_code"]})
+check("استعلام عمومی وضعیت مجوز را نشان می‌دهد اما موعد داخلی را پنهان می‌کند",
+      r.status_code == 200 and r.json()["license_review_status"] == "in_review"
+      and "due_at" not in r.json() and "internal_note" not in r.json())
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/decision",
+                headers=ah, json={"status": "verified", "public_note": "بررسی مدارک ثبت شد.",
+                                  "internal_note": "یادداشت محرمانهٔ آزمایشی"})
+check("نتیجهٔ بررسی مجوز برای متقاضی ثبت شد", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
+                json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
+check("نهایی‌سازی تا ثبت اطلاع‌رسانی به مرکز مسدود است", r.status_code == 409)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/notified",
+                headers=ah, json={"channel": "phone", "note": "تماس آزمایشی"})
+check("ثبت اطلاع‌رسانی فقط پس از نتیجه و با کانال دستی مجاز است", r.status_code == 200)
+r = client.get(f"/api/admin/registrations/{center_req['request_id']}/license-review/history", headers=ah)
+check("سوابق شروع، تصمیم و اطلاع‌رسانی برای ادمین باقی می‌ماند",
+      r.status_code == 200 and [x["action"] for x in r.json()] == [
+          "revision_requested", "applicant_resubmitted", "review_started",
+          "review_decision", "center_notified"])
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/revision",
+                headers=ah, json={"reason": "نسخهٔ جدید مجوز را ارسال کنید."})
+check("درخواست اصلاح پس از verified و تماس قبلی ثبت می‌شود", r.status_code == 200)
+r = client.get(f"/api/admin/registrations/{center_req['request_id']}", headers=ah)
+check("درخواست اصلاح نتیجه و مهر تماس قبلی را فوراً باطل می‌کند",
+      r.status_code == 200 and r.json()["revision_requested"]
+      and r.json()["license_review_status"] == "not_started"
+      and r.json()["license_review_notified_at"] is None)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
+                headers=ah, json={"login_username": "pars_center", "password": "CenterPass#123"})
+check("endpoint جدید هنگام اصلاح باز مرکز را فعال نمی‌کند", r.status_code == 409)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/start",
+                headers=ah, json={"target_business_days": 3})
+check("بررسی مجوز پیش از resubmit قابل شروع مجدد نیست", r.status_code == 409)
+r = client.post(f"/api/clinics/requests/{center_req['request_id']}/resubmit",
+                params={"code": center_req["tracking_code"]},
+                json=center_payload(documents_note="نسخهٔ اصلاح‌شدهٔ مجوز مرکز"))
+check("فرم اصلاح‌شده همان درخواست را بازمی‌گرداند", r.status_code == 200
+      and r.json()["request_id"] == center_req["request_id"])
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
+                headers=ah, json={"login_username": "pars_center", "password": "CenterPass#123"})
+check("resubmit نیز تا review تازه قابل تأیید نیست", r.status_code == 409)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/start",
+                headers=ah, json={"target_business_days": 3})
+check("شروع چرخهٔ review تازه پس از دریافت اصلاح موفق است", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/decision",
+                headers=ah, json={"status": "verified", "public_note": "نسخهٔ جدید بررسی شد."})
+check("نتیجهٔ چرخهٔ تازه ثبت می‌شود", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/license-review/notified",
+                headers=ah, json={"channel": "phone", "note": "ابلاغ نتیجهٔ اصلاح‌شده"})
+check("ابلاغ چرخهٔ تازه ثبت می‌شود", r.status_code == 200)
+r = client.post(f"/api/admin/registrations/{center_req['request_id']}/approve",
+                json={"login_username": "pars_center", "password": "CenterPass#123"}, headers=ah)
+check("۱۲. تأیید مرکز + ساخت حساب مدیر پس از review", r.status_code == 200, r.text[:200])
 
 # ثبت‌نام ≠ تأیید خودکار: درخواست دومِ در انتظار در نمایش عمومی نیست
 r = client.get("/api/clinics/public")
@@ -216,6 +327,62 @@ check("۱۴. ورود مدیر مرکز به پنل", r.status_code == 200)
 ch = {"Authorization": f"Bearer {r.json()['access_token']}"}
 r = client.get("/api/clinic/me", headers=ch)
 check("۱۵. پنل مرکز: اطلاعات کامل + پزشکان", r.status_code == 200 and len(r.json()["doctors"]) == 3)
+check("موعد و یادداشت داخلی بررسی در پنل مرکز افشا نمی‌شود",
+      r.json().get("license_review_due_at") is None
+      and r.json().get("license_review_internal_note") is None)
+
+menu_config = {
+    "menu_title": "خدمات ویژه پارس",
+    "show_doctors": False, "show_services": True, "show_phone": False,
+    "show_directions": False, "show_online_booking": True,
+    "show_address": False, "show_working_hours": True,
+    "items": [{"title": "ویزیت فوق تخصصی", "description": "با هماهنگی قبلی"}],
+}
+r = client.put("/api/clinic/public-menu", headers=ch, json=menu_config)
+check("مدیر مرکز پیش‌نویس منوی مختص خودش را ارسال می‌کند",
+      r.status_code == 200 and r.json()["status"] == "pending_review")
+public_before = client.get(f"/api/public/clinics/{center_req['request_id']}/full").json()["public_menu"]
+check("منوی pending تا تأیید ادمین برای بیمار منتشر نمی‌شود",
+      public_before["items"] == [] and public_before["show_directions"] is True)
+r = client.get("/api/admin/registrations?state=menu_pending", headers=ah)
+check("منوی منتظر تأیید در صف ادمین ظاهر می‌شود",
+      r.status_code == 200 and any(x["id"] == center_req["request_id"] for x in r.json()))
+r = client.post(f"/api/admin/clinics/{center_req['request_id']}/public-menu/decision",
+                headers=ah, json={"action": "approve"})
+check("ادمین پس از تطبیق منو با قرارداد آن را منتشر می‌کند", r.status_code == 200)
+public_after = client.get(f"/api/public/clinics/{center_req['request_id']}/full").json()["public_menu"]
+check("API عمومی فقط منوی تأییدشدهٔ همین مرکز را برمی‌گرداند",
+      public_after["menu_title"] == "خدمات ویژه پارس" and not public_after["show_directions"]
+      and public_after["items"][0]["title"] == "ویزیت فوق تخصصی")
+full_after = client.get(f"/api/public/clinics/{center_req['request_id']}/full").json()
+check("خاموش‌کردن نمایش، تلفن/نشانی/پزشک را از API عمومی هم حذف می‌کند",
+      full_after["address"] is None and full_after["phone"] is None
+      and full_after["doctor_name"] is None and full_after["doctors"] == [])
+list_after = client.get("/api/clinics/public").json()
+listed = next(x for x in list_after if x["id"] == center_req["request_id"])
+check("فهرست عمومی نیز اطلاعات خامِ مخفی‌شده را افشا نمی‌کند",
+      listed["address"] is None and listed["phone"] is None and listed["doctor_name"] is None)
+r = client.get(f"/centers/{center_req['request_id']}")
+check("پروفایل وب گزینه‌های اختصاصی را رندر و داده‌های مخفی را حذف می‌کند",
+      r.status_code == 200 and "خدمات ویژه پارس" in r.text and "ویزیت فوق تخصصی" in r.text
+      and "09122220000" not in r.text and "بلوار آزمایشی" not in r.text
+      and "دکتر داخلی تستی" not in r.text)
+from bale_bot import clinic_screen as _bot_clinic_screen
+_bot_text, _bot_kb = _bot_clinic_screen(center_req["request_id"])
+check("ربات همان منوی تأییدشدهٔ مرکز را نمایش می‌دهد و تلفن/نشانی/پزشک خاموش را پنهان می‌کند",
+      "خدمات ویژه پارس" in _bot_text and "ویزیت فوق تخصصی" in _bot_text
+      and "09122220000" not in _bot_text and "بلوار آزمایشی" not in _bot_text
+      and "دکتر داخلی تستی" not in _bot_text
+      and "clmenu:" in str(_bot_kb) and "navclin:" not in str(_bot_kb))
+r = client.get("/api/public/search", params={"q": "دکتر داخلی تستی"})
+check("جست‌وجوی عمومی نام پزشک پنهان‌شده را افشا نمی‌کند",
+      r.status_code == 200 and all(x["id"] != center_req["request_id"] for x in r.json()["items"]))
+menu_config.update(show_doctors=True, show_phone=True, show_address=True, show_directions=True)
+r = client.put("/api/clinic/public-menu", headers=ch, json=menu_config)
+check("ویرایش بعدی منو پیش‌نویس جدید می‌سازد", r.status_code == 200 and r.json()["status"] == "pending_review")
+r = client.post(f"/api/admin/clinics/{center_req['request_id']}/public-menu/decision",
+                headers=ah, json={"action": "approve"})
+check("نسخهٔ جدید منو پس از بررسی قابل انتشار است", r.status_code == 200)
 
 wh_ok = all(client.post("/api/clinic/working-hours", headers=ch,
                json={"day_of_week": d, "start_time": "17:00", "end_time": "21:00",
@@ -276,6 +443,65 @@ r = client.get(f"/api/public/clinics/{center_req['request_id']}/slots",
                params={"doctor_id": doc_internal})
 free_internal = r.json()
 check("۲۳. اسلات‌های آزاد پزشک داخلی برای بیمار", r.status_code == 200 and len(free_internal) >= 2)
+slot_a = free_internal[0]["id"]
+
+# خاموش‌کردن نوبت آنلاین باید حتی دکمه/اسلات‌های قدیمی را در وب و ربات بی‌اثر کند.
+from models import Clinic as _Clinic
+_menu_db = SessionLocal()
+_menu_clinic = _menu_db.query(_Clinic).filter(_Clinic.id == center_req["request_id"]).first()
+_menu_clinic.capacity_note = "یادداشت ظرفیت پنهان در حالت رزرو خاموش"
+_menu_db.commit()
+_menu_db.close()
+menu_off = dict(menu_config)
+menu_off["show_online_booking"] = False
+r = client.put("/api/clinic/public-menu", headers=ch, json=menu_off)
+check("خاموش‌کردن رزرو آنلاین به‌صورت پیش‌نویس ثبت می‌شود", r.status_code == 200)
+r = client.post(f"/api/admin/clinics/{center_req['request_id']}/public-menu/decision",
+                headers=ah, json={"action": "approve"})
+disabled_full = client.get(f"/api/public/clinics/{center_req['request_id']}/full").json()
+disabled_slots = client.get(f"/api/public/clinics/{center_req['request_id']}/slots").json()
+disabled_page = client.get(f"/centers/{center_req['request_id']}")
+disabled_public_listing = next(
+    x for x in client.get("/api/clinics/public").json() if x["id"] == center_req["request_id"])
+check("رزرو خاموش از projection/API عمومی و یادداشت ظرفیت حذف می‌شود",
+      r.status_code == 200 and disabled_full["booking_method"] is None
+      and disabled_full["capacity_note"] is None and disabled_slots == []
+      and "یادداشت ظرفیت پنهان" not in disabled_page.text
+      and disabled_public_listing["public_menu"]["show_online_booking"] is False
+      and "booking_method" not in disabled_public_listing)
+r = client.post("/api/appointments", json={
+    "clinic_id": center_req["request_id"], "slot_id": slot_a,
+    "patient_name": "بیمار آزمایشی", "patient_phone": "09123334444",
+    "patient_national_code": NCODE_VALID, "source": "web",
+})
+check("API رزرو وب اسلات قدیمی را پس از خاموشی رد می‌کند", r.status_code == 409)
+from bale_bot import try_book as _bot_try_book
+_bot_appt, _bot_error = _bot_try_book(slot_a, "بیمار آزمایشی", "09123334444", NCODE_VALID, False, "test-chat")
+_bot_disabled_text, _bot_disabled_kb = _bot_clinic_screen(center_req["request_id"])
+import asyncio as _asyncio
+import bale_bot as _bale_bot
+_bot_edits = []
+_original_edit = _bale_bot.edit
+async def _capture_bot_edit(chat_id, message_id, text, keyboard=None):
+    _bot_edits.append((text, keyboard))
+    return {"ok": True}
+_bale_bot.edit = _capture_bot_edit
+_asyncio.run(_bale_bot.handle_callback("stale-booking-test", 900, f"slot:{slot_a}"))
+_bale_bot.edit = _original_edit
+check("ربات نه اسلات پنهان‌شده را نشان می‌دهد و نه callback رزرو آن را می‌پذیرد",
+      _bot_appt is None and _bot_error and "slot:" not in str(_bot_disabled_kb)
+      and "فعال نیست" in _bot_disabled_text
+      and _bot_edits and "فعال نیست" in _bot_edits[-1][0])
+menu_on = dict(menu_config)
+menu_on["show_online_booking"] = True
+r = client.put("/api/clinic/public-menu", headers=ch, json=menu_on)
+check("فعال‌سازی مجدد رزرو آنلاین دوباره به تأیید ادمین نیاز دارد", r.status_code == 200)
+r = client.post(f"/api/admin/clinics/{center_req['request_id']}/public-menu/decision",
+                headers=ah, json={"action": "approve"})
+check("منوی نوبت‌گیری پس از تأیید دوباره فعال شد", r.status_code == 200)
+r = client.get(f"/api/public/clinics/{center_req['request_id']}/slots",
+               params={"doctor_id": doc_internal})
+free_internal = r.json()
 slot_a = free_internal[0]["id"]
 
 # ==================== ۱۰) رزرو نوبت + ثبت اطلاعات بیمار ====================
@@ -339,6 +565,10 @@ r = client.post("/api/appointments", json={
 check("۳۲. رزرو مجدد اسلات آزادشده موفق", r.status_code == 200)
 
 # ==================== ۱۴) نقش‌ها و دسترسی ====================
+r = client.put("/api/clinic/public-menu", headers=ch, json={
+    **menu_config, "menu_title": "پیش‌نویس خصوصی در انتظار بررسی"})
+check("مدیر پیش‌نویس منوی جدید می‌سازد تا دسترسی staff به آن سنجیده شود",
+      r.status_code == 200 and r.json()["status"] == "pending_review")
 r = client.post("/api/clinic/staff", headers=ch,
                 json={"username": "pars_reception", "password": "Reception#123", "role": "reception"})
 check("۳۳. ساخت حساب مسئول پذیرش", r.status_code == 200)
@@ -352,11 +582,37 @@ check("۳۵. ورود مسئول پذیرش", r.status_code == 200)
 rh = {"Authorization": f"Bearer {r.json()['access_token']}"}
 r = client.get("/api/clinic/appointments", headers=rh)
 check("۳۶. مسئول پذیرش نوبت‌ها را می‌بیند", r.status_code == 200)
+r = client.get("/api/clinic/me", headers=rh)
+_reception_me = r.json()
+check("پروفایل پذیرش اطلاعات شخصی/مدارک onboarding و پیش‌نویس منو را افشا نمی‌کند",
+      r.status_code == 200 and all(_reception_me.get(k) is None for k in (
+          "phone", "manager_name", "manager_mobile", "registration_contact_phone", "documents_note",
+          "followup_phone", "tracking_code", "public_menu_draft_config", "public_menu_note")))
+r = client.get("/api/clinic/public-menu", headers=rh)
+check("تنظیم منوی عمومی فقط در اختیار مدیر مرکز است", r.status_code == 403)
 r = client.post("/api/clinic/doctors", headers=rh, json={"full_name": "پزشک مخفی", "specialty": "داخلی"})
 check("۳۷. مسئول پذیرش اجازهٔ تغییر تنظیمات ندارد (403)", r.status_code == 403)
+r = client.post("/api/clinic/working-hours", headers=rh, json={
+    "day_of_week": 0, "start_time": "08:00:00", "end_time": "09:00:00", "slot_duration_minutes": 30})
+check("نقش پذیرش نمی‌تواند برنامهٔ کاری مرکز را تغییر دهد", r.status_code == 403)
+r = client.post("/api/clinic/slots/generate", headers=rh, json={
+    "from_date": str(_next_working_date()), "to_date": str(_next_working_date())})
+check("نقش پذیرش نمی‌تواند اسلات/نوبت تولید کند", r.status_code == 403)
 
 r = client.post("/api/clinic/staff/login", json={"username": "pars_doctor", "password": "Doctor#12345"})
 dh = {"Authorization": f"Bearer {r.json()['access_token']}"}
+r = client.get("/api/clinic/me", headers=dh)
+_doctor_me = r.json()
+check("پروفایل پزشک فقط پزشک متصل را نشان می‌دهد و دادهٔ onboarding را پنهان می‌کند",
+      r.status_code == 200 and [d["id"] for d in _doctor_me["doctors"]] == [doc_ortho]
+      and _doctor_me.get("phone") is None and _doctor_me.get("manager_mobile") is None
+      and _doctor_me.get("documents_note") is None)
+r = client.get("/api/clinic/doctors", headers=dh)
+check("فهرست پزشکان برای نقش doctor فقط پروفایل خودش را برمی‌گرداند",
+      r.status_code == 200 and [d["id"] for d in r.json()] == [doc_ortho])
+r = client.post("/api/clinic/slots/generate", headers=dh, json={
+    "from_date": str(_next_working_date()), "to_date": str(_next_working_date())})
+check("نقش پزشک نمی‌تواند اسلات مرکز را تولید کند", r.status_code == 403)
 r = client.get("/api/clinic/appointments", headers=dh)
 docs_appts = r.json()
 check("۳۸. پزشک فقط نوبت‌های خودش را می‌بیند",
@@ -366,11 +622,31 @@ check("۳۸. پزشک فقط نوبت‌های خودش را می‌بیند",
 r = client.post("/api/clinics/register/office", json=office_payload(name="مطب دوم آزمایشی"))
 o2 = r.json()
 ah2 = admin_token()
+r = complete_license_review(o2["request_id"], ah2)
+check("۳۸.۱ بررسی مجوز مطب مستقل تکمیل شد", r.status_code == 200)
 r = client.post(f"/api/admin/registrations/{o2['request_id']}/approve",
                 json={"login_username": "office_two", "password": "Office#12345"}, headers=ah2)
 check("۳۹. مطب مستقل تأیید شد", r.status_code == 200)
 r = client.post("/api/clinic/login", json={"username": "office_two", "password": "Office#12345"})
 oh = {"Authorization": f"Bearer {r.json()['access_token']}"}
+r = client.put("/api/clinic/public-menu", headers=oh, json={
+    "menu_title": "منوی مطب دوم", "show_doctors": True, "show_services": False,
+    "show_phone": True, "show_directions": False, "show_online_booking": True,
+    "show_address": True, "show_working_hours": False,
+    "items": [{"title": "پذیرش مطب دوم", "description": "رزرو طبق برنامهٔ همین مطب"}],
+})
+check("مطب دوم منوی مستقل خودش را ثبت می‌کند", r.status_code == 200)
+first_public_menu = client.get(f"/api/public/clinics/{center_req['request_id']}/full").json()["public_menu"]
+second_public_menu = client.get(f"/api/public/clinics/{o2['request_id']}/full").json()["public_menu"]
+check("پیش‌نویس مطب دوم، منوی درمانگاه اول را تغییر نمی‌دهد و خودش هنوز منتشر نشده",
+      first_public_menu["menu_title"] == "خدمات ویژه پارس"
+      and second_public_menu["menu_title"] == "منوی اختصاصی مرکز")
+r = client.post(f"/api/admin/clinics/{o2['request_id']}/public-menu/decision",
+                headers=ah2, json={"action": "approve"})
+second_public_menu = client.get(f"/api/public/clinics/{o2['request_id']}/full").json()["public_menu"]
+check("تأیید مطب دوم فقط منوی خودش را منتشر می‌کند",
+      r.status_code == 200 and second_public_menu["menu_title"] == "منوی مطب دوم"
+      and second_public_menu["items"][0]["title"] == "پذیرش مطب دوم")
 r = client.get("/api/clinic/me", headers=oh)
 check("۴۰. مطب مستقل: پزشک پیش‌فرض ساخته شد", len(r.json()["doctors"]) == 1)
 for _d in range(6):
@@ -447,6 +723,17 @@ except _BookingError as _err:
     check("۵۰. رزرو اسلات گذشته رد می‌شود", _err.code == "slot_past")
 finally:
     _db.close()
+
+# رکورد تنظیمات خراب هم نباید با پیش‌فرض‌های permissive به انتشار/رزرو منجر شود.
+from types import SimpleNamespace as _SimpleNamespace
+from clinic_menu import effective_public_menu as _effective_public_menu
+_corrupt_menu = _effective_public_menu(_SimpleNamespace(
+    public_menu_config={"show_online_booking": "not-a-boolean"}))
+check("تنظیم منوی خراب به‌صورت fail-closed پالایش می‌شود",
+      not any(_corrupt_menu[k] for k in (
+          "show_doctors", "show_services", "show_phone", "show_directions",
+          "show_online_booking", "show_address", "show_working_hours"))
+      and _corrupt_menu["items"] == [])
 
 # ==================== نتیجه ====================
 failed = [n for n, c in PASS if not c]
