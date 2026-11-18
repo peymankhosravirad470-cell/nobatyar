@@ -11,6 +11,7 @@ on:
   pull_request:
     branches:
       - main
+      - ci/pilot-postgres-tests
       - fix/commercial-readiness-v0.17.0
       - feat/three-portal-redesign
       - feat/appointment-receipt-reference
