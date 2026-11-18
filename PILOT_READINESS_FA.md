@@ -91,7 +91,7 @@
 
 ### CI خودکار pull request
 
-Workflow `.github/workflows/pilot-tests.yml` برای PRهای شاخه‌های پایلوت و push شاخهٔ کاری، کل suite SQLite/PostgreSQL 16.15 را با دیتابیس disposable اجرا می‌کند؛ به secrets Production دسترسی ندارد و فقط مجوز `contents: read` دارد. روی PR پیش‌نویس **#4** هر دو اجرای `push` و `pull_request` موفق شدند (**۲/۲**). این CI staging یا انتشار را انجام نمی‌دهد.
+Workflow `.github/workflows/pilot-tests.yml` برای PRهای شاخه‌های پایلوت و push شاخهٔ کاری، کل suite SQLite/PostgreSQL 16.15 را با دیتابیس disposable اجرا می‌کند؛ به secrets Production دسترسی ندارد و فقط مجوز `contents: read` دارد. روی PR پیش‌نویس **#4** هر دو اجرای `push` و `pull_request` موفق شدند (**۲/۲**) و روی PR پیش‌نویس **#5** اجرای `pull_request` موفق شد (**۱/۱**). این CI staging یا انتشار را انجام نمی‌دهد.
 
 ## شرط ادغام و انتشار
 
